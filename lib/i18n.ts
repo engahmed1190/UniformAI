@@ -56,6 +56,7 @@ const en = {
     threeKits: 'Three kits for {count} people',
     pickClosest: 'Pick the closest one and change anything you like.',
     chooseDifferent: 'Choose a different kit',
+    configureThis: 'Configure this kit',
     replaceWarning: 'New kits will replace the ones you have changed.\n\nSave the kit first if you want to keep it.',
   },
   configure: {
@@ -131,6 +132,7 @@ const en = {
     // Whole sentences per branch, not fragments: Arabic word order and
     // agreement do not survive being glued together from English pieces.
     reasonHeat: '“{word}”, so breathable weaves',
+    heatFallback: 'heat',
     reasonDurable: 'hard-wearing fabrics throughout',
     reasonOutdoor: 'cuts that hold up on site',
     reasonFormal: 'smart enough for client-facing work',
@@ -258,6 +260,7 @@ const ar: Dict<typeof en> = {
     threeKits: 'ثلاثة أطقم لـ{count} موظف',
     pickClosest: 'اختر الطقم الأقرب لاحتياجك، ثم عدّل أي تفاصيل تريدها.',
     chooseDifferent: 'اختر طقمًا آخر',
+    configureThis: 'خصّص هذا الطقم',
     replaceWarning: 'المقترحات الجديدة ستحل محل الأطقم التي عدّلتها.\n\nاحفظ الطقم أولًا إذا كنت تريد الاحتفاظ به.',
   },
 
@@ -382,6 +385,7 @@ const ar: Dict<typeof en> = {
   manager: {
     who: 'UniformAI · مدير حسابك',
     reasonHeat: 'ذكرت «{word}»، فاخترت خامات تسمح بالتهوية',
+    heatFallback: 'الحرارة',
     reasonDurable: 'خامات متينة في كل قطعة',
     reasonOutdoor: 'قصّات تتحمل العمل في الموقع',
     reasonFormal: 'مظهر لائق للفرق التي تقابل العملاء',

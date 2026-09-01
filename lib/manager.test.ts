@@ -127,3 +127,12 @@ assert.equal(readBrief(hotAr).heat, true, 'صيفية must read as heat');
 assert.equal(readBrief(hotAr).outdoor, true, 'موقع must read as outdoor');
 assert.equal(readBrief('قمصان رسمية لفريق الاستقبال').formal, true, 'رسمية must read as formal');
 assert.equal(readBrief('ملابس عمل متينة للمستودع').durable, true, 'متينة must read as durable');
+
+// 12. The note quotes the customer's own word, whichever script they wrote
+// it in. The heat pattern captured only its English alternative, so an
+// Arabic brief was told 'ذكرت «heat»' -- a word the customer never typed.
+assert.match(whyTheseKits('ar', 'قمصان بولو صيفية لفريق الموقع', CONCEPTS.slice(0, 3)), /«صيفية»|«صيف»/,
+  'an Arabic brief must be quoted in Arabic');
+assert.doesNotMatch(whyTheseKits('ar', 'قمصان بولو صيفية لفريق الموقع', CONCEPTS.slice(0, 3)), /heat|summer/,
+  'no English word may be quoted back at an Arabic customer');
+assert.match(whyTheseKits('en', 'Summer polos', CONCEPTS.slice(0, 3)), /“summer”/);

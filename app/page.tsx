@@ -390,7 +390,7 @@ export default function Page() {
               </span>
             </div>
             <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => setPage('configure')}>
-              Configure this kit
+              {t(locale, 'design.configureThis')}
             </button>
           </div>
         )}

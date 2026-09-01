@@ -60,7 +60,7 @@ export function whyTheseKits(locale: Locale, brief: string, concepts: Concept[])
   // is the one worth saying; stacking three makes the note sound automated.
   // Quote the word they wrote -- "summer" reported back as "you mentioned
   // heat" is a claim they can check and find false.
-  const reason = r.heat ? t(locale, 'manager.reasonHeat', { word: heatWord(brief) })
+  const reason = r.heat ? t(locale, 'manager.reasonHeat', { word: heatWord(locale, brief) })
     : r.durable ? t(locale, 'manager.reasonDurable')
       : r.outdoor ? t(locale, 'manager.reasonOutdoor')
         : r.formal ? t(locale, 'manager.reasonFormal')
@@ -172,8 +172,12 @@ export function greeting(locale: Locale, name: string, orders: Order[]): string 
 
 /** The word in the brief that triggered the heat read, so the note can quote
  *  it rather than paraphrase it into a claim the customer never made. */
-function heatWord(brief: string): string {
-  return brief.toLowerCase().match(HEAT)?.[1] ?? 'heat';
+function heatWord(locale: Locale, brief: string): string {
+  // match()[0] is the whole hit, in whichever script it was written; [1] was
+  // the English capture group only, so an Arabic brief was quoted the literal
+  // word "heat" -- something the customer never typed.
+  const hit = brief.toLowerCase().match(HEAT)?.[0];
+  return hit ?? t(locale, 'manager.heatFallback');
 }
 
 /** Arabic has no upper case; capitalising its first letter is a no-op at

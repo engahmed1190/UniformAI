@@ -3,7 +3,7 @@
 // never just read the control back to the user.
 import assert from 'node:assert/strict';
 import { readBrief, whyTheseKits, stepAdvice, greeting, quoteNote } from './manager';
-import { CONCEPTS } from './concepts';
+import { CONCEPTS, selectConcepts } from './concepts';
 import { setLogo, setPart } from './spec';
 
 const hot = 'Summer polos for 40 site technicians in Cairo, navy';
@@ -50,5 +50,17 @@ assert.match(greeting('Ahmed', 2), /2 quotes need your approval/);
 // 8. The quote note states the real spare count, not a hardcoded one.
 assert.match(quoteNote(c, 40, 44), /40 people with 4 spare sets/);
 assert.match(quoteNote(c, 40, 40), /covers 40 people\./);
+
+// 9. The brief's literal instructions are carried out, and only claimed when
+// they are. This is the demo's whole credibility: quoting a brief back while
+// ignoring it reads as fake.
+const navy = selectConcepts({ industry: 'Summer polos for 40 technicians, navy, logo on the chest' });
+assert.equal(navy[0].garments[0].parts.body, '#1b2a4a', 'a navy brief must produce a navy top');
+assert.equal(navy[0].logo.position, 'left_chest', 'a chest brief must put the logo on the chest');
+assert.equal(navy[0].garments[1].parts.leg, CONCEPTS[3].garments[1].parts.leg,
+  'the trouser keeps the seed colour -- the brief named a polo, not a suit');
+assert.match(whyTheseKits('Summer polos, navy, logo on the chest', navy), /navy.*chest/);
+assert.doesNotMatch(whyTheseKits(desk, CONCEPTS.slice(0, 3)), /as you asked/,
+  'a brief naming no colour or placement must not claim to have honoured one');
 
 console.log('manager: all assertions passed');

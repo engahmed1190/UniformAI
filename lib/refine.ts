@@ -158,3 +158,34 @@ export function refine(concept: Concept, request: string): Applied | null {
 
   return null;
 }
+
+/** What the brief itself asks for, in the same vocabulary an edit uses.
+ *  The seeds are generic; this is what makes them answer the words the
+ *  customer actually typed. */
+export function briefWishes(text: string): { colour: string | null; logo: LogoPosition | null } {
+  const t = text.toLowerCase();
+  const logo: LogoPosition | null =
+    /\bno logo|without a logo|unbranded\b/.test(t) ? 'none'
+      : /\bsleeve\b/.test(t) ? 'sleeve'
+        : /\bback\b/.test(t) ? 'back'
+          : /\bchest\b/.test(t) ? 'left_chest'
+            : null;
+  return { colour: pickColour(t), logo };
+}
+
+/** Apply those wishes to a seed concept: the main surface of every garment
+ *  takes the colour, and the logo moves where they asked. Anything the brief
+ *  did not mention is left exactly as the seed had it. */
+export function applyBrief(c: Concept, text: string): Concept {
+  const { colour, logo } = briefWishes(text);
+  let next = c;
+  if (colour) {
+    // Only bodies take the named colour. Recolouring the trouser to match
+    // makes a monochrome suit nobody asked for.
+    next.garments.forEach((g, i) => {
+      if (PARTS[g.type].includes('body')) next = setPart(next, i, 'body', colour);
+    });
+  }
+  if (logo) next = setLogo(next, { position: logo });
+  return next;
+}

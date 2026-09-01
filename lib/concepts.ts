@@ -1,4 +1,5 @@
 import type { Concept } from './spec';
+import { applyBrief } from './refine';
 
 // Canned concept library. Stands in for the generation call: a brief selects
 // from these instead of a model writing one. Everything downstream -- render,
@@ -97,13 +98,17 @@ export const CONCEPTS: Concept[] = [
   },
 ];
 
-/** Stands in for generation: pick concepts matching the brief.
+/** Stands in for generation: pick concepts matching the brief, then bend
+ *  them to the colour and logo placement the brief actually named. Picking
+ *  alone was the tell -- a brief saying "navy, logo on the chest" came back
+ *  sand with the logo on the back, while the copy above it quoted the brief.
  *  ponytail: keyword match, not a model. Real generation replaces this body. */
 export function selectConcepts(brief: { industry: string }): Concept[] {
   const industrial = /facilit|construc|manufact|logist|industr|technic/i.test(
     brief.industry,
   );
-  return industrial
+  const seeds = industrial
     ? [CONCEPTS[3], CONCEPTS[1], CONCEPTS[0]]
     : [CONCEPTS[0], CONCEPTS[1], CONCEPTS[2]];
+  return seeds.map((c) => applyBrief(c, brief.industry));
 }

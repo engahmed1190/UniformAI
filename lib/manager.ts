@@ -6,7 +6,13 @@
 // "You picked Performance knit" is noise next to a button reading Performance
 // knit. Say why it suits this brief, or what it costs.
 
-import { type Concept, LABELS, conceptPrice } from './spec';
+import { type Concept, type LogoPosition, LABELS, conceptPrice } from './spec';
+import { briefWishes, colourName } from './refine';
+
+/** How a placement is said out loud, not how it is stored. */
+const PLACE: Record<Exclude<LogoPosition, 'none'>, string> = {
+  left_chest: 'chest', right_chest: 'right chest', sleeve: 'sleeve', back: 'back',
+};
 
 /** Signals we can honestly read out of a free-text brief. */
 export type BriefRead = {
@@ -42,7 +48,20 @@ export function whyTheseKits(brief: string, concepts: Concept[]): string {
     ? `${cap(reasons[0])}${reasons[1] ? `, and ${reasons[1]}` : ''}.`
     : 'These are the three closest matches to what you described.';
 
-  return `${lead} ${cheapest.name} is the most economical at ${money(conceptPrice(cheapest))} a person — worth a look before you decide.`;
+  // Say the literal instructions back only when they were actually carried
+  // out. Claiming to have read the brief while ignoring half of it is the
+  // fastest way to lose someone's trust in the suggestion.
+  const w = briefWishes(brief);
+  const done = [
+    w.colour ? `put them in ${colourName(w.colour).toLowerCase()}` : null,
+    w.logo && w.logo !== 'none' ? `moved the logo to the ${PLACE[w.logo]}` : null,
+    w.logo === 'none' ? 'left them unbranded' : null,
+  ].filter(Boolean) as string[];
+  const kept = done.length
+    ? ` I have ${done.join(' and ')}, as you asked.`
+    : '';
+
+  return `${lead}${kept} ${cheapest.name} is the most economical at ${money(conceptPrice(cheapest))} a person — worth a look before you decide.`;
 }
 
 /** One line per configure step. Advice, not a readback of the control. */

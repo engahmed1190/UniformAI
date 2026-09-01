@@ -686,6 +686,10 @@
   margin-top: var(--s2);
 }
 
+.trailNum {
+  display: none;
+}
+
 .trailCurrent .trailName {
   color: var(--accent);
   font-weight: 600;
@@ -1342,136 +1346,362 @@
 }
 
 /* ---------- Responsive ---------- */
-@media (max-width: 1100px) {
+/* ---------- Responsive ----------
+   Three layouts: desktop (rail + two columns), tablet (rail + one column),
+   phone (bottom tab bar + one column). The shell keeps one scroll owner at
+   every size; only what surrounds it changes. */
+
+@media (max-width: 1180px) {
   .config {
     grid-template-columns: 1fr;
   }
-  .stage {
-    position: static;
+  .stageArea {
+    min-height: 260px;
+  }
+  .stageArea > * {
+    max-height: 300px;
+  }
+}
+
+@media (max-width: 1000px) {
+  .app {
+    grid-template-columns: 200px 1fr;
+  }
+  .sidebar {
+    padding: var(--s4) var(--s3);
+  }
+  .body {
+    padding: var(--s5);
   }
   .stats {
     grid-template-columns: 1fr 1fr;
   }
 }
 
-@media (max-width: 860px) {
+/* ---- Phone: the rail becomes a bottom tab bar ---- */
+@media (max-width: 760px) {
   .app {
     grid-template-columns: 1fr;
+    grid-template-rows: 1fr auto;
   }
+
+  /* Nav moves to the foot of the screen, in reach of a thumb. Every
+     destination is visible at once -- the old strip scrolled sideways and
+     hid half of them. */
   .sidebar {
-    position: static;
-    height: auto;
+    grid-row: 2;
     flex-direction: row;
-    align-items: center;
-    gap: var(--s3);
-    padding: var(--s3) var(--s4);
-    overflow-x: auto;
+    height: auto;
+    padding: var(--s1) var(--s2);
+    padding-bottom: max(var(--s1), env(safe-area-inset-bottom));
     border-right: 0;
-    border-bottom: 1px solid var(--line);
+    border-top: 1px solid var(--line);
+    overflow: visible;
+    gap: 0;
   }
+
+  .brand,
   .account,
   .sidebarFoot,
   .navLabel {
     display: none;
   }
+
   .nav {
+    display: grid;
     grid-auto-flow: column;
-    gap: var(--s1);
+    grid-auto-columns: 1fr;
+    gap: 0;
+    width: 100%;
   }
+
   .nav button {
-    white-space: nowrap;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: var(--s2) var(--s1);
+    min-height: 52px;
+    font-size: 10.5px;
+    line-height: 1.15;
+    text-align: center;
+    border-radius: var(--r-sm);
   }
+
+  .nav button svg {
+    width: 19px;
+    height: 19px;
+  }
+
+  .nav button[aria-current='page'] {
+    background: transparent;
+    color: var(--accent);
+  }
+
   .navCount {
-    display: none;
+    position: absolute;
+    transform: translate(14px, -14px);
+    background: var(--accent);
+    color: #fff;
+    border-radius: 999px;
+    min-width: 16px;
+    height: 16px;
+    display: grid;
+    place-items: center;
+    font-size: 10px;
+    margin: 0;
   }
+
+  .main {
+    grid-row: 1;
+    min-height: 0;
+  }
+
+  .topbar {
+    height: 52px;
+    padding: 0 var(--s4);
+  }
+
   .search {
     display: none;
   }
+
   .body {
     padding: var(--s4);
   }
-}
 
-@media (max-width: 560px) {
+  .stack {
+    gap: var(--s4);
+  }
+
+  .pageHead h1 {
+    font-size: var(--t-xl);
+  }
+
   .stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .kitGrid {
     grid-template-columns: 1fr;
   }
+
+  /* Action bars: compact, thumb-height, full-width buttons. */
+  .priceBar,
+  .actionBar {
+    padding: var(--s3) var(--s4);
+    gap: var(--s2);
+    flex-wrap: nowrap;
+    align-items: center;
+  }
+
+  .priceFigures {
+    flex-direction: column;
+    gap: 0;
+    align-items: flex-start;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .priceTotal {
+    font-size: var(--t-lg);
+  }
+
+  .priceBreak,
+  .actionText .sub {
+    font-size: 11.5px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  .priceActions .btn,
+  .actionBar .btn {
+    min-height: 42px;
+  }
+
+  /* Save is secondary on a phone; the quote is the job. */
+  .priceActions .btnSecondary {
+    display: none;
+  }
+
+  .stageArea {
+    padding: var(--s4);
+    min-height: 200px;
+  }
+
+  .stageArea > * {
+    max-height: 240px;
+  }
+
+  .stageFoot {
+    font-size: 11.5px;
+    gap: var(--s2);
+  }
+
+  .swatches {
+    grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
+  }
+
+  .modal {
+    width: 100%;
+    max-height: 92dvh;
+  }
+
+  .modalHead,
+  .modalBody,
+  .modalFoot {
+    padding-left: var(--s4);
+    padding-right: var(--s4);
+  }
+
+  .modalFoot .btn {
+    flex: 1;
+    min-height: 44px;
+  }
+
+  .toast {
+    left: var(--s4);
+    right: var(--s4);
+    transform: none;
+    bottom: calc(64px + env(safe-area-inset-bottom));
+    text-align: center;
+  }
+
+  /* Touch targets reach 44px without changing the desktop look. */
+  .btn {
+    min-height: 40px;
+  }
+
+  .opt {
+    padding: var(--s3);
+    min-height: 52px;
+  }
+
+  .chips button,
+  .askChips button,
+  .suggests button {
+    min-height: 34px;
+  }
+}
+
+@media (max-width: 520px) {
+  /* Two stats per row still reads at 390px and halves the scroll. */
+  .stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .stat {
+    padding: var(--s3);
+  }
+
+  .statValue {
+    font-size: var(--t-xl);
+  }
+
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+
   .row2 {
     grid-template-columns: 1fr;
   }
+
   .timeline {
     grid-template-columns: repeat(3, 1fr);
-    gap: var(--s4) 0;
+    gap: var(--s5) 0;
   }
+
   .timeline .tStep:nth-child(4)::before {
     display: none;
   }
-  .priceBar {
+
+  .splitRow {
+    flex-direction: column;
     gap: var(--s3);
   }
-  .priceActions {
-    width: 100%;
+
+  .alignEnd {
+    text-align: left;
   }
-  .priceActions .btn {
-    flex: 1;
+
+  .tableCard {
+    overflow-x: auto;
+  }
+
+  .tableCard table {
+    min-width: 520px;
   }
 }
 
-/* ---------- Account manager ---------- */
-/* Present only where there is something specific to say. Quiet by design:
-   it should read as a note from someone, not a system alert. */
-.mgrPanel,
-.mgrInline {
-  display: flex;
-  gap: var(--s3);
-  align-items: flex-start;
+@media (max-width: 760px) {
+  /* The trail sticks to the top of the scroll region, so which step you are
+     on stays visible while the options scroll under it. */
+  .steps {
+    gap: var(--s2);
+  }
+
+  .trail {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    background: var(--bg);
+    padding: var(--s2) 0;
+    gap: var(--s1);
+  }
+
+  .trailStep {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--s1);
+  }
+
+  .trailNum {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    border: 1.5px solid var(--line-2);
+    font-size: 11px;
+    color: var(--text-3);
+    font-family: var(--font-mono), monospace;
+  }
+
+  .trailDone .trailNum {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+
+  .trailCurrent .trailNum {
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .trailBar {
+    display: none;
+  }
+
+  .trailName {
+    margin-top: 0;
+    font-size: 10.5px;
+  }
 }
 
-.mgrPanel {
-  background: var(--accent-soft);
-  border: 1px solid rgba(15, 107, 98, 0.16);
-  border-radius: var(--r-lg);
-  padding: var(--s4) var(--s4);
-}
+/* Coarse pointers get real targets regardless of width. */
+@media (pointer: coarse) {
+  .swatch {
+    width: 40px;
+    height: 40px;
+  }
 
-.mgrInline {
-  border-top: 1px solid var(--line);
-  margin-top: var(--s4);
-  padding-top: var(--s3);
-}
-
-.mgrMark {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: var(--accent);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  flex: none;
-  margin-top: 1px;
-}
-
-.mgrBody {
-  min-width: 0;
-}
-
-.mgrWho {
-  font-size: var(--t-xs);
-  font-weight: 600;
-  color: var(--accent);
-  margin-bottom: var(--s1);
-}
-
-.mgrText {
-  margin: 0;
-  font-size: var(--t-sm);
-  line-height: 1.5;
-  color: var(--text-2);
-}
-
-.mgrPanel .mgrText {
-  color: var(--text);
+  .trailStep {
+    min-height: 44px;
+  }
 }
 
 /* Right-aligned action row, so a page's primary action always sits on the
@@ -1551,4 +1781,61 @@
 /* The brief textarea reads better at a comfortable measure than full-bleed. */
 .briefField {
   max-width: 720px;
+}
+
+/* ---------- Account manager ---------- */
+/* Present only where there is something specific to say. Quiet by design:
+   it should read as a note from someone, not a system alert. */
+.mgrPanel,
+.mgrInline {
+  display: flex;
+  gap: var(--s3);
+  align-items: flex-start;
+}
+
+.mgrPanel {
+  background: var(--accent-soft);
+  border: 1px solid rgba(15, 107, 98, 0.16);
+  border-radius: var(--r-lg);
+  padding: var(--s4);
+}
+
+.mgrInline {
+  border-top: 1px solid var(--line);
+  margin-top: var(--s4);
+  padding-top: var(--s3);
+}
+
+.mgrMark {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--r-sm);
+  background: var(--accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  flex: none;
+  margin-top: 1px;
+}
+
+.mgrBody {
+  min-width: 0;
+}
+
+.mgrWho {
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: var(--s1);
+}
+
+.mgrText {
+  margin: 0;
+  font-size: var(--t-sm);
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.mgrPanel .mgrText {
+  color: var(--text);
 }

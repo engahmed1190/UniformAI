@@ -145,6 +145,7 @@ export function Configurator({
                 aria-label={`Step ${i + 1}: ${name}`}
               >
                 <span className={s.trailBar} />
+                <span className={s.trailNum}>{i < step ? '✓' : i + 1}</span>
                 <span className={s.trailName}>{name}</span>
               </button>
             ))}

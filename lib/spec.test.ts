@@ -115,7 +115,36 @@ for (const phrase of ['make the blazer navy', 'make the jacket navy']) {
   assert.equal(r.concept.garments[0].parts.body, rBase.garments[0].parts.body);
 }
 
-// 12. Nonsense is refused rather than guessed at.
+// 12. A colour named alongside the logo recolours the LOGO, not the shirt.
+// This was a real bug: "make the logo gold" fell through to the colour
+// branch and silently repainted the first top's body.
+const r5 = refine(rBase, 'make the logo gold');
+assert.ok(r5);
+assert.equal(r5.concept.logo.colour, '#c8a24a');
+assert.equal(r5.patch, 'logo.colour = #c8a24a');
+// The half that actually catches the bug: no garment colour moved.
+assert.equal(colourFingerprint(r5.concept), fpBefore, 'a logo recolour touched a garment');
+
+// 13. The mirror case: an over-eager logo gate must not swallow normal
+// colour edits. "make the shirt gold" still has to reach the shirt.
+const r6 = refine(rBase, 'make the shirt gold');
+assert.ok(r6);
+assert.equal(r6.concept.garments[0].parts.body, '#c8a24a');
+assert.equal(r6.concept.logo.colour, rBase.logo.colour);
+assert.notEqual(colourFingerprint(r6.concept), fpBefore);
+
+// 14. Placement and colour in one sentence carry both.
+const r7 = refine(rBase, 'print the logo on the sleeve in white');
+assert.ok(r7);
+assert.equal(r7.concept.logo.method, 'print');
+assert.equal(r7.concept.logo.position, 'sleeve');
+assert.equal(r7.concept.logo.colour, '#ffffff');
+assert.equal(colourFingerprint(r7.concept), fpBefore);
+
+// 15. setLogo validates its hex the same way setPart does.
+assert.throws(() => setLogo(rBase, { colour: 'gold' }), /bad hex/);
+
+// 16. Nonsense is refused rather than guessed at.
 assert.equal(refine(rBase, 'make it feel more premium'), null);
 assert.equal(refine(rBase, ''), null);
 

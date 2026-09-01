@@ -45,8 +45,10 @@ function Shirt({ g, back }: P) {
           <rect x="97" y="44" width="6" height="128" fill="#00000010" />
         </>
       )}
-      <rect x="140" y="66" width="14" height="12" fill={cuffs} stroke={STROKE} />
-      <rect x="46" y="66" width="14" height="12" fill={cuffs} stroke={STROKE} />
+      {/* Cuff bands, drawn on the sleeve ends so they share the body outline's
+          edge rather than floating over it. */}
+      <path d="M164 60 L152 82 L141 71 L153 49 Z" fill={cuffs} stroke={STROKE} />
+      <path d="M36 60 L48 82 L59 71 L47 49 Z" fill={cuffs} stroke={STROKE} />
     </g>
   );
 }
@@ -94,8 +96,13 @@ function Cargo({ g }: P) {
       <path d="M62 30 L138 30 L136 62 L130 222 L106 222 L100 98 L94 222 L70 222 L64 62 Z"
         fill={leg} stroke={STROKE} />
       <rect x="62" y="30" width="76" height="10" fill="#00000018" />
+      {/* Patch pockets with flaps. The flap is what makes a recoloured
+          rectangle read as a pocket instead of a floating block. */}
       <rect x="66" y="104" width="24" height="30" rx="2" fill={pockets} stroke={STROKE} />
       <rect x="110" y="104" width="24" height="30" rx="2" fill={pockets} stroke={STROKE} />
+      <path d="M64 104 L92 104 L92 113 L64 113 Z" fill={pockets} stroke={STROKE} />
+      <path d="M108 104 L136 104 L136 113 L108 113 Z" fill={pockets} stroke={STROKE} />
+      <path d="M64 113 L92 113 M108 113 L136 113" stroke="#00000028" strokeWidth="1.2" fill="none" />
     </g>
   );
 }
@@ -117,12 +124,17 @@ const RENDERERS = { polo: Polo, shirt: Shirt, chino: Chino, blazer: Blazer, carg
 /** Where the logo sits on the drawing. These are flats viewed from the
  *  front, so the wearer's LEFT chest appears on the viewer's RIGHT -- the
  *  x values are mirrored accordingly. 'back' is drawn on a back view
- *  instead, so it needs no front coordinate. */
-const LOGO_XY: Partial<Record<LogoPosition, { x: number; y: number }>> = {
-  left_chest: { x: 78, y: 72 },
-  right_chest: { x: 122, y: 72 },
-  sleeve: { x: 52, y: 74 },
-  back: { x: 100, y: 92 },
+ *  instead, so it needs no front coordinate. The sleeve spot sits on the
+ *  upper arm, clear of the cuff band, for all three tops. */
+const LOGO_XY: Partial<Record<LogoPosition,
+  { x: number; y: number; w: number; size: number; rotate?: number }>> = {
+  left_chest: { x: 78, y: 72, w: 34, size: 7 },
+  right_chest: { x: 122, y: 72, w: 34, size: 7 },
+  // The sleeve is the narrowest placement: a small flat badge on the upper
+  // arm, inboard of the cuff band. Rotating it to the sleeve angle was worse
+  // -- at this size it just reads as tilted text.
+  sleeve: { x: 57, y: 58, w: 20, size: 5.5 },
+  back: { x: 100, y: 96, w: 56, size: 10 },
 };
 
 /** A logo on the back can only be shown on a back view. Everything else is
@@ -144,7 +156,7 @@ export function GarmentSvg({
   showLogo = true,
 }: {
   garment: Garment;
-  logo?: { position: LogoPosition; method: string };
+  logo?: { position: LogoPosition; method: string; colour?: string };
   logoText?: string;
   /** False for tops that aren't the logo-bearing one. */
   showLogo?: boolean;
@@ -157,14 +169,21 @@ export function GarmentSvg({
   const back = showLogo && isTop(garment.type) && isBackView(logo?.position);
   const label = `${garment.type}${back ? ', back view' : ''} in ${
     garment.parts.body ?? garment.parts.leg}`;
+  const text = (logoText || 'LOGO').slice(0, 12).toUpperCase();
   return (
     <svg viewBox={VIEW_BOX[garment.type]} width="100%" height="100%"
       preserveAspectRatio="xMidYMid meet" role="img" aria-label={label}>
       <Renderer g={garment} back={back} />
       {spot && (
-        <text x={spot.x} y={spot.y} fontSize="11" fontWeight="700" textAnchor="middle"
-          fill="#ffffff" stroke="#00000055" strokeWidth="0.4" paintOrder="stroke">
-          {(logoText || 'LOGO').slice(0, 8).toUpperCase()}
+        <text x={spot.x} y={spot.y} fontSize={spot.size} fontWeight="700"
+          transform={spot.rotate ? `rotate(${spot.rotate} ${spot.x} ${spot.y})` : undefined}
+          textAnchor="middle"
+          {...(text.length > spot.w / (spot.size * 0.62)
+            ? { textLength: spot.w, lengthAdjust: 'spacingAndGlyphs' as const }
+            : {})}
+          fill={logo?.colour ?? '#ffffff'} stroke="#00000055" strokeWidth="0.3"
+          paintOrder="stroke">
+          {text}
         </text>
       )}
     </svg>

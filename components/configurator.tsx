@@ -248,6 +248,26 @@ export function Configurator({
                   ))}
                 </div>
 
+                {concept.logo.position !== 'none' && (
+                <div className={s.partBlock}>
+                  <div className={s.partName}>Logo colour</div>
+                  <div className={s.swatches}>
+                    {SWATCHES.map(([hex, name]) => (
+                      <button
+                        key={hex}
+                        type="button"
+                        className={s.swatch}
+                        aria-pressed={(concept.logo.colour ?? '#ffffff').toLowerCase() === hex.toLowerCase()}
+                        onClick={() => onChange(setLogo(concept, { colour: hex }))}
+                      >
+                        <span className={s.swatchChip} style={{ background: hex }} />
+                        <span className={s.swatchName}>{name}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                )}
+
                 <div className={s.partBlock}>
                   <div className={s.partName}>Placement</div>
                   <div className={s.optList}>

@@ -21,7 +21,8 @@ export type Concept = {
   /** The role this outfit is for: "Front Office", "Technicians". */
   name: string;
   garments: Garment[];
-  logo: { position: LogoPosition; method: LogoMethod };
+  /** colour is optional: undefined means white, so the seeds need no edit. */
+  logo: { position: LogoPosition; method: LogoMethod; colour?: string };
 };
 
 /** Which colourable regions each garment type has. The renderer and the
@@ -79,6 +80,9 @@ export function setLogo(
   c: Concept,
   logo: Partial<Concept['logo']>,
 ): Concept {
+  if (logo.colour !== undefined && !/^#[0-9a-fA-F]{6}$/.test(logo.colour)) {
+    throw new Error(`bad hex "${logo.colour}"`);
+  }
   const next = cloneConcept(c);
   next.logo = { ...next.logo, ...logo };
   return next;

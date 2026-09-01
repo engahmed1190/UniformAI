@@ -84,9 +84,18 @@ function pickPart(c: Concept, gi: number, text: string): string | null {
   return parts.includes('body') ? 'body' : parts.includes('leg') ? 'leg' : parts[0] ?? null;
 }
 
+/** The colour a request names, if any. Shared by the logo and garment
+ *  branches so "gold" means the same hex whichever one claims it. */
+function pickColour(t: string): string | null {
+  const word = Object.keys(WORDS).find((w) => new RegExp(`\\b${w}\\b`).test(t));
+  if (word) return WORDS[word];
+  return /^#[0-9a-f]{6}$/i.test(t) ? t : null;
+}
+
 export function refine(concept: Concept, request: string): Applied | null {
   const t = request.toLowerCase().trim();
   if (!t) return null;
+  const hex = pickColour(t);
 
   // Logo placement and method come first: they are unambiguous.
   const pos: [RegExp, LogoPosition][] = [
@@ -109,26 +118,31 @@ export function refine(concept: Concept, request: string): Applied | null {
         ? 'embroidery'
         : null;
     const hit = pos.find(([re]) => re.test(t));
-    if (method || hit) {
+    // ponytail: a request naming both the logo and a colour is read as
+    // recolouring the logo. "Navy polo with a gold logo" is two edits here;
+    // say them one at a time.
+    if (method || hit || hex) {
       const next = setLogo(concept, {
         ...(method ? { method } : {}),
         ...(hit ? { position: hit[1] } : {}),
+        ...(hex ? { colour: hex } : {}),
       });
       const bits = [
         hit ? `logo.position = ${hit[1]}` : null,
         method ? `logo.method = ${method}` : null,
+        hex ? `logo.colour = ${hex}` : null,
       ].filter(Boolean);
       return {
         concept: next,
-        note: 'Updated the branding. The drawing and the price both follow.',
+        note: hex && !method && !hit
+          ? `Set the logo to ${colourName(hex)}.`
+          : 'Updated the branding. The drawing and the price both follow.',
         patch: bits.join('\n'),
       };
     }
   }
 
-  // Colour requests.
-  const word = Object.keys(WORDS).find((w) => new RegExp(`\\b${w}\\b`).test(t));
-  const hex = word ? WORDS[word] : /^#[0-9a-f]{6}$/i.test(t) ? t : null;
+  // Colour requests that did not name the logo.
   if (hex) {
     const gi = pickGarment(concept, t);
     if (gi < 0) return null;

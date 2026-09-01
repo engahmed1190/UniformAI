@@ -46,6 +46,18 @@ export const progress = (o: Order): number => [0, 0, 30, 60, 85, 100][Math.min(o
 
 /** "23 Sep". Hand-rolled: en-GB Intl gives "Sept" on newer ICU. */
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+/** Day-of-year (001-366) then the second within that day, so an id is short,
+ *  readable, unique to the second and strictly increasing through the year.
+ *  Everything is local-time to match the year in the prefix: mixing local
+ *  getFullYear() with UTC arithmetic produced "SO-2027-000-1" on New Year's Eve. */
+function seq(d: Date): string {
+  const start = new Date(d.getFullYear(), 0, 1).getTime();
+  const ms = d.getTime() - start;
+  const day = Math.floor(ms / 864e5);
+  const secs = Math.floor(ms / 1000) % 86400;
+  return `${String(day + 1).padStart(3, '0')}${String(secs).padStart(5, '0')}`;
+}
+
 export const shortDate = (d: Date) => `${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]}`;
 
 export function placeOrder(
@@ -72,8 +84,11 @@ export function placeOrder(
   const due = new Date(now);
   due.setDate(due.getDate() + LEAD_DAYS);
   return {
-    // ponytail: seconds-of-day as the sequence. The ERP hands out real ones.
-    id: `SO-${now.getFullYear()}-${String(Math.floor(now.getTime() / 1000) % 100000).padStart(5, '0')}`,
+    // Day of the year, then seconds into that day: an ERP-shaped 5-digit
+    // sequence that still increases all year. Plain seconds-mod-100000
+    // wrapped every ~27 hours and sorted a newer order behind an older one.
+    // ponytail: still a stand-in. The ERP hands out the real sequence.
+    id: `SO-${now.getFullYear()}-${seq(now)}`,
     name: concept.name,
     concept, staff, sets, perPerson,
     total: perPerson * sets,

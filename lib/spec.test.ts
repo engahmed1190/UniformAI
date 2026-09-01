@@ -1,7 +1,7 @@
 // Run: npx tsx lib/spec.test.ts
 // The one thing worth checking: an edit changes exactly what it says and nothing else.
 import assert from 'node:assert/strict';
-import { setPart, setLogo, colourFingerprint, conceptPrice, PARTS } from './spec';
+import { type Concept, setPart, setLogo, cloneConcept, colourFingerprint, conceptPrice, PARTS } from './spec';
 import { CONCEPTS, selectConcepts } from './concepts';
 import { logoGarmentIndex } from '../components/garments';
 
@@ -204,3 +204,44 @@ const rc = refine(rBase, 'move the logo to the right chest');
 assert.equal(rc?.concept.logo.position, 'right_chest', 'refine: right chest landed on the left');
 assert.equal(briefWishes('navy polos, logo on the right chest').logo, 'right_chest', 'brief: right chest landed on the left');
 assert.equal(briefWishes('logo on the chest').logo, 'left_chest', 'brief: plain chest still means left');
+
+// An edited kit is a different kit. Saving deduped on id alone, and an edit
+// keeps the seed's id, so customising a saved kit and saving it again kept
+// the old one silently while the toast claimed it had saved. kitKey is what
+// the library dedupes on: same id AND same content.
+import { kitKey } from './spec';
+const reworked = refine(rBase, 'make the polo sand')!.concept;
+assert.equal(reworked.id, rBase.id, 'an edit does not rename the kit');
+assert.notEqual(kitKey(reworked), kitKey(rBase), 'an edited kit is a different kit to save');
+assert.equal(kitKey(rBase), kitKey(cloneConcept(rBase)), 'the same kit is the same kit');
+assert.notEqual(
+  kitKey(setLogo(rBase, { position: 'sleeve' })), kitKey(rBase),
+  'a branding change is a different kit too');
+
+// A saved copy of an edited kit gets its own id and a name that tells it
+// apart from the original -- three cards all reading "Technicians" is not a
+// library, and duplicate ids made React drop one of them.
+import { asSavedKit, sameKit } from './spec';
+const copy1 = asSavedKit(reworked, [rBase]);
+assert.notEqual(copy1.id, rBase.id, 'a saved copy needs its own id');
+assert.notEqual(copy1.name, rBase.name, 'a saved copy needs its own name');
+assert.equal(colourFingerprint(copy1), colourFingerprint(reworked), 'renaming must not recolour');
+const copy2 = asSavedKit(refine(rBase, 'make the polo slate')!.concept, [rBase, copy1]);
+assert.notEqual(copy2.id, copy1.id, 'two copies must not collide');
+assert.notEqual(copy2.name, copy1.name);
+// An unedited kit keeps its own name.
+assert.equal(asSavedKit(rBase, []).name, rBase.name);
+assert.equal(asSavedKit(rBase, []).id, rBase.id);
+
+// Saving the same kit twice must not make a second copy. asSavedKit mints a
+// new id, so a key that includes the id stopped matching on the second save
+// and the library grew a v2, v3, v4 of one unchanged kit.
+let lib: Concept[] = [rBase];
+const saveInto = (c: Concept) => {
+  if (lib.some((x) => sameKit(x, c))) return null;
+  const k = asSavedKit(c, lib); lib = [...lib, k]; return k.name;
+};
+const fresh = refine(rBase, 'make the polo sand')!.concept;
+assert.equal(saveInto(fresh), 'Front Office v2', 'first save makes a copy');
+assert.equal(saveInto(fresh), null, 'saving the same kit again must be a no-op');
+assert.equal(lib.length, 2, `library grew to ${lib.length}`);

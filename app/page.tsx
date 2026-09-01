@@ -7,7 +7,7 @@ import { ConceptCard } from '@/components/concept';
 import { Configurator } from '@/components/configurator';
 import { GarmentSvg, logoGarmentIndex } from '@/components/garments';
 import { CONCEPTS, selectConcepts } from '@/lib/concepts';
-import { type Concept, LABELS, conceptPrice, conceptPriceAt, gradeName, gradesFor } from '@/lib/spec';
+import { type Concept, LABELS, asSavedKit, conceptPrice, conceptPriceAt, gradeName, gradesFor, sameKit } from '@/lib/spec';
 import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
 import { type Order, STAGES, placeOrder, progress, revive, shortDate, stageDate, status } from '@/lib/order';
 import { ManagerNote } from '@/components/manager';
@@ -134,10 +134,19 @@ export default function Page() {
   }
 
   function saveKit(c: Concept) {
-    const next = saved.some((x) => x.id === c.id) ? saved : [...saved, c];
+    // Dedupe on what the kit IS, not just its id: an edit keeps the id, so
+    // matching on that alone silently dropped a customised kit.
+    if (saved.some((x) => sameKit(x, c))) {
+      flash(`“${c.name}” is already in your kits`);
+      return;
+    }
+    // An edit keeps the seed's id, so a customised kit needs its own before
+    // it joins the library -- otherwise it collides with the kit it came from.
+    const kit = asSavedKit(c, saved);
+    const next = [...saved, kit];
     setSaved(next);
     try { localStorage.setItem('kits', JSON.stringify(next)); } catch { /* private mode */ }
-    flash(`Saved “${c.name}” to your kits`);
+    flash(`Saved “${kit.name}” to your kits`);
   }
 
   return (
@@ -675,8 +684,13 @@ function Orders({ orders, onHome }: { orders: Order[]; onHome: () => void }) {
 
 function Settings({ profile, onSave }: { profile: Profile; onSave: (p: Profile) => void }) {
   const [d, setD] = useState(profile);
+  // Held as typed so the field can be emptied while editing; validated on
+  // save. Clamping on every keystroke made the staff box impossible to clear.
   const set = (k: keyof Profile) => (e: { target: { value: string } }) =>
-    setD({ ...d, [k]: k === 'staff' ? Math.max(1, +e.target.value || 1) : e.target.value });
+    setD({ ...d, [k]: k === 'staff' ? e.target.value : e.target.value } as unknown as Profile);
+  const staffNum = Math.max(1, Math.floor(+d.staff) || 0);
+  const nameOk = String(d.company).trim().length > 0;
+  const staffOk = staffNum >= 1 && String(d.staff).trim() !== '';
   return (
     <>
       <div className={s.pageHead}>
@@ -696,11 +710,15 @@ function Settings({ profile, onSave }: { profile: Profile; onSave: (p: Profile) 
           <div className={s.formGrid}>
             <div className={`${s.field} ${s.fieldWide}`}>
               <label htmlFor="sName">Company name</label>
-              <input id="sName" value={d.company} onChange={set('company')} />
+              <input id="sName" value={d.company} onChange={set('company')}
+                aria-invalid={!nameOk} aria-describedby={nameOk ? undefined : 'sNameErr'} />
+              {!nameOk && <div className={s.fieldHint} id="sNameErr" role="alert">A name is needed — it goes on every quote.</div>}
             </div>
             <div className={`${s.field} ${s.fieldNarrow}`}>
               <label htmlFor="sStaff">Total staff</label>
-              <input id="sStaff" type="number" min={1} value={d.staff} onChange={set('staff')} />
+              <input id="sStaff" type="number" min={1} value={d.staff} onChange={set('staff')}
+                aria-invalid={!staffOk} aria-describedby={staffOk ? undefined : 'sStaffErr'} />
+              {!staffOk && <div className={s.fieldHint} id="sStaffErr" role="alert">At least one person.</div>}
             </div>
             <div className={`${s.field} ${s.fieldWide}`}>
               <label htmlFor="sInd">Industry</label>
@@ -727,7 +745,11 @@ function Settings({ profile, onSave }: { profile: Profile; onSave: (p: Profile) 
         </section>
 
         <div className={s.settingsFoot}>
-          <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => onSave(d)}>Save settings</button>
+          <button type="button" className={`${s.btn} ${s.btnPrimary}`}
+            disabled={!nameOk || !staffOk}
+            onClick={() => onSave({ ...d, company: d.company.trim(), staff: staffNum })}>
+            Save settings
+          </button>
         </div>
       </div>
     </>

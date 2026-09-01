@@ -29,7 +29,7 @@ assert.equal(o.lines[0].note, gradeName(c.garments[0], 1));
 assert.equal(placeOrder(setLogo(c, { position: 'none' }), 40, 42, grades, per).lines.length, c.garments.length);
 
 // 5. An ERP-shaped number and a due date after the placing date.
-assert.match(o.id, /^SO-2026-\d{5}$/);
+assert.match(o.id, /^SO-2026-\d{8}$/);
 assert.ok(o.due > o.placed);
 
 
@@ -55,3 +55,26 @@ assert.equal(placeOrder(c, 40, 42, grades, per, new Date(), 5).stage, 5);
 assert.equal(revive(JSON.stringify([o, o])).length, 2);
 
 console.log('order: all assertions passed');
+
+// 9. Ids increase with time. Seconds-mod-100000 wrapped, so two orders a few
+// seconds apart could come back in the wrong order -- and after ~27 hours two
+// orders could collide outright.
+// Walk the whole year, including a day rollover and New Year's Eve. The old
+// seconds-mod-100000 wrapped every ~27 hours, so a newer order sorted behind
+// an older one; a later local/UTC mix produced "SO-2027-000-1" on 31 Dec.
+const stamps: Date[] = [];
+for (let d = 0; d < 366; d += 3) {
+  for (const sec of [0, 1, 5, 3600, 43200, 86399]) {
+    stamps.push(new Date(new Date(2026, 0, 1).getTime() + d * 864e5 + sec * 1000));
+  }
+}
+const ids = stamps.map((t) => placeOrder(c, 40, 42, [], 500, t).id);
+for (let i = 1; i < ids.length; i++) {
+  assert.ok(ids[i] > ids[i - 1], `${ids[i]} placed later must sort after ${ids[i - 1]}`);
+}
+assert.equal(new Set(ids).size, ids.length, 'ids collided');
+assert.ok(
+  placeOrder(c, 40, 42, [], 500, new Date(2027, 0, 1, 0, 0, 1)).id >
+  placeOrder(c, 40, 42, [], 500, new Date(2026, 11, 31, 23, 59, 59)).id,
+  'the new year must sort after the old one',
+);

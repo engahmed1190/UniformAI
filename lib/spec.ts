@@ -96,6 +96,37 @@ export function colourFingerprint(c: Concept): string {
     .join('|');
 }
 
+/** What makes one saved kit different from another: its name plus every
+ *  colour and branding choice on it. The library dedupes on this rather than
+ *  on id alone, because an edit keeps the id -- so customising a saved kit
+ *  and saving it again used to be a silent no-op. */
+export function kitKey(c: Concept): string {
+  const { position, method, colour = '' } = c.logo;
+  return `${c.id}|${colourFingerprint(c)}|${position}/${method}/${colour}`;
+}
+
+/** Whether two kits are the same garments in the same colours with the same
+ *  branding. Deliberately blind to id and name: saving a copy mints a new id,
+ *  so an id-sensitive comparison stopped matching on the second save and the
+ *  library grew a v2, v3, v4 of one unchanged kit. */
+export function sameKit(a: Concept, b: Concept): boolean {
+  const strip = (k: string) => k.slice(k.indexOf('|'));
+  return strip(kitKey(a)) === strip(kitKey(b))
+    && a.garments.map((g) => g.type).join() === b.garments.map((g) => g.type).join();
+}
+
+/** A kit about to enter the library. An edit keeps the seed's id and name,
+ *  so saving a customised kit collided with the original: React dropped a
+ *  card on the duplicate key, and the ones that rendered were indistinguish-
+ *  able. A copy that differs from everything already saved gets its own id
+ *  and a numbered name; an untouched kit is returned as it is. */
+export function asSavedKit(c: Concept, saved: Concept[]): Concept {
+  if (!saved.some((x) => x.id === c.id)) return c;
+  if (saved.some((x) => sameKit(x, c))) return c;
+  const n = saved.filter((x) => x.name === c.name || x.name.startsWith(`${c.name} v`)).length + 1;
+  return { ...cloneConcept(c), id: `${c.id}-v${n}`, name: `${c.name} v${n}` };
+}
+
 /** Fabric grades, per garment family. A blazer offered "moisture-wicking
  *  performance knit" is the kind of thing a buyer spots instantly, so knits
  *  and wovens carry different cloth at the same three grades: the standard

@@ -9,6 +9,9 @@
 import { type Concept, type LogoPosition, LABELS, conceptPrice } from './spec';
 import { briefWishes, colourName } from './refine';
 
+/** Colour words that describe a family, not a specific cloth. */
+const FAMILY = new Set(['dark', 'light', 'neutral']);
+
 /** How a placement is said out loud, not how it is stored. */
 const PLACE: Record<Exclude<LogoPosition, 'none'>, string> = {
   left_chest: 'chest', right_chest: 'right chest', sleeve: 'sleeve', back: 'back',
@@ -53,7 +56,14 @@ export function whyTheseKits(brief: string, concepts: Concept[]): string {
   // fastest way to lose someone's trust in the suggestion.
   const w = briefWishes(brief);
   const done = [
-    w.colour ? `put them in ${colourName(w.colour).toLowerCase()}` : null,
+    // Their word, not our swatch name: someone who wrote "dark colours" did
+    // not ask for ink. Families read as "kept them dark", names as "put them
+    // in navy" -- "put them in dark" is not English.
+    w.colour
+      ? (FAMILY.has(w.said ?? '')
+        ? `kept them ${w.said}`
+        : `put them in ${w.said ?? colourName(w.colour).toLowerCase()}`)
+      : null,
     w.logo && w.logo !== 'none' ? `moved the logo to the ${PLACE[w.logo]}` : null,
     w.logo === 'none' ? 'left them unbranded' : null,
   ].filter(Boolean) as string[];

@@ -168,19 +168,6 @@
   gap: var(--s3);
 }
 
-.search {
-  background: var(--bg);
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  padding: var(--s2) var(--s3);
-  width: 240px;
-  font-size: var(--t-sm);
-}
-
-.search::placeholder {
-  color: var(--text-3);
-}
-
 .avatar {
   width: 28px;
   height: 28px;
@@ -1598,10 +1585,6 @@
   .topbar {
     height: 52px;
     padding: 0 var(--s4);
-  }
-
-  .search {
-    display: none;
   }
 
   .body {

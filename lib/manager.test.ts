@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict';
 import { readBrief, whyTheseKits, stepAdvice, greeting, quoteNote } from './manager';
 import { CONCEPTS, selectConcepts } from './concepts';
-import { setLogo, setPart } from './spec';
+import { setLogo, setPart, colourFingerprint } from './spec';
 
 const hot = 'Summer polos for 40 site technicians in Cairo, navy';
 const desk = 'Smart shirts for the front desk team';
@@ -54,11 +54,20 @@ assert.match(quoteNote(c, 40, 40), /covers 40 people\./);
 // 9. The brief's literal instructions are carried out, and only claimed when
 // they are. This is the demo's whole credibility: quoting a brief back while
 // ignoring it reads as fake.
+// The seeds are module-level and every generate maps over them, so a mutating
+// applyBrief would poison the second brief a presenter types. Fingerprint
+// before, compare after -- reading the seed after the call proves nothing.
+const seedsBefore = CONCEPTS.map(colourFingerprint);
+const trouserBefore = CONCEPTS[3].garments[1].parts.leg;
 const navy = selectConcepts({ industry: 'Summer polos for 40 technicians, navy, logo on the chest' });
 assert.equal(navy[0].garments[0].parts.body, '#1b2a4a', 'a navy brief must produce a navy top');
 assert.equal(navy[0].logo.position, 'left_chest', 'a chest brief must put the logo on the chest');
-assert.equal(navy[0].garments[1].parts.leg, CONCEPTS[3].garments[1].parts.leg,
+assert.deepEqual(CONCEPTS.map(colourFingerprint), seedsBefore, 'selectConcepts mutated the seeds');
+assert.equal(navy[0].garments[1].parts.leg, trouserBefore,
   'the trouser keeps the seed colour -- the brief named a polo, not a suit');
+// A brief naming a colour family is still a colour instruction.
+assert.equal(selectConcepts({ industry: 'warehouse workwear, dark colours' })[0].garments[0].parts.body,
+  '#12161f', '"dark colours" must reach the garments like any other colour word');
 assert.match(whyTheseKits('Summer polos, navy, logo on the chest', navy), /navy.*chest/);
 assert.doesNotMatch(whyTheseKits(desk, CONCEPTS.slice(0, 3)), /as you asked/,
   'a brief naming no colour or placement must not claim to have honoured one');

@@ -48,6 +48,9 @@ const WORDS: Record<string, string> = {
   sand: '#d6c19c', beige: '#d6c19c', tan: '#d6c19c', cream: '#d6c19c',
   slate: '#8f9aa6', grey: '#8f9aa6', gray: '#8f9aa6',
   white: '#ffffff', olive: '#3d4a3a', green: '#3d4a3a',
+  // People brief a colour family as often as a colour: "dark colours" has to
+  // land somewhere or the brief is silently half-ignored.
+  dark: '#12161f', light: '#dfe6ef', neutral: '#8f9aa6',
   oxblood: '#7d2b2b', burgundy: '#7d2b2b', maroon: '#7d2b2b',
   brass: '#c8a24a', gold: '#c8a24a',
 };
@@ -214,15 +217,21 @@ export function refine(concept: Concept, request: string): Applied | null {
 /** What the brief itself asks for, in the same vocabulary an edit uses.
  *  The seeds are generic; this is what makes them answer the words the
  *  customer actually typed. */
-export function briefWishes(text: string): { colour: string | null; logo: LogoPosition | null } {
+export function briefWishes(text: string): {
+  colour: string | null;
+  /** The customer's own word for that colour, when they used one. */
+  said: string | null;
+  logo: LogoPosition | null;
+} {
   const t = text.toLowerCase();
+  const said = Object.keys(WORDS).find((w) => new RegExp(`\\b${w}\\b`).test(t)) ?? null;
   const logo: LogoPosition | null =
     /\bno logo|without a logo|unbranded\b/.test(t) ? 'none'
       : /\bsleeve\b/.test(t) ? 'sleeve'
         : /\bback\b/.test(t) ? 'back'
           : /\bchest\b/.test(t) ? 'left_chest'
             : null;
-  return { colour: pickColour(t), logo };
+  return { colour: pickColour(t), said, logo };
 }
 
 /** Apply those wishes to a seed concept: the main surface of every garment

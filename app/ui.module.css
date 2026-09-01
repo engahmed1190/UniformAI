@@ -513,7 +513,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) 384px;
   gap: var(--s4);
-  align-items: stretch;
+  align-items: start;
   margin-bottom: var(--s4);
 }
 
@@ -524,6 +524,10 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  position: sticky;
+  top: 0;
+  /* Fits the frame, so the garments are always fully in view. */
+  height: min(620px, calc(100dvh - 200px));
 }
 
 .stageTop {
@@ -552,10 +556,10 @@
   align-items: center;
   justify-content: center;
   gap: var(--s4);
-  /* Fills whatever height the step panel needs, so the two columns end
-     together instead of one running past the other. */
+  /* Sized to the garments, not to whatever the options panel needs. A tall
+     panel used to stretch this box and leave the preview stranded low. */
   flex: 1;
-  min-height: 320px;
+  min-height: 0;
 }
 
 .stageArea > * {
@@ -563,7 +567,6 @@
   min-width: 0;
   max-width: 220px;
   height: 100%;
-  max-height: 420px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1335,11 +1338,15 @@
   .config {
     grid-template-columns: 1fr;
   }
+  .stage {
+    position: static;
+    height: auto;
+  }
   .stageArea {
-    min-height: 260px;
+    min-height: 300px;
   }
   .stageArea > * {
-    max-height: 300px;
+    max-height: 320px;
   }
 }
 

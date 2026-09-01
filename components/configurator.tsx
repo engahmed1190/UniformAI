@@ -129,7 +129,13 @@ export function Configurator({
           </div>
 
           <div className={s.stageFoot}>
-            <span>{picking ? 'Select a garment to recolour it' : 'Preview updates as you choose'}</span>
+            <span>
+              {concept.logo.position === 'back'
+                ? 'Showing the back, where the logo goes'
+                : picking
+                  ? 'Select a garment to recolour it'
+                  : 'Preview updates as you choose'}
+            </span>
             <span className={s.mono}>{money(per)} / person</span>
           </div>
         </div>

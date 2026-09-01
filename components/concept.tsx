@@ -4,7 +4,7 @@ import { Check } from './check';
 import s from '@/app/ui.module.css';
 import { GarmentSvg, logoGarmentIndex } from './garments';
 import { type Concept, conceptPrice } from '@/lib/spec';
-import { type Locale, t } from '@/lib/i18n';
+import { type Locale, kitName, t } from '@/lib/i18n';
 
 export function ConceptCard({
   concept, logoText, employees, selected, onSelect, locale, money,
@@ -28,7 +28,7 @@ export function ConceptCard({
         ))}
       </span>
       <span className={s.kitBody}>
-        <span className={s.kitName}>{concept.name}</span>
+        <span className={s.kitName}>{kitName(locale, concept.id)}</span>
         <span className={s.kitMeta}>{concept.garments.map((g) => t(locale, `garments.${g.type}`)).join(' · ')}</span>
         <span className={s.kitFoot}>
           <span className={s.kitPer}>{t(locale, 'kits.forPeople', { price: money(per * employees), count: employees })}</span>

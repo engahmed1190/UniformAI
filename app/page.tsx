@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from 'react';
 import s from './ui.module.css';
 import { Sidebar, Topbar, type PageId } from '@/components/shell';
-import { type Locale, LOCALES, LOCALE_NAMES, dir, formatCurrency, formatDate, t } from '@/lib/i18n';
+import { type Locale, LOCALES, LOCALE_CODES, LOCALE_NAMES, dir, kitName, formatCurrency, formatDate, t } from '@/lib/i18n';
 import { ConceptCard } from '@/components/concept';
+import { Select } from '@/components/select';
 import { Configurator } from '@/components/configurator';
 import { GarmentSvg, logoGarmentIndex } from '@/components/garments';
 import { CONCEPTS, selectConcepts } from '@/lib/concepts';
@@ -175,7 +176,7 @@ export default function Page() {
     // Dedupe on what the kit IS, not just its id: an edit keeps the id, so
     // matching on that alone silently dropped a customised kit.
     if (saved.some((x) => sameKit(x, c))) {
-      flash(t(locale, 'kits.already', { name: c.name }));
+      flash(t(locale, 'kits.already', { name: kitName(locale, c.id) }));
       return;
     }
     // An edit keeps the seed's id, so a customised kit needs its own before
@@ -184,7 +185,7 @@ export default function Page() {
     const next = [...saved, kit];
     setSaved(next);
     try { localStorage.setItem('kits', JSON.stringify(next)); } catch { /* private mode */ }
-    flash(t(locale, 'kits.saved', { name: kit.name }));
+    flash(t(locale, 'kits.saved', { name: kitName(locale, kit.id) }));
   }
 
   return (
@@ -283,7 +284,7 @@ export default function Page() {
                       <p>{t(locale, 'design.pickClosest')}</p>
                     </div>
                   </div>
-                  <ManagerNote tone="panel" note={whyTheseKits(brief, concepts)} />
+                  <ManagerNote locale={locale} tone="panel" note={whyTheseKits(locale, brief, concepts)} />
                   <div className={s.kitGrid}>
                     {concepts.map((c, i) => (
                       <ConceptCard key={c.id} concept={c} logoText={logoText} employees={staff}
@@ -328,6 +329,7 @@ export default function Page() {
                   perPerson={perPerson}
                   sets={sets}
                   brief={brief}
+              locale={locale}
                   onSave={() => saveKit(active)}
                 />
               ) : (
@@ -380,7 +382,7 @@ export default function Page() {
         {page === 'design' && concepts && !busy && (
           <div className={s.actionBar}>
             <div className={s.actionText}>
-              <strong>{concepts[sel].name}</strong>
+              <strong>{kitName(locale, concepts[sel].id)}</strong>
               {/* Says "before options" so the number growing on the next
                   screen reads as the options being added, not a wobble. */}
               <span className={s.sub}>
@@ -466,7 +468,7 @@ function Home({
           <p>{t(locale, 'home.subtitle')}</p>
         </div>
       </div>
-      <ManagerNote tone="panel" intro note={greeting('Ahmed', orders)} />
+      <ManagerNote locale={locale} tone="panel" intro note={greeting(locale, 'Ahmed', orders)} />
 
       {/* The primary job, first thing on the page. */}
       <div className={s.panel}>
@@ -529,7 +531,7 @@ function Home({
             <tbody>
               {orders.length ? orders.map((o) => (
                 <tr key={o.id}>
-                  <td><strong>{o.name}</strong><div className={s.sub}>{t(locale, 'home.orderLine', { id: o.id, sets: o.sets })}</div></td>
+                  <td><strong>{kitName(locale, o.concept.id)}</strong><div className={s.sub}>{t(locale, 'home.orderLine', { id: o.id, sets: o.sets })}</div></td>
                   <td data-label="Status"><StatusPill order={o} locale={locale} /></td>
                   <td data-label="Value" className={`${s.right} ${s.mono}`}>{money(o.total)}</td>
                   <td data-label="Updated" className={`${s.right} ${s.muted}`}>{shortDay(stageDate(o, Math.min(o.stage, 5)))}</td>
@@ -675,13 +677,13 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
                 {orders.map((x) => (
                   <tr key={x.id} className={`${s.rowPick} ${x.id === o.id ? s.rowOpen : ''}`}
                     aria-current={x.id === o.id ? 'true' : undefined}
-                    tabIndex={0} role="button" aria-label={t(locale, 'orders.open', { name: x.name, id: x.id })}
+                    tabIndex={0} role="button" aria-label={t(locale, 'orders.open', { name: kitName(locale, x.concept.id), id: x.id })}
                     onClick={() => setOpenId(x.id)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenId(x.id); }
                     }}>
                     <td>
-                      <strong>{x.name}</strong>
+                      <strong>{kitName(locale, x.concept.id)}</strong>
                       <div className={s.sub}>{t(locale, 'home.orderLine', { id: x.id, sets: x.sets })}</div>
                     </td>
                     <td data-label="Status"><StatusPill order={x} locale={locale} /></td>
@@ -699,7 +701,7 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
         <div className={s.splitRow}>
           <div>
             <div className={s.sub}>{o.id}</div>
-            <h2 className={s.orderTitle}>{o.name}</h2>
+            <h2 className={s.orderTitle}>{kitName(locale, o.concept.id)}</h2>
             <div className={s.sub}>{t(locale, 'orders.setsAndValue', { sets: o.sets, value: money(o.total) })}</div>
           </div>
           <div className={s.alignEnd}>
@@ -724,7 +726,7 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
         </div>
       </div>
 
-      <ManagerNote tone="panel" note={orderNote(o)} />
+      <ManagerNote locale={locale} tone="panel" note={orderNote(locale, o)} />
 
       <div className={s.group}>
       <div className={s.sectionHead}>
@@ -802,11 +804,12 @@ function Settings({ profile, onSave, locale, onLocale }: {
             </div>
             <div className={`${s.field} ${s.fieldWide}`}>
               <label htmlFor="sInd">{t(locale, 'settings.industry')}</label>
-              <select id="sInd" value={d.industry} onChange={set('industry')}>
-                {INDUSTRIES.map(([value, key]) => (
-                  <option key={value} value={value}>{t(locale, key)}</option>
-                ))}
-              </select>
+              <Select
+                id="sInd"
+                value={d.industry}
+                onChange={(v) => setD({ ...d, industry: v })}
+                choices={INDUSTRIES.map(([value, key]) => ({ value, label: t(locale, key) }))}
+              />
               <div className={s.fieldHint}>{t(locale, 'settings.industryHint')}</div>
             </div>
           </div>
@@ -819,9 +822,14 @@ function Settings({ profile, onSave, locale, onLocale }: {
           </div>
           <div className={s.field}>
             <label htmlFor="sLang">{t(locale, 'settings.interfaceLanguage')}</label>
-            <select id="sLang" value={locale} onChange={(e) => onLocale(e.target.value as Locale)}>
-              {LOCALES.map((l) => <option key={l} value={l}>{LOCALE_NAMES[l]}</option>)}
-            </select>
+            <Select
+              id="sLang"
+              value={locale}
+              onChange={(v) => onLocale(v as Locale)}
+              choices={LOCALES.map((l) => ({
+                value: l, label: LOCALE_NAMES[l], code: LOCALE_CODES[l], lang: l, dir: dir(l),
+              }))}
+            />
           </div>
         </section>
 
@@ -926,7 +934,7 @@ function Quote({
             <span>{t(locale, 'quote.total')}</span>
             <b>{money(per * sets)}</b>
           </div>
-          <ManagerNote note={quoteNote(concept, staff, sets)} />
+          <ManagerNote locale={locale} note={quoteNote(locale, concept, staff, sets)} />
         </div>
         <div className={s.modalFoot}>
           <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onClose} ref={first}>{t(locale, 'quote.keepEditing')}</button>

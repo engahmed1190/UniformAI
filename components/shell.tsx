@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import s from '@/app/ui.module.css';
+import { Select } from './select';
 import { type Locale, LOCALES, LOCALE_CODES, LOCALE_NAMES, dir, t } from '@/lib/i18n';
 
 export type PageId = 'home' | 'design' | 'configure' | 'kits' | 'orders' | 'settings';
@@ -154,70 +155,22 @@ export function Sidebar({
   );
 }
 
-/** Language, as a garment label: the script you are reading, with its ISO
- *  code stitched alongside. A globe icon would say "generic SaaS"; a size
- *  tab says uniforms. Native <button> and a listbox, so keyboard and screen
- *  readers get the real thing rather than a styled div. */
+/** Language, as a garment label: the script you are reading with its ISO
+ *  code stitched alongside, each row set in its own script and direction. */
 function LangMenu({ locale, onLocale }: { locale: Locale; onLocale: (l: Locale) => void }) {
-  const [open, setOpen] = useState(false);
-  const box = useRef<HTMLDivElement>(null);
-
-  // Close on Escape and on any click outside. Focus returns to the trigger
-  // on Escape only -- a click elsewhere means the user is already gone.
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setOpen(false);
-        box.current?.querySelector('button')?.focus();
-      }
-    };
-    const onDown = (e: MouseEvent) => {
-      if (!box.current?.contains(e.target as Node)) setOpen(false);
-    };
-    addEventListener('keydown', onKey);
-    addEventListener('mousedown', onDown);
-    return () => { removeEventListener('keydown', onKey); removeEventListener('mousedown', onDown); };
-  }, [open]);
-
   return (
-    <div className={s.lang} ref={box}>
-      <button
-        type="button"
-        className={s.langTrigger}
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        aria-haspopup="listbox"
-        aria-label={t(locale, 'settings.interfaceLanguage')}
-      >
-        <span className={s.langNow} lang={locale}>{LOCALE_NAMES[locale]}</span>
-        <span className={s.langCode}>{LOCALE_CODES[locale]}</span>
-        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"
-          strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={s.langCaret}>
-          <path d="M4 6.5 8 10.5l4-4" />
-        </svg>
-      </button>
-
-      {open && (
-        <ul className={s.langMenu} role="listbox"
-          aria-label={t(locale, 'settings.interfaceLanguage')}>
-          {LOCALES.map((l) => (
-            <li key={l} role="option" aria-selected={l === locale}>
-              <button
-                type="button"
-                className={l === locale ? s.langOn : undefined}
-                onClick={() => { onLocale(l); setOpen(false); }}
-                lang={l}
-                dir={dir(l)}
-              >
-                <span className={s.langItemName}>{LOCALE_NAMES[l]}</span>
-                <span className={s.langCode}>{LOCALE_CODES[l]}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
+    <Select
+      value={locale}
+      label={t(locale, 'settings.interfaceLanguage')}
+      onChange={(v) => onLocale(v as Locale)}
+      choices={LOCALES.map((l) => ({
+        value: l,
+        label: LOCALE_NAMES[l],
+        code: LOCALE_CODES[l],
+        lang: l,
+        dir: dir(l),
+      }))}
+    />
   );
 }
 

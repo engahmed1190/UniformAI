@@ -2316,21 +2316,23 @@
   color: var(--accent);
 }
 
-/* Language, as a garment label. The trigger shows the script you are reading
-   with its ISO code stitched alongside in mono -- the way a size tab carries
-   both a word and a code. Neutral until opened: the accent already means
-   "action" everywhere else in this UI, so it is spent only on the checked
-   row rather than on a control that is idle most of the time. */
-.lang {
+/* One dropdown for the whole product. A native <select> draws its arrow from
+   the platform, which lands on the wrong edge in RTL and cannot be restyled,
+   so this one draws its own: a chevron that points down in both directions
+   and sits on the inline-end edge wherever that is. Neutral until opened --
+   the accent already means "action" everywhere else in this UI, so it is
+   spent only on the chosen row. */
+.sel {
   position: relative;
 }
 
-.langTrigger {
+.selTrigger {
   display: flex;
   align-items: center;
   gap: var(--s2);
-  height: 32px;
-  padding: 0 var(--s2) 0 var(--s3);
+  width: 100%;
+  min-height: 38px;
+  padding-inline: var(--s3) var(--s2);
   border: 1px solid var(--line);
   border-radius: var(--r2);
   background: var(--surface);
@@ -2340,25 +2342,38 @@
   cursor: pointer;
 }
 
-.langTrigger:hover {
+.selTrigger:hover {
   border-color: var(--muted);
 }
 
-.langTrigger[aria-expanded='true'] {
+.selTrigger[aria-expanded='true'] {
   border-color: var(--accent);
 }
 
-.langTrigger:focus-visible {
+.selTrigger:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-.langNow {
+/* The value takes the slack so the caret stays pinned to the inline end. */
+.selValue {
+  flex: 1;
+  text-align: start;
+}
+
+/* In the top bar the control is a chip, not a field: it sizes to its text. */
+.topRight .sel .selTrigger {
+  width: auto;
+  min-height: 32px;
+}
+
+.topRight .selValue {
+  flex: 0 0 auto;
   font-weight: 500;
 }
 
 /* Mono, like every other code in this product: order ids, quantities. */
-.langCode {
+.selCode {
   font-family: var(--font-mono), monospace;
   font-size: var(--t-xs);
   letter-spacing: 0.04em;
@@ -2368,24 +2383,24 @@
   background: var(--sunken);
 }
 
-.langCaret {
+.selCaret {
   width: 13px;
   height: 13px;
   color: var(--muted);
   transition: transform 120ms ease;
 }
 
-.langTrigger[aria-expanded='true'] .langCaret {
+.selTrigger[aria-expanded='true'] .selCaret {
   transform: rotate(180deg);
 }
 
 /* Clipped open from the top edge: one movement, 120ms, no fade or bounce. */
-.langMenu {
+.selMenu {
   position: absolute;
   inset-inline-end: 0;
   top: calc(100% + 6px);
   z-index: 20;
-  min-width: 160px;
+  min-width: 100%;
   margin: 0;
   padding: var(--s1);
   list-style: none;
@@ -2393,21 +2408,21 @@
   border: 1px solid var(--line);
   border-radius: var(--r2);
   box-shadow: 0 6px 20px #0b0f1018;
-  animation: langOpen 120ms ease;
+  animation: selOpen 120ms ease;
   transform-origin: top;
 }
 
-@keyframes langOpen {
+@keyframes selOpen {
   from { clip-path: inset(0 0 100% 0); }
   to { clip-path: inset(0 0 0 0); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .langMenu { animation: none; }
-  .langCaret { transition: none; }
+  .selMenu { animation: none; }
+  .selCaret { transition: none; }
 }
 
-.langMenu button {
+.selMenu button {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2425,39 +2440,41 @@
   cursor: pointer;
 }
 
-.langMenu button:hover {
+/* Hover and keyboard share one highlight, so the two never disagree. */
+.selMenu button:hover,
+.selMenu button.selActive {
   background: var(--sunken);
 }
 
-.langMenu button:focus-visible {
+.selMenu button:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -2px;
 }
 
 /* The one place the accent is spent on this control. */
-.langMenu button.langOn {
+.selMenu button.selOn {
   color: var(--accent);
   font-weight: 600;
 }
 
-.langMenu button.langOn .langCode {
+.selMenu button.selOn .selCode {
   color: var(--accent);
   background: #0f6b6214;
 }
 
-.langItemName {
+.selItemLabel {
   font-size: var(--t-base);
 }
 
 /* On a phone the bar is tight: the name goes, the code stays. A two-letter
    tab is still unambiguous, and it keeps a 44px target. */
 @media (max-width: 719px) {
-  .langTrigger {
+  .selTrigger {
     height: 36px;
     padding: 0 var(--s2);
   }
 
-  .langNow {
+  .selValue {
     display: none;
   }
 }

@@ -6,16 +6,18 @@
 // "You picked Performance knit" is noise next to a button reading Performance
 // knit. Say why it suits this brief, or what it costs.
 
-import { type Concept, type LogoPosition, LABELS, conceptPrice } from './spec';
+import { type Concept, type LogoPosition, conceptPrice } from './spec';
 import { briefWishes, colourName } from './refine';
-import { type Order, STAGES, shortDate } from './order';
+import { type Order, STAGE_KEYS } from './order';
+import { type Locale, formatCurrency, formatDate, kitName, spareMessage, t } from './i18n';
 
 /** Colour words that describe a family, not a specific cloth. */
 const FAMILY = new Set(['dark', 'light', 'neutral']);
 
 /** How a placement is said out loud, not how it is stored. */
 const PLACE: Record<Exclude<LogoPosition, 'none'>, string> = {
-  left_chest: 'chest', right_chest: 'right chest', sleeve: 'sleeve', back: 'back',
+  left_chest: 'manager.placeChest', right_chest: 'manager.placeRightChest',
+  sleeve: 'manager.placeSleeve', back: 'manager.placeBack',
 };
 
 /** Signals we can honestly read out of a free-text brief. */
@@ -29,21 +31,28 @@ export type BriefRead = {
 
 /** One definition, used both to detect heat and to quote the word back. Two
  *  copies would drift, and the note would cite a word the read never made. */
-const HEAT = /\b(summer|hot|heat|humid|cairo|gulf|outdoor|sun)\b/;
+// Arabic has no word boundary \b that works the way it does in Latin script,
+// so the Arabic alternatives match as substrings. Both scripts are read from
+// one brief: a customer may well type a mix.
+const HEAT = /\b(summer|hot|heat|humid|cairo|gulf|outdoor|sun)\b|صيف|حر|حرارة|رطوبة|القاهرة|شمس|خارجي/;
 
 export function readBrief(text: string): BriefRead {
-  const t = text.toLowerCase();
+  const s = text.toLowerCase();
   return {
-    heat: HEAT.test(t),
-    outdoor: /\b(site|field|outdoor|warehouse|yard|driver)\b/.test(t),
-    formal: /\b(formal|smart|front desk|reception|client|corporate|office)\b/.test(t),
-    budget: /\b(budget|cheap|affordable|cost|tight)\b/.test(t),
-    durable: /\b(durable|hard.?wearing|rugged|tough|workwear|industrial)\b/.test(t),
+    heat: HEAT.test(s),
+    outdoor: /\b(site|field|outdoor|warehouse|yard|driver)\b/.test(s)
+      || /موقع|ميدان|مستودع|مخزن|ساحة|سائق|خارجي/.test(s),
+    formal: /\b(formal|smart|front desk|reception|client|corporate|office)\b/.test(s)
+      || /رسمي|رسمية|استقبال|عملاء|مؤسسي|مكتب|أنيق/.test(s),
+    budget: /\b(budget|cheap|affordable|cost|tight)\b/.test(s)
+      || /ميزانية|رخيص|اقتصادي|تكلفة|محدود/.test(s),
+    durable: /\b(durable|hard.?wearing|rugged|tough|workwear|industrial)\b/.test(s)
+      || /متين|متينة|تحمل|خشن|ملابس عمل|صناعي/.test(s),
   };
 }
 
 /** Why these three kits, in one sentence tied to what the customer wrote. */
-export function whyTheseKits(brief: string, concepts: Concept[]): string {
+export function whyTheseKits(locale: Locale, brief: string, concepts: Concept[]): string {
   const r = readBrief(brief);
   const cheapest = [...concepts].sort((a, b) => conceptPrice(a) - conceptPrice(b))[0];
 
@@ -51,32 +60,40 @@ export function whyTheseKits(brief: string, concepts: Concept[]): string {
   // is the one worth saying; stacking three makes the note sound automated.
   // Quote the word they wrote -- "summer" reported back as "you mentioned
   // heat" is a claim they can check and find false.
-  const reason = r.heat ? `“${heatWord(brief)}”, so breathable weaves`
-    : r.durable ? 'hard-wearing fabrics throughout'
-      : r.outdoor ? 'cuts that hold up on site'
-        : r.formal ? 'smart enough for client-facing work'
-          : 'the closest matches to what you described';
+  const reason = r.heat ? t(locale, 'manager.reasonHeat', { word: heatWord(brief) })
+    : r.durable ? t(locale, 'manager.reasonDurable')
+      : r.outdoor ? t(locale, 'manager.reasonOutdoor')
+        : r.formal ? t(locale, 'manager.reasonFormal')
+          : t(locale, 'manager.reasonDefault');
 
   // Only claim what was actually carried out. Their word, not our swatch
   // name: someone who wrote "dark colours" did not ask for ink.
   const w = briefWishes(brief);
+  const colour = w.said ?? (w.colour ? colourName(w.colour).toLowerCase() : '');
   const done = [
     w.colour
-      ? (FAMILY.has(w.said ?? '') ? `kept ${w.said}` : `in ${w.said ?? colourName(w.colour).toLowerCase()}`)
+      ? t(locale, FAMILY.has(w.said ?? '') ? 'manager.didColourKept' : 'manager.didColour', { colour })
       : null,
-    w.logo && w.logo !== 'none' ? `logo on the ${PLACE[w.logo]}` : null,
-    w.logo === 'none' ? 'unbranded' : null,
+    w.logo && w.logo !== 'none' ? t(locale, 'manager.didLogo', { place: t(locale, PLACE[w.logo]) }) : null,
+    w.logo === 'none' ? t(locale, 'manager.didUnbranded') : null,
   ].filter(Boolean) as string[];
 
+  // Arabic does not capitalise, and the joining comma differs. Both come from
+  // the dictionary rather than being spelled into the logic here.
+  const join = locale === 'ar' ? '، ' : ', ';
   const head = done.length
-    ? `${cap(done.join(', '))} — ${reason}.`
-    : `${cap(reason)}.`;
+    ? t(locale, 'manager.whyWithDid', { did: capFor(locale, done.join(join)), reason })
+    : t(locale, 'manager.whyPlain', { reason: capFor(locale, reason) });
 
-  return `${head} ${cheapest.name} is the cheapest at ${money(conceptPrice(cheapest))} a person.`;
+  return `${head} ${t(locale, 'manager.cheapest', {
+    name: kitName(locale, cheapest.id),
+    price: formatCurrency(locale, conceptPrice(cheapest)),
+  })}`;
 }
 
 /** One line per configure step. Advice, not a readback of the control. */
 export function stepAdvice(
+  locale: Locale,
   step: number,
   concept: Concept,
   fabricIndex: number,
@@ -87,35 +104,27 @@ export function stepAdvice(
   const r = readBrief(brief);
   switch (step) {
     case 0:
-      if (r.heat && fabricIndex !== 2) {
-        return 'In this heat the performance knit is worth the extra 90 a person.';
-      }
-      if (fabricIndex === 2) return 'Good call — 90 more a person, and people notice it by mid-afternoon.';
-      return 'The standard grade is fine unless these get worn every day.';
+      if (r.heat && fabricIndex !== 2) return t(locale, 'manager.fabricPushKnit');
+      if (fabricIndex === 2) return t(locale, 'manager.fabricGoodCall');
+      return t(locale, 'manager.fabricStandard');
 
     case 1: {
       const top = concept.garments.find((g) => g.parts.body);
       const light = top && isLight(top.parts.body);
-      return light
-        ? 'Light bodies show marks fast on site — worth keeping the trouser dark.'
-        : 'Dark hides wear and washes well. One lighter accent stops it reading as security kit.';
+      return t(locale, light ? 'manager.colourLight' : 'manager.colourDark');
     }
 
     case 2:
-      if (concept.logo.position === 'none') {
-        return 'Saves 17–35 a person, but without a mark these stop reading as a uniform.';
-      }
-      if (concept.logo.method === 'print') {
-        return 'Print saves 17 a person. Right on knits, but it fades if washed hot.';
-      }
-      return 'Embroidery is 17 more a person and outlasts the garment — cheaper over two years.';
+      if (concept.logo.position === 'none') return t(locale, 'manager.brandNone');
+      if (concept.logo.method === 'print') return t(locale, 'manager.brandPrint');
+      return t(locale, 'manager.brandEmbroidery');
 
     case 3: {
       const sets = Math.ceil(staff * (1 + spare));
-      if (spare === 0) {
-        return `Exactly ${sets} sets — a new starter waits for the next run. 5% is cheap insurance.`;
-      }
-      return `${sets - staff} spare sets, enough for new starters without sitting on stock.`;
+      if (spare === 0) return t(locale, 'manager.spareNone', { sets });
+      // Arabic counts in five categories, so this sentence is written per
+      // category rather than templated. See spareMessage in i18n.ts.
+      return spareMessage(locale, sets - staff);
     }
 
     default:
@@ -124,36 +133,41 @@ export function stepAdvice(
 }
 
 /** What the quote means, in the terms a buyer worries about. */
-export function quoteNote(concept: Concept, staff: number, sets: number): string {
+export function quoteNote(locale: Locale, concept: Concept, staff: number, sets: number): string {
   const spare = sets - staff;
-  return `Covers ${staff} people${spare > 0 ? ` plus ${spare} spare` : ''}. Nothing is charged until you order — I collect sizes after that.`;
+  return spare > 0
+    ? t(locale, 'manager.quoteCovers', { people: staff, spare })
+    : t(locale, 'manager.quoteCoversNoSpare', { people: staff });
 }
 
 /** Where the order actually is, and what happens next. */
-export function orderNote(o: Order): string {
-  if (o.stage >= 5) {
-    return `Delivered ${shortDate(o.due)}. Say the word if anything needs replacing — same spec, same price.`;
-  }
+export function orderNote(locale: Locale, o: Order): string {
+  const on = (d: Date) => formatDate(locale, d);
+  if (o.stage >= 5) return t(locale, 'manager.orderDelivered', { date: on(o.due) });
   if (o.stage >= 2) {
-    return `${STAGES[o.stage]} now, fabric all in. Delivery around ${shortDate(o.due)} — I will flag it here if that moves.`;
+    return t(locale, 'manager.orderMaking', {
+      stage: t(locale, `orders.${STAGE_KEYS[o.stage]}`),
+      date: on(o.due),
+    });
   }
-  return `Placed ${shortDate(o.placed)}. I am collecting sizes now — cutting starts once they are in, delivery around ${shortDate(o.due)}. I will flag it here if that moves.`;
+  return t(locale, 'manager.orderSizes', { placed: on(o.placed), due: on(o.due) });
 }
 
 /** The greeting: what is open right now. Delivered orders need nobody. */
-export function greeting(name: string, orders: Order[]): string {
+export function greeting(locale: Locale, name: string, orders: Order[]): string {
   const hour = new Date().getHours();
-  const part = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
+  const part = t(locale, hour < 12 ? 'manager.morning' : hour < 18 ? 'manager.afternoon' : 'manager.evening');
   const open = orders.filter((o) => o.stage < 5);
-  if (open.length === 0) return `${part}, ${name}. Nothing needs you today.`;
+  if (open.length === 0) return t(locale, 'manager.greetNothing', { part, name });
   if (open.length === 1) {
     const o = open[0];
+    const kit = kitName(locale, o.concept.id);
     return o.stage < 2
-      ? `${part}, ${name}. ${o.name} is ordered — I am collecting sizes for ${o.id}.`
-      : `${part}, ${name}. ${o.name} is in production, due around ${shortDate(o.due)}.`;
+      ? t(locale, 'manager.greetSizes', { part, name, kit, id: o.id })
+      : t(locale, 'manager.greetMaking', { part, name, kit, date: formatDate(locale, o.due) });
   }
   const sizes = open.filter((o) => o.stage < 2).length;
-  return `${part}, ${name}. ${sizes} waiting on sizes, ${open.length - sizes} in production.`;
+  return t(locale, 'manager.greetMany', { part, name, sizes, making: open.length - sizes });
 }
 
 /** The word in the brief that triggered the heat read, so the note can quote
@@ -162,8 +176,10 @@ function heatWord(brief: string): string {
   return brief.toLowerCase().match(HEAT)?.[1] ?? 'heat';
 }
 
-const money = (n: number) => `EGP ${Math.round(n).toLocaleString()}`;
-const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+/** Arabic has no upper case; capitalising its first letter is a no-op at
+ *  best and mangles a leading Latin word at worst. */
+const capFor = (locale: Locale, s: string) =>
+  (locale === 'ar' ? s : s.charAt(0).toUpperCase() + s.slice(1));
 
 function isLight(hex: string): boolean {
   if (!/^#[0-9a-f]{6}$/i.test(hex)) return false;
@@ -174,7 +190,7 @@ function isLight(hex: string): boolean {
 }
 
 /** Kept for the kit list: what this kit is for, not what is in it. */
-export function kitPurpose(c: Concept): string {
-  const names = c.garments.map((g) => LABELS[g.type].toLowerCase());
-  return names.join(' and ');
+export function kitPurpose(locale: Locale, c: Concept): string {
+  const names = c.garments.map((g) => t(locale, `garments.${g.type}`));
+  return names.join(locale === 'ar' ? ' و' : ' and ');
 }

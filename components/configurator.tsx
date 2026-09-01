@@ -6,6 +6,7 @@ import s from '@/app/ui.module.css';
 import { GarmentSvg, logoGarmentIndex } from './garments';
 import { SWATCHES, colourName, refine } from '@/lib/refine';
 import { stepAdvice } from '@/lib/manager';
+import { type Locale, kitName } from '@/lib/i18n';
 import { ManagerNote } from './manager';
 import {
   type Concept, type LogoMethod, type LogoPosition,
@@ -36,8 +37,9 @@ const PLACEMENTS: { id: LogoPosition; name: string; note: string }[] = [
 export function Configurator({
   concept, onChange, logoText, staff, onStaffChange,
   grades, onGradesChange, spare, onSpareChange, perPerson, sets,
-  brief, onSave,
+  brief, onSave, locale,
 }: {
+  locale: Locale;
   concept: Concept;
   onChange: (c: Concept) => void;
   logoText: string;
@@ -99,7 +101,7 @@ export function Configurator({
         <div className={s.stage}>
           <div className={s.stageTop}>
             <div>
-              <div className={s.stageTitle}>{concept.name}</div>
+              <div className={s.stageTitle}>{kitName(locale, concept.id)}</div>
               <div className={s.stageSub}>
                 {concept.garments.map((g) => LABELS[g.type]).join(' · ')}
               </div>
@@ -361,7 +363,7 @@ export function Configurator({
             )}
 
             {/* Advice reads the top grade actually chosen on any garment. */}
-            <ManagerNote note={stepAdvice(step, concept, Math.max(0, ...grades, 0), brief, staff, spare)} />
+            <ManagerNote locale={locale} note={stepAdvice(locale, step, concept, Math.max(0, ...grades, 0), brief, staff, spare)} />
 
             {/* Available at every step: describe the change instead of hunting for it. */}
             <div className={s.ask}>

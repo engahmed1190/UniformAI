@@ -3,7 +3,7 @@
 // that is destructive, so it asks first. This pins the wiring: every path
 // that edits a kit has to mark the work, or the guard silently stops firing.
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { translations } from './i18n';
 
 const page = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
@@ -72,7 +72,12 @@ assert.ok(!/<h3>/.test(page), 'panel headings sit under the page h1, so they are
 // invisible until someone reads that screen in the other language -- the
 // editor's fallback shipped in English this way. Anything long enough to be
 // prose, sitting in JSX or a text: field, has to come from the dictionary.
-for (const rel of ['../app/page.tsx', '../components/configurator.tsx', '../components/shell.tsx']) {
+// The list is read off disk, not typed out here: a new component is covered
+// the day it is written, rather than the day someone remembers this file.
+const screens = ['../app/page.tsx',
+  ...readdirSync(new URL('../components', import.meta.url))
+    .filter((f) => f.endsWith('.tsx')).map((f) => `../components/${f}`)];
+for (const rel of screens) {
   const src = readFileSync(new URL(rel, import.meta.url), 'utf8')
     .replace(/\/\*[^]*?\*\/|\/\/[^\n]*/g, '');
   // A quoted run with three or more words and sentence punctuation.

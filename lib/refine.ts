@@ -115,8 +115,9 @@ function refineOne(concept: Concept, request: string, currentGrades: number[] = 
   // Logo placement and method come first: they are unambiguous.
   const pos: [RegExp, LogoPosition][] = [
     [/\bsleeve\b/, 'sleeve'],
-    [/\bleft chest\b|\bchest\b/, 'left_chest'],
+    // Specific before generic: find() takes the first hit.
     [/\bright chest\b/, 'right_chest'],
+    [/\bchest\b/, 'left_chest'],
     [/\bback\b/, 'back'],
   ];
   if (/\b(no logo|remove the logo|without a logo|drop the logo)\b/.test(t)) {
@@ -255,8 +256,9 @@ export function briefWishes(text: string): {
     /\bno logo|without a logo|unbranded\b/.test(t) ? 'none'
       : /\bsleeve\b/.test(t) ? 'sleeve'
         : /\bback\b/.test(t) ? 'back'
-          : /\bchest\b/.test(t) ? 'left_chest'
-            : null;
+          : /\bright chest\b/.test(t) ? 'right_chest'
+            : /\bchest\b/.test(t) ? 'left_chest'
+              : null;
   return { colour: pickColour(t), said, logo };
 }
 

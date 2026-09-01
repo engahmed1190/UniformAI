@@ -195,3 +195,12 @@ assert.equal(nonSpec!.spare, 0.1);
 // A single clause still takes the original path unchanged.
 assert.equal(refine(CONCEPTS[1], 'make the trouser navy')!.patch, 'cargo.parts.leg = #1b2a4a');
 console.log('refine: multi-part assertions passed');
+
+// "right chest" must not be swallowed by the plain "chest" rule -- in either
+// parser. The refine table matched \bchest\b first; the brief only knew one
+// chest at all.
+import { briefWishes } from './refine';
+const rc = refine(rBase, 'move the logo to the right chest');
+assert.equal(rc?.concept.logo.position, 'right_chest', 'refine: right chest landed on the left');
+assert.equal(briefWishes('navy polos, logo on the right chest').logo, 'right_chest', 'brief: right chest landed on the left');
+assert.equal(briefWishes('logo on the chest').logo, 'left_chest', 'brief: plain chest still means left');

@@ -367,21 +367,21 @@ function Home({
             <tbody>
               <tr>
                 <td><strong>Site technician polos</strong><div className={s.sub}>SO-2026-00418 · 158 sets</div></td>
-                <td><span className={`${s.pill} ${s.pillWarn}`}>In production</span></td>
-                <td className={`${s.right} ${s.mono}`}>EGP 68,250</td>
-                <td className={`${s.right} ${s.muted}`}>2 days ago</td>
+                <td data-label="Status"><span className={`${s.pill} ${s.pillWarn}`}>In production</span></td>
+                <td data-label="Value" className={`${s.right} ${s.mono}`}>EGP 68,250</td>
+                <td data-label="Updated" className={`${s.right} ${s.muted}`}>2 days ago</td>
               </tr>
               <tr>
                 <td><strong>Front desk shirts</strong><div className={s.sub}>QTN-2026-0091 · 22 sets</div></td>
-                <td><span className={s.pill}>Awaiting approval</span></td>
-                <td className={`${s.right} ${s.mono}`}>EGP 78,400</td>
-                <td className={`${s.right} ${s.muted}`}>5 days ago</td>
+                <td data-label="Status"><span className={s.pill}>Awaiting approval</span></td>
+                <td data-label="Value" className={`${s.right} ${s.mono}`}>EGP 78,400</td>
+                <td data-label="Updated" className={`${s.right} ${s.muted}`}>5 days ago</td>
               </tr>
               <tr>
                 <td><strong>Warehouse workwear</strong><div className={s.sub}>Delivered 14 Aug</div></td>
-                <td><span className={`${s.pill} ${s.pillGood}`}>Delivered</span></td>
-                <td className={`${s.right} ${s.mono}`}>EGP 141,900</td>
-                <td className={`${s.right} ${s.muted}`}>3 weeks ago</td>
+                <td data-label="Status"><span className={`${s.pill} ${s.pillGood}`}>Delivered</span></td>
+                <td data-label="Value" className={`${s.right} ${s.mono}`}>EGP 141,900</td>
+                <td data-label="Updated" className={`${s.right} ${s.muted}`}>3 weeks ago</td>
               </tr>
             </tbody>
           </table>
@@ -521,14 +521,14 @@ function Orders() {
               {LINES.map(([item, note, pct]) => (
                 <tr key={item}>
                   <td><strong>{item}</strong><div className={s.sub}>{note}</div></td>
-                  <td className={`${s.right} ${s.mono}`}>158</td>
-                  <td>
+                  <td data-label="Qty" className={`${s.right} ${s.mono}`}>158</td>
+                  <td data-label="Progress">
                     <div className={s.progress}>
                       <div className={s.progressTrack}><i style={{ width: `${pct}%` }} /></div>
                       <span className={s.progressPct}>{pct}%</span>
                     </div>
                   </td>
-                  <td className={`${s.right} ${s.mono}`}>08 Sep</td>
+                  <td data-label="Ready" className={`${s.right} ${s.mono}`}>08 Sep</td>
                 </tr>
               ))}
             </tbody>

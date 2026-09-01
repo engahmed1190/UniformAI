@@ -313,6 +313,10 @@
   color: var(--text-3);
 }
 
+/* A pill is one line of text in a rounded box. If it wraps it stops reading
+   as a pill and becomes a lozenge with a ragged middle, so it never wraps and
+   never shrinks below its content -- a flex parent must give it its width or
+   wrap it onto its own line. */
 .pill {
   display: inline-flex;
   align-items: center;
@@ -323,6 +327,10 @@
   font-weight: 500;
   background: var(--sunken);
   color: var(--text-2);
+  white-space: nowrap;
+  flex: none;
+  width: fit-content;
+  max-width: 100%;
 }
 
 .pill::before {
@@ -1643,7 +1651,7 @@
 
   .priceBreak,
   .actionText .sub {
-    font-size: 11.5px;
+    font-size: var(--t-xs);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1652,7 +1660,7 @@
 
   .priceActions .btn,
   .actionBar .btn {
-    min-height: 42px;
+    min-height: 46px;
   }
 
   /* Save shares the row with the quote rather than being hidden: Saved kits
@@ -1680,13 +1688,43 @@
     display: block;
   }
 
+  /* The kit name and the fabric tag stop competing for one row: at 360px the
+     tag was squeezed to 102px and wrapped inside its own pill. It now sits
+     under the name, full width available, still on one line. */
+  .stageTop {
+    flex-wrap: wrap;
+    gap: var(--s2) var(--s3);
+  }
+
+  .stageTop > *:first-child {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+
   .stageFoot {
-    font-size: 11.5px;
+    font-size: var(--t-xs);
     gap: var(--s2);
   }
 
+  /* Three across, not four. At 390px four columns give each swatch 69px,
+     which is narrower than the word "Oxblood" at phone type size; three
+     give ~108px, so every name fits on one line and the tap target grows
+     with it. */
   .swatches {
-    grid-template-columns: repeat(auto-fill, minmax(66px, 1fr));
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--s3);
+  }
+
+  .swatch {
+    padding: var(--s2) var(--s2) var(--s3);
+    gap: var(--s2);
+  }
+
+  .swatchName {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
   }
 
   .modal {
@@ -1714,9 +1752,19 @@
     text-align: center;
   }
 
-  /* Touch targets reach 44px without changing the desktop look. */
+  /* Touch targets. The comment here used to promise 44px while the value
+     said 40 -- every secondary button on the app was under the minimum. */
   .btn {
-    min-height: 40px;
+    min-height: 46px;
+  }
+
+  /* Fields are targets too: the brief input was 38px, the shortest control
+     on the busiest screen. */
+  .field input,
+  .field select,
+  .field textarea,
+  .askForm input {
+    min-height: 46px;
   }
 
   .opt {
@@ -1764,16 +1812,86 @@
     gap: var(--s3);
   }
 
+  /* Status and date read as one line under the order name rather than a
+     right-aligned column, which left a ragged edge against the left-aligned
+     title above it. */
   .alignEnd {
+    text-align: left;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: var(--s2) var(--s3);
+  }
+
+  .alignEnd .metaLine {
+    margin: 0;
+  }
+
+  /* A four-column table with three rows should not need sideways scrolling
+     on a phone -- 520px of table in a 341px card hid a third of every row.
+     Each row becomes a card: the first cell is the title, the rest sit as
+     label/value pairs underneath, read from the data-label attributes so
+     the column headings survive the loss of the header row. */
+  .tableCard {
+    overflow: visible;
+  }
+
+  .tableScroll {
+    overflow-x: visible;
+  }
+
+  .tableCard table,
+  .tableCard thead,
+  .tableCard tbody,
+  .tableCard tr,
+  .tableCard td {
+    display: block;
+    width: auto;
+  }
+
+  .tableCard thead {
+    display: none;
+  }
+
+  .tableCard tbody tr {
+    padding: var(--s4);
+    border-bottom: 1px solid var(--line);
+  }
+
+  .tableCard tbody tr:last-child {
+    border-bottom: 0;
+  }
+
+  .tableCard td {
+    padding: 0;
+    border: 0;
     text-align: left;
   }
 
-  .tableCard {
-    overflow-x: auto;
+  /* The first cell keeps its own weight: it is the row's name. */
+  .tableCard td:first-child {
+    margin-bottom: var(--s3);
   }
 
-  .tableCard table {
-    min-width: 520px;
+  .tableCard td[data-label] {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--s4);
+    padding: var(--s1) 0;
+  }
+
+  .tableCard td[data-label]::before {
+    content: attr(data-label);
+    color: var(--text-3);
+    font-size: var(--t-sm);
+    flex: none;
+  }
+
+  /* .right aligns text on a desktop grid; in a flex pair it fights the
+     space-between that already puts the value on the right. */
+  .tableCard td[data-label].right {
+    text-align: left;
   }
 }
 
@@ -1807,7 +1925,7 @@
     height: 22px;
     border-radius: 50%;
     border: 1.5px solid var(--line-2);
-    font-size: 11px;
+    font-size: var(--t-xs);
     color: var(--text-3);
     font-family: var(--font-mono), monospace;
   }
@@ -1830,15 +1948,18 @@
 
   .trailName {
     margin-top: 0;
-    font-size: 10.5px;
+    font-size: var(--t-xs);
   }
 }
 
 /* Coarse pointers get real targets regardless of width. */
 @media (pointer: coarse) {
-  .swatch {
-    width: 40px;
-    height: 40px;
+  /* The swatch is a chip stacked over its name, so a fixed 40x40 box on the
+     button squeezed the label out onto the row below -- "Oxblood" landed on
+     the swatch beneath it. Give the chip the touch size and let the button
+     size itself around chip plus label. */
+  .swatchChip {
+    height: 34px;
   }
 
   .trailStep {

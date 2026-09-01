@@ -122,3 +122,20 @@ input[type='number'] {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Phone type scale. The desktop scale tops out at 14px for body text, which
+   is a comfortable reading size at arm's length on a monitor and a squint on
+   a phone held in one hand. Every size steps up one notch below 760px; the
+   ratios between them stay the same, so nothing in the layout re-proportions.
+   Redefining the tokens here beats overriding font-size per class -- the
+   module's rules all read these. */
+@media (max-width: 760px) {
+  :root {
+    --t-xs: 13px;
+    --t-sm: 14px;
+    --t-base: 15px;
+    --t-lg: 17px;
+    --t-xl: 21px;
+    --t-2xl: 27px;
+  }
+}

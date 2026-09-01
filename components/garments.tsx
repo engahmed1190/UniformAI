@@ -82,23 +82,34 @@ const LOGO_XY: Partial<Record<LogoPosition, { x: number; y: number }>> = {
   back: { x: 88, y: 92 },
 };
 
+export const isTop = (t: Garment['type']) => ['polo', 'shirt', 'blazer'].includes(t);
+
+/** Index of the garment that carries the logo: the first top, or -1.
+ *  One application per concept -- matches conceptPrice, which charges once. */
+export function logoGarmentIndex(garments: Garment[]): number {
+  return garments.findIndex((g) => isTop(g.type));
+}
+
 export function GarmentSvg({
   garment,
   logo,
   logoText,
+  showLogo = true,
 }: {
   garment: Garment;
   logo?: { position: LogoPosition; method: string };
   logoText?: string;
+  /** False for tops that aren't the logo-bearing one. */
+  showLogo?: boolean;
 }) {
   const Renderer = RENDERERS[garment.type];
-  const isTop = ['polo', 'shirt', 'blazer'].includes(garment.type);
-  const spot = logo && logo.position !== 'none' ? LOGO_XY[logo.position] : undefined;
+  const spot =
+    showLogo && logo && logo.position !== 'none' ? LOGO_XY[logo.position] : undefined;
   return (
     <svg viewBox="0 0 200 260" width="100%" role="img"
       aria-label={`${garment.type} in ${garment.parts.body ?? garment.parts.leg}`}>
       <Renderer g={garment} />
-      {isTop && spot && (
+      {spot && (
         <text x={spot.x} y={spot.y} fontSize="11" fontWeight="700" textAnchor="middle"
           fill="#ffffff" stroke="#00000055" strokeWidth="0.4" paintOrder="stroke">
           {(logoText || 'LOGO').slice(0, 8).toUpperCase()}

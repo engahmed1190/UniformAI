@@ -1,6 +1,6 @@
 'use client';
 
-import { GarmentSvg } from './garments';
+import { GarmentSvg, logoGarmentIndex } from './garments';
 import { type Concept, LABELS, conceptPrice } from '@/lib/spec';
 
 export function ConceptCard({
@@ -17,6 +17,7 @@ export function ConceptCard({
   onSelect: () => void;
 }) {
   const per = conceptPrice(concept);
+  const logoAt = logoGarmentIndex(concept.garments);
   return (
     <button
       type="button"
@@ -37,7 +38,7 @@ export function ConceptCard({
       <div style={{ display: 'flex', gap: 4, background: '#f7f8fa', borderRadius: 6, padding: 8 }}>
         {concept.garments.map((g, i) => (
           <div key={i} style={{ flex: 1 }}>
-            <GarmentSvg garment={g} logo={concept.logo} logoText={logoText} />
+            <GarmentSvg garment={g} logo={concept.logo} logoText={logoText} showLogo={i === logoAt} />
           </div>
         ))}
       </div>

@@ -2,7 +2,8 @@
 // The one thing worth checking: an edit changes exactly what it says and nothing else.
 import assert from 'node:assert/strict';
 import { setPart, setLogo, colourFingerprint, conceptPrice, PARTS } from './spec';
-import { CONCEPTS } from './concepts';
+import { CONCEPTS, selectConcepts } from './concepts';
+import { logoGarmentIndex } from '../components/garments';
 
 const base = CONCEPTS[0];
 
@@ -46,4 +47,18 @@ const noLogo = setLogo(base, { position: 'none' });
 assert.equal(noLogo.logo.method, base.logo.method, 'method lost on position patch');
 assert.equal(conceptPrice(noLogo), conceptPrice(base) - 35);
 
-console.log(`ok - ${CONCEPTS.length} concepts, edits provably surgical`);
+// 7. Both branches of the brief selector. The UI advertises "facilities
+//    management" as the industrial path, so it had better lead with Technicians.
+assert.equal(selectConcepts({ industry: 'facilities management' })[0].id, 'technicians');
+assert.equal(selectConcepts({ industry: 'Luxury real estate' })[0].id, 'front-office');
+assert.equal(selectConcepts({ industry: 'construction' })[0].id, 'technicians');
+assert.equal(selectConcepts({ industry: 'boutique hotel' })[0].id, 'front-office');
+
+// 8. Logo renders exactly as often as it is charged: once per concept, and
+//    only when a garment can carry it.
+for (const c of CONCEPTS) {
+  const bearers = c.garments.filter((_, i) => i === logoGarmentIndex(c.garments));
+  assert.equal(bearers.length, 1, `${c.name} has ${bearers.length} logo-bearing garments`);
+}
+
+console.log(`ok - ${CONCEPTS.length} concepts, edits surgical, both briefs route, logo priced once`);

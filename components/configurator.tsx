@@ -6,7 +6,15 @@ import s from '@/app/ui.module.css';
 import { GarmentSvg, logoGarmentIndex } from './garments';
 import { SWATCHES, colourName, refine } from '@/lib/refine';
 import { stepAdvice } from '@/lib/manager';
-import { type Locale, kitName, t } from '@/lib/i18n';
+import { type Locale, formatCurrency, kitName, t } from '@/lib/i18n';
+
+/** colourName() answers in English -- it is shared with the parser. Turn its
+ *  answer into the buyer's language, including the "Close to X" fallback. */
+function swatchLabel(locale: Locale, name: string): string {
+  const near = /^Close to (.+)$/.exec(name);
+  if (near) return t(locale, 'colours.closeTo', { name: t(locale, `colours.${near[1]}`) });
+  return t(locale, `colours.${name}`);
+}
 import { ManagerNote } from './manager';
 import {
   type Concept, type LogoMethod, type LogoPosition,
@@ -15,7 +23,6 @@ import {
 
 type Msg = { who: 'you' | 'app'; text: string; patch?: string };
 
-const money = (n: number) => `EGP ${Math.round(n).toLocaleString()}`;
 
 const STEPS = ['garments', 'colours', 'branding', 'quantity'] as const;
 
@@ -144,7 +151,7 @@ export function Configurator({
                   ? t(locale, 'configure.selectGarment')
                   : t(locale, 'configure.previewUpdates')}
             </span>
-            <span className={s.mono}>{money(per)} / person</span>
+            <span className={s.mono}>{t(locale, 'configure.perPersonPrice', { price: formatCurrency(locale, per) })}</span>
           </div>
         </div>
 
@@ -176,7 +183,7 @@ export function Configurator({
                     options come from the garment's own family. */}
                 {concept.garments.map((g, gi) => (
                   <div className={s.partBlock} key={gi}>
-                    <div className={s.partName}>{LABELS[g.type]}</div>
+                    <div className={s.partName}>{t(locale, `garments.${g.type}`)}</div>
                     <div className={s.optList}>
                       {gradesFor(g.type).map((f, i) => (
                         <button
@@ -190,7 +197,7 @@ export function Configurator({
                           <span className={s.optMark}>{i === (grades[gi] ?? 0) ? <Tick /> : null}</span>
                           <span className={s.optText}>
                             <span className={s.optName}>{gradeName(g, i)}</span>
-                            <span className={s.optNote}>{f.note}</span>
+                            <span className={s.optNote}>{t(locale, f.note)}</span>
                           </span>
                           <span className={s.optPrice}>{f.delta ? `+${f.delta}` : t(locale, 'common.included')}</span>
                         </button>
@@ -205,13 +212,13 @@ export function Configurator({
               <>
                 <div className={s.panelHead}>
                   <h2>{t(locale, 'configure.colours')}</h2>
-                  <p>Editing the {LABELS[concept.garments[focus].type].toLowerCase()}. Pick another garment in the preview to switch.</p>
+                  <p>{t(locale, 'configure.coloursNote', { garment: t(locale, `garments.${concept.garments[focus].type}`) })}</p>
                 </div>
                 {parts.map((part) => (
                   <div className={s.partBlock} key={part}>
-                    <div className={`${s.partName} ${s.partNameData}`}>{part}</div>
+                    <div className={`${s.partName} ${s.partNameData}`}>{t(locale, `parts.${part}`)}</div>
                     <div className={s.partCurrent}>
-                      {colourName(concept.garments[focus].parts[part])}
+                      {swatchLabel(locale, colourName(concept.garments[focus].parts[part]))}
                     </div>
                     <div className={s.swatches}>
                       {SWATCHES.map(([hex, name]) => (
@@ -223,7 +230,7 @@ export function Configurator({
                           onClick={() => onChange(setPart(concept, focus, part, hex))}
                         >
                           <span className={s.swatchChip} style={{ background: hex }} />
-                          <span className={s.swatchName}>{name}</span>
+                          <span className={s.swatchName}>{t(locale, `colours.${name}`)}</span>
                         </button>
                       ))}
                     </div>
@@ -277,7 +284,7 @@ export function Configurator({
                         onClick={() => onChange(setLogo(concept, { colour: hex }))}
                       >
                         <span className={s.swatchChip} style={{ background: hex }} />
-                        <span className={s.swatchName}>{name}</span>
+                        <span className={s.swatchName}>{t(locale, `colours.${name}`)}</span>
                       </button>
                     ))}
                   </div>
@@ -345,16 +352,16 @@ export function Configurator({
                           </span>
                           <span className={s.optNote}>
                             {pct === 0
-                              ? 'A new starter waits for the next run'
-                              : `${Math.ceil(staff * (1 + pct)) - staff} sets for new starters and replacements`}
+                              ? t(locale, 'spare.noneNote')
+                              : t(locale, 'spare.note', { count: Math.ceil(staff * (1 + pct)) - staff })}
                           </span>
                         </span>
-                        <span className={s.optPrice}>{Math.ceil(staff * (1 + pct))} sets</span>
+                        <span className={s.optPrice}>{t(locale, 'spare.setsCount', { count: Math.ceil(staff * (1 + pct)) })}</span>
                       </button>
                     ))}
                   </div>
                   <div className={s.fieldHint}>
-                    Sizes are collected from staff after the order is placed.
+                    {t(locale, 'configure.sizesNote')}
                   </div>
                 </div>
               </>
@@ -368,8 +375,7 @@ export function Configurator({
               <div className={s.askHead}>{t(locale, 'configure.askTitle')}</div>
               {log.length === 0 && (
                 <p className={s.askHint}>
-                  Ask for several things at once. I will show you exactly what I
-                  changed, so nothing moves that you did not ask for.
+                  {t(locale, 'configure.askNote')}
                 </p>
               )}
               {log.length > 0 && (

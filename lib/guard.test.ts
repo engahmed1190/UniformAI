@@ -4,6 +4,7 @@
 // that edits a kit has to mark the work, or the guard silently stops firing.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { translations } from './i18n';
 
 const page = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
 
@@ -45,12 +46,19 @@ for (const handler of ['onChange', 'onGradesChange', 'onSpareChange']) {
 }
 
 // 3. A button says where it goes. The old label pointed at the design page
-// while "Saved kits" was a different destination in the nav. Checked on the
-// rendered label, not the file, so the comment explaining the rename does
-// not fail its own test.
-const labels = [...page.matchAll(/>\s*([A-Z][^<>{}]{3,40}?)\s*<\/button>/g)].map((m) => m[1]);
-assert.ok(!labels.includes('Back to kits'), 'that label named the wrong destination');
-assert.ok(labels.includes('Choose a different kit'), 'the button must say where it goes');
+// while "Saved kits" was a different destination in the nav. Labels come from
+// the dictionary now, so the check moved with them: the English string still
+// has to name the destination, in both languages.
+for (const loc of ['en', 'ar'] as const) {
+  assert.ok(translations[loc].design.chooseDifferent.length > 0,
+    `${loc} is missing the label that says where the button goes`);
+}
+assert.match(translations.en.design.chooseDifferent, /different kit/,
+  'the button must say where it goes');
+// Comments stripped: the note explaining the rename mentions the old label,
+// and the original test was careful not to fail on its own explanation.
+const pageCode = page.replace(/\/\*[^]*?\*\/|\/\/[^\n]*/g, '');
+assert.ok(!/Back to kits/.test(pageCode), 'that label named the wrong destination');
 
 // 4. One h1 per page, and no h3 without an h2 above it. Home had neither.
 // Titles come from the dictionary now, so this checks every page renders an

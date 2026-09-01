@@ -309,7 +309,7 @@ export default function Page() {
                     destination in the nav; this returns to the three
                     suggestions you picked from. */}
                 <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => setPage('design')}>
-                  Choose a different kit
+                  {t(locale, 'design.chooseDifferent')}
                 </button>
               </div>
               {active ? (
@@ -386,7 +386,11 @@ export default function Page() {
               {/* Says "before options" so the number growing on the next
                   screen reads as the options being added, not a wobble. */}
               <span className={s.sub}>
-                {money(conceptPrice(concepts[sel]))} a person · {money(conceptPrice(concepts[sel]) * staff)} for {staff} before options
+                {t(locale, 'configure.beforeOptions', {
+                  price: money(conceptPrice(concepts[sel])),
+                  total: money(conceptPrice(concepts[sel]) * staff),
+                  count: staff,
+                })}
               </span>
             </div>
             <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => setPage('configure')}>
@@ -400,7 +404,9 @@ export default function Page() {
             <div className={s.priceFigures}>
               <span className={s.priceTotal}>{money(perPerson * sets)}</span>
               <span className={s.priceBreak}>
-                {money(perPerson)} per person · {sets} sets{spare > 0 && ` (incl. ${sets - staff} spare)`}
+                {spare > 0
+                  ? t(locale, 'configure.setsLine', { price: money(perPerson), sets, spare: sets - staff })
+                  : t(locale, 'configure.setsLineNoSpare', { price: money(perPerson), sets })}
               </span>
             </div>
             <div className={s.priceActions}>

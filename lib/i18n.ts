@@ -84,6 +84,7 @@ const en = {
     describeChange: 'Describe a change', apply: 'Apply',
     saveKit: 'Save kit', getQuote: 'Get a quote', saveAsKit: 'Save as a kit',
     nextStep: 'Next: {name}', perPersonPrice: '{price} / person',
+    beforeOptions: '{price} a person · {total} for {count} before options',
     setsLine: '{price} per person · {sets} sets (incl. {spare} spare)',
     setsLineNoSpare: '{price} per person · {sets} sets',
   },
@@ -184,6 +185,25 @@ const en = {
     body: 'body', collar: 'collar', cuffs: 'cuffs', placket: 'placket',
     leg: 'leg', lapel: 'lapel', buttons: 'buttons', pockets: 'pockets',
   },
+  colours: {
+    // Swatch names, keyed by the English name the parser matches on. The
+    // stored value is the hex; only what the buyer reads changes.
+    Navy: 'Navy', Ink: 'Ink', Sand: 'Sand', Slate: 'Slate',
+    White: 'White', Olive: 'Olive', Oxblood: 'Oxblood', Brass: 'Brass',
+    closeTo: 'Close to {name}',
+  },
+
+  fabrics: {
+    // The cloth names stay as they are: a buyer sourcing uniforms in Egypt
+    // uses the trade names in either language. Only the notes translate.
+    knit0: '220 GSM · breathable everyday knit',
+    knit1: '240 GSM · softer hand, holds colour',
+    knit2: 'Moisture wicking · best for heat',
+    woven0: 'The cloth this kit is quoted at',
+    woven1: 'Heavier, softer, holds a press',
+    woven2: 'Smooth finish · best for client-facing work',
+  },
+
   branding: {
     embroidery: 'Embroidery', print: 'Screen print',
     embroideryNote: 'Stitched. Hard wearing, premium finish.',
@@ -201,6 +221,7 @@ const en = {
     none: 'No spare', noneNote: 'A new starter waits for the next run',
     five: '5% spare', ten: '10% spare',
     note: '{count} sets for new starters and replacements',
+    setsCount: '{count} sets',
     sets: '{count} sets',
   },
   errors: {
@@ -306,6 +327,7 @@ const ar: Dict<typeof en> = {
     saveAsKit: 'حفظ ضمن الأطقم',
     nextStep: 'التالي: {name}',
     perPersonPrice: '{price} للفرد',
+    beforeOptions: '{price} للفرد · {total} لعدد {count} موظف قبل الإضافات',
     setsLine: '{price} للفرد · {sets} طقم، منها {spare} احتياطي',
     setsLineNoSpare: '{price} للفرد · {sets} طقم',
   },
@@ -457,6 +479,21 @@ const ar: Dict<typeof en> = {
     pockets: 'الجيوب',
   },
 
+  colours: {
+    Navy: 'كحلي', Ink: 'أسود', Sand: 'بيج', Slate: 'رمادي',
+    White: 'أبيض', Olive: 'زيتي', Oxblood: 'نبيتي', Brass: 'ذهبي',
+    closeTo: 'قريب من {name}',
+  },
+
+  fabrics: {
+    knit0: '220 جرام · خامة مريحة جيدة التهوية للاستخدام اليومي',
+    knit1: '240 جرام · ملمس أنعم ويحافظ على ثبات اللون',
+    knit2: 'تمتص العرق وتجف سريعًا · الأنسب للأجواء الحارة',
+    woven0: 'الخامة المعتمدة في تسعير هذا الطقم',
+    woven1: 'أثقل وأنعم وتحافظ على الكيّ لفترة أطول',
+    woven2: 'مظهر ناعم وراقٍ · الأنسب للفرق التي تتعامل مع العملاء',
+  },
+
   branding: {
     embroidery: 'تطريز',
     print: 'طباعة',
@@ -482,6 +519,7 @@ const ar: Dict<typeof en> = {
     five: 'احتياطي 5%',
     ten: 'احتياطي 10%',
     note: '{count} طقم احتياطي للموظفين الجدد أو لاستبدال القطع عند الحاجة',
+    setsCount: '{count} طقم',
     sets: '{count} طقم',
   },
 

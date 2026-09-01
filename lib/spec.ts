@@ -137,20 +137,22 @@ export const FABRIC_FAMILY: Record<GarmentType, FabricFamily> = {
   polo: 'knit', shirt: 'woven', chino: 'woven', blazer: 'woven', cargo: 'woven',
 };
 
+/** `note` is a translation key: the cloth name is catalogue data and stays
+ *  as it is in both languages, but the description beside it is language. */
 export type Grade = { name: string; note: string; delta: number };
 
 export const GRADES: Record<FabricFamily, Grade[]> = {
   knit: [
-    { name: 'Cotton pique', note: '220 GSM · breathable everyday knit', delta: 0 },
-    { name: 'Combed cotton', note: '240 GSM · softer hand, holds colour', delta: 45 },
-    { name: 'Performance knit', note: 'Moisture wicking · best for heat', delta: 90 },
+    { name: 'Cotton pique', note: 'fabrics.knit0', delta: 0 },
+    { name: 'Combed cotton', note: 'fabrics.knit1', delta: 45 },
+    { name: 'Performance knit', note: 'fabrics.knit2', delta: 90 },
   ],
   woven: [
-    { name: 'Standard weave', note: 'The cloth this kit is quoted at', delta: 0 },
+    { name: 'Standard weave', note: 'fabrics.woven0', delta: 0 },
     // grade 0's name is replaced by the garment's own cloth at display time;
     // see gradeName(). A generic label here contradicted the quote.
-    { name: 'Brushed twill', note: 'Heavier, softer, holds a press', delta: 60 },
-    { name: 'Fine worsted', note: 'Smooth finish · best for client-facing work', delta: 120 },
+    { name: 'Brushed twill', note: 'fabrics.woven1', delta: 60 },
+    { name: 'Fine worsted', note: 'fabrics.woven2', delta: 120 },
   ],
 };
 

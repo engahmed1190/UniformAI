@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import s from './ui.module.css';
 import { Sidebar, Topbar, type PageId } from '@/components/shell';
 import { ConceptCard } from '@/components/concept';
@@ -46,6 +46,11 @@ export default function Page() {
   const [quoting, setQuoting] = useState(false);
   const [toast, setToast] = useState('');
 
+  const scroller = useRef<HTMLDivElement>(null);
+  // A new page starts at the top. Carrying the previous scroll position over
+  // was hiding the step tabs on Configure.
+  useEffect(() => { scroller.current?.scrollTo({ top: 0 }); }, [page]);
+
   const active = concepts?.[sel] ?? null;
   const perPerson = active ? conceptPrice(active) + FABRICS[fabric].delta : 0;
   const sets = Math.ceil(staff * (1 + spare));
@@ -85,8 +90,9 @@ export default function Page() {
       <div className={s.main}>
         <Topbar trail={TRAIL[page]} user={USER} />
 
-        <div className={s.body}>
-          <div className={`${s.stack} ${page === 'settings' ? s.stackNarrow : ''}`}>
+        <div className={s.scroll} ref={scroller}>
+          <div className={s.body}>
+          <div className={s.stack}>
           {page === 'home' && (
             <Home
               staff={staff}
@@ -117,7 +123,7 @@ export default function Page() {
                   />
                   <div className={s.fieldHint}>Mention the team, the season, and any colours you have to stick to.</div>
                 </div>
-                <div className={s.row2}>
+                <div className={s.formGrid}>
                   <div className={s.field}>
                     <label htmlFor="people">How many people?</label>
                     <input id="people" type="number" min={1} value={staff}
@@ -155,18 +161,6 @@ export default function Page() {
                     ))}
                   </div>
                   </div>
-                  <div className={s.actionBar}>
-                    <div className={s.actionText}>
-                      <strong>{concepts[sel].name}</strong>
-                      <span className={s.sub}>
-                        {money(conceptPrice(concepts[sel]))} a person · {money(conceptPrice(concepts[sel]) * staff)} for {staff}
-                      </span>
-                    </div>
-                    <button type="button" className={`${s.btn} ${s.btnPrimary}`}
-                      onClick={() => setPage('configure')}>
-                      Configure this kit
-                    </button>
-                  </div>
                 </>
               )}
             </>
@@ -197,7 +191,6 @@ export default function Page() {
                   perPerson={perPerson}
                   sets={sets}
                   brief={brief}
-                  onQuote={() => setQuoting(true)}
                   onSave={() => saveKit(active)}
                 />
               ) : (
@@ -235,7 +228,42 @@ export default function Page() {
           {page === 'orders' && <Orders />}
           {page === 'settings' && <Settings company={COMPANY} staff={staff} onSave={() => flash('Settings saved')} />}
           </div>
+          </div>
         </div>
+
+        {/* Fixed chrome: the primary action is never scrolled out of reach. */}
+        {page === 'design' && concepts && !busy && (
+          <div className={s.actionBar}>
+            <div className={s.actionText}>
+              <strong>{concepts[sel].name}</strong>
+              <span className={s.sub}>
+                {money(conceptPrice(concepts[sel]))} a person · {money(conceptPrice(concepts[sel]) * staff)} for {staff}
+              </span>
+            </div>
+            <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => setPage('configure')}>
+              Configure this kit
+            </button>
+          </div>
+        )}
+
+        {page === 'configure' && active && (
+          <div className={s.priceBar}>
+            <div className={s.priceFigures}>
+              <span className={s.priceTotal}>{money(perPerson * sets)}</span>
+              <span className={s.priceBreak}>
+                {money(perPerson)} per person · {sets} sets{spare > 0 && ` (incl. ${sets - staff} spare)`}
+              </span>
+            </div>
+            <div className={s.priceActions}>
+              <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => saveKit(active)}>
+                Save kit
+              </button>
+              <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => setQuoting(true)}>
+                Get a quote
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {quoting && active && (
@@ -509,7 +537,7 @@ function Settings({ company, staff, onSave }: { company: string; staff: number; 
         </div>
       </div>
       <div className={s.panel}>
-        <div className={s.row2}>
+        <div className={s.formGrid}>
           <div className={s.field}>
             <label htmlFor="sName">Company name</label>
             <input id="sName" defaultValue={company} />
@@ -518,21 +546,23 @@ function Settings({ company, staff, onSave }: { company: string; staff: number; 
             <label htmlFor="sStaff">Total staff</label>
             <input id="sStaff" type="number" defaultValue={staff} />
           </div>
+          <div className={s.field}>
+            <label htmlFor="sInd">Industry</label>
+            <select id="sInd" defaultValue="Technology">
+              <option>Technology</option>
+              <option>Hospitality</option>
+              <option>Facilities management</option>
+              <option>Retail</option>
+            </select>
+          </div>
+          <div className={`${s.field} ${s.formWide}`}>
+            <label htmlFor="sRules">Dress code notes</label>
+            <textarea id="sRules" defaultValue="Smart casual for client-facing teams. Hard-wearing kit for operations." />
+          </div>
+          <div className={s.formWide}>
+            <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onSave}>Save settings</button>
+          </div>
         </div>
-        <div className={s.field}>
-          <label htmlFor="sInd">Industry</label>
-          <select id="sInd" defaultValue="Technology">
-            <option>Technology</option>
-            <option>Hospitality</option>
-            <option>Facilities management</option>
-            <option>Retail</option>
-          </select>
-        </div>
-        <div className={s.field}>
-          <label htmlFor="sRules">Dress code notes</label>
-          <textarea id="sRules" defaultValue="Smart casual for client-facing teams. Hard-wearing kit for operations." />
-        </div>
-        <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onSave}>Save settings</button>
       </div>
     </>
   );

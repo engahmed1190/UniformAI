@@ -39,7 +39,7 @@ const PLACEMENTS: { id: LogoPosition; name: string; note: string }[] = [
 export function Configurator({
   concept, onChange, logoText, staff, onStaffChange,
   fabric, onFabricChange, spare, onSpareChange, perPerson, sets,
-  brief, onQuote, onSave,
+  brief, onSave,
 }: {
   concept: Concept;
   onChange: (c: Concept) => void;
@@ -55,7 +55,6 @@ export function Configurator({
   sets: number;
   /** The customer's own words, so advice can refer back to them. */
   brief: string;
-  onQuote: () => void;
   onSave: () => void;
 }) {
   const [step, setStep] = useState(0);
@@ -95,8 +94,7 @@ export function Configurator({
   }
 
   return (
-    <>
-      <div className={s.config}>
+    <div className={s.config}>
         {/* Preview stays put while the steps change beside it. */}
         <div className={s.stage}>
           <div className={s.stageTop}>
@@ -152,7 +150,7 @@ export function Configurator({
             ))}
           </div>
 
-          <div className={`${s.panel} ${s.panelScroll}`}>
+          <div className={s.panel}>
             {step === 0 && (
               <>
                 <div className={s.panelHead}>
@@ -369,26 +367,7 @@ export function Configurator({
             )}
           </div>
         </div>
-      </div>
-
-      {/* Price never leaves the screen. */}
-      <div className={s.priceBar}>
-        <div className={s.priceFigures}>
-          <span className={s.priceTotal}>{money(per * sets)}</span>
-          <span className={s.priceBreak}>
-            {money(per)} per person · {sets} sets{spare > 0 && ` (incl. ${sets - staff} spare)`}
-          </span>
-        </div>
-        <div className={s.priceActions}>
-          <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onSave}>
-            Save kit
-          </button>
-          <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onQuote}>
-            Get a quote
-          </button>
-        </div>
-      </div>
-    </>
+    </div>
   );
 }
 

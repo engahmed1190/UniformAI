@@ -1,11 +1,13 @@
 /* ---------- Shell ---------- */
 .app {
-  min-height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   display: grid;
   grid-template-columns: 232px 1fr;
   background: var(--bg);
 }
 
+/* Static inside a non-scrolling shell, so it can never drift up the page. */
 .sidebar {
   background: var(--surface);
   border-right: 1px solid var(--line);
@@ -13,29 +15,9 @@
   display: flex;
   flex-direction: column;
   gap: var(--s5);
-  position: sticky;
-  top: 0;
-  /* Fills the viewport and stays filled as the content scrolls, instead of
-     ending in a hard edge partway down the page. */
-  height: 100vh;
+  height: 100%;
+  min-height: 0;
   overflow-y: auto;
-}
-
-/* The rail's background must reach the bottom of a taller page. */
-.app::before {
-  content: '';
-  position: fixed;
-  inset: 0 auto 0 0;
-  width: 232px;
-  background: var(--surface);
-  border-right: 1px solid var(--line);
-  z-index: 0;
-}
-
-.sidebar,
-.main {
-  position: relative;
-  z-index: 1;
 }
 
 .brand {
@@ -169,22 +151,23 @@
 /* ---------- Page frame ---------- */
 .main {
   min-width: 0;
+  height: 100%;
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }
 
 .topbar {
   height: 56px;
+  flex: none;
   padding: 0 var(--s6);
+  /* Matches .body padding so the crumb and the page heading share an edge. */
   border-bottom: 1px solid var(--line);
   background: var(--surface);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--s4);
-  position: sticky;
-  top: 0;
-  z-index: 20;
 }
 
 .crumb {
@@ -229,6 +212,12 @@
   flex: none;
 }
 
+.scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
 .body {
   padding: var(--s6);
   width: 100%;
@@ -244,10 +233,21 @@
   gap: var(--s5);
 }
 
-/* Reading-width column, for form-led pages where a full-bleed field would
-   be unusable. The whole page narrows, not one block inside it. */
-.stackNarrow {
-  max-width: 760px;
+/* Form fields get a comfortable measure inside a full-width card, so a
+   settings page still lines up with every other page. */
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: var(--s3) var(--s4);
+  max-width: 720px;
+}
+
+.formGrid .field {
+  margin-bottom: 0;
+}
+
+.formWide {
+  grid-column: 1 / -1;
 }
 
 /* Blocks own their spacing through the stack gap, never their own margins. */
@@ -560,14 +560,8 @@
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   overflow: hidden;
-  position: sticky;
-  top: 80px;
   display: flex;
   flex-direction: column;
-  /* Never taller than the viewport, so the preview and the price bar are
-     visible at the same time. */
-  max-height: calc(100vh - 168px);
-  min-height: 480px;
 }
 
 .stageTop {
@@ -597,17 +591,17 @@
   justify-content: center;
   gap: var(--s4);
   /* Fills whatever height the step panel needs, so the two columns end
-     together instead of one running 190px past the other. */
+     together instead of one running past the other. */
   flex: 1;
-  min-height: 400px;
+  min-height: 320px;
 }
 
 .stageArea > * {
   flex: 1;
   min-width: 0;
-  max-width: 230px;
+  max-width: 220px;
   height: 100%;
-  max-height: 460px;
+  max-height: 420px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -658,13 +652,6 @@
   display: flex;
   flex-direction: column;
   gap: var(--s3);
-  position: sticky;
-  top: 80px;
-}
-
-.panelScroll {
-  max-height: calc(100vh - 260px);
-  overflow-y: auto;
 }
 
 .trail {
@@ -905,18 +892,14 @@
 
 /* ---------- Price bar: always in view while configuring ---------- */
 .priceBar {
-  position: sticky;
-  bottom: 0;
-  z-index: 15;
+  flex: none;
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  padding: var(--s3) var(--s4);
+  border-top: 1px solid var(--line);
+  padding: var(--s3) var(--s6);
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--s4);
-  box-shadow: var(--shadow);
   flex-wrap: wrap;
 }
 
@@ -1542,19 +1525,17 @@
 
 /* Anchored action bar. A primary action always sits in a bar that names what
    it will act on -- never floating alone in whitespace. */
+/* Fixed chrome at the foot of the frame, not a floating card. */
 .actionBar {
-  position: sticky;
-  bottom: var(--s4);
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--s4);
   flex-wrap: wrap;
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--r-lg);
-  padding: var(--s3) var(--s4);
-  box-shadow: var(--shadow);
+  border-top: 1px solid var(--line);
+  padding: var(--s3) var(--s6);
 }
 
 .actionText {
@@ -1565,4 +1546,9 @@
 
 .actionText .sub {
   margin-top: 0;
+}
+
+/* The brief textarea reads better at a comfortable measure than full-bleed. */
+.briefField {
+  max-width: 720px;
 }

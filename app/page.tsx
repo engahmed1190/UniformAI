@@ -8,6 +8,8 @@ import { Configurator, FABRICS } from '@/components/configurator';
 import { GarmentSvg, logoGarmentIndex } from '@/components/garments';
 import { selectConcepts } from '@/lib/concepts';
 import { type Concept, LABELS, conceptPrice } from '@/lib/spec';
+import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
+import { ManagerNote } from '@/components/manager';
 
 const COMPANY = 'BrainWise Technology';
 const USER = 'Ahmed Osama';
@@ -143,6 +145,9 @@ export default function Page() {
                       <p>Pick the closest one — you can change every detail next.</p>
                     </div>
                   </div>
+                  <div style={{ marginBottom: 14 }}>
+                    <ManagerNote tone="panel" note={whyTheseKits(brief, concepts)} />
+                  </div>
                   <div className={s.kitGrid}>
                     {concepts.map((c, i) => (
                       <ConceptCard key={c.id} concept={c} logoText={logoText} employees={staff}
@@ -184,6 +189,7 @@ export default function Page() {
                   onSpareChange={setSpare}
                   perPerson={perPerson}
                   sets={sets}
+                  brief={brief}
                   onQuote={() => setQuoting(true)}
                   onSave={() => saveKit(active)}
                 />
@@ -257,11 +263,8 @@ function Home({
   const [text, setText] = useState('');
   return (
     <>
-      <div className={s.pageHead}>
-        <div>
-          <h1>Good morning, Ahmed</h1>
-          <p>One order is in production. Nothing needs your approval today.</p>
-        </div>
+      <div style={{ marginBottom: 18 }}>
+        <ManagerNote tone="panel" intro note={greeting('Ahmed', 1)} />
       </div>
 
       {/* The primary job, first thing on the page. */}
@@ -453,6 +456,10 @@ function Orders() {
         </div>
       </div>
 
+      <div style={{ marginTop: 16 }}>
+        <ManagerNote tone="panel" note={orderNote()} />
+      </div>
+
       <div className={s.sectionHead}>
         <div><h2>What is being made</h2></div>
       </div>
@@ -547,7 +554,7 @@ function Quote({
         <div className={s.modalHead}>
           <div>
             <h2 id="qt">Your quote</h2>
-            <p>Held for 30 days. Nothing is charged until you confirm.</p>
+            <p>Held for 30 days.</p>
           </div>
           <button type="button" className={`${s.btn} ${s.btnQuiet}`} onClick={onClose}>Close</button>
         </div>
@@ -579,6 +586,9 @@ function Quote({
           <div className={s.quoteTotal}>
             <span>Total</span>
             <b>{money(per * sets)}</b>
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <ManagerNote note={quoteNote(concept, staff, sets)} />
           </div>
         </div>
         <div className={s.modalFoot}>

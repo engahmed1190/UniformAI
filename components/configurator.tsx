@@ -4,6 +4,8 @@ import { useMemo, useRef, useState } from 'react';
 import s from '@/app/ui.module.css';
 import { GarmentSvg, logoGarmentIndex } from './garments';
 import { SWATCHES, colourName, refine } from '@/lib/refine';
+import { stepAdvice } from '@/lib/manager';
+import { ManagerNote } from './manager';
 import {
   type Concept, type LogoMethod, type LogoPosition,
   LABELS, PARTS, setLogo, setPart,
@@ -37,7 +39,7 @@ const PLACEMENTS: { id: LogoPosition; name: string; note: string }[] = [
 export function Configurator({
   concept, onChange, logoText, staff, onStaffChange,
   fabric, onFabricChange, spare, onSpareChange, perPerson, sets,
-  onQuote, onSave,
+  brief, onQuote, onSave,
 }: {
   concept: Concept;
   onChange: (c: Concept) => void;
@@ -51,6 +53,8 @@ export function Configurator({
   /** Computed by the page, so the price bar and the quote always agree. */
   perPerson: number;
   sets: number;
+  /** The customer's own words, so advice can refer back to them. */
+  brief: string;
   onQuote: () => void;
   onSave: () => void;
 }) {
@@ -83,7 +87,7 @@ export function Configurator({
     } else {
       next.push({
         who: 'app',
-        text: 'I can change a colour, a garment region, or where the logo sits. Try “make the trouser navy”.',
+        text: 'I can change a colour, a part of a garment, or where the logo sits. Try “make the trouser navy”.',
       });
     }
     setLog((l) => [...l, ...next]);
@@ -292,12 +296,14 @@ export function Configurator({
               </>
             )}
 
+            <ManagerNote note={stepAdvice(step, concept, fabric, brief, staff, spare)} />
+
             {/* Available at every step: describe the change instead of hunting for it. */}
             <div className={s.ask}>
-              <div className={s.askHead}>Or just say what you want</div>
+              <div className={s.askHead}>Or just tell me what to change</div>
               {log.length === 0 && (
                 <p className={s.askHint}>
-                  Changes apply to the spec, so the exact field that moved is shown with each reply.
+                  I will show you exactly what I changed, so nothing moves that you did not ask for.
                 </p>
               )}
               {log.length > 0 && (

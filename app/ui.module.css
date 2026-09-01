@@ -1353,3 +1353,60 @@
     flex: 1;
   }
 }
+
+/* ---------- Account manager ---------- */
+/* Present only where there is something specific to say. Quiet by design:
+   it should read as a note from someone, not a system alert. */
+.mgrPanel,
+.mgrInline {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.mgrPanel {
+  background: var(--accent-soft);
+  border: 1px solid rgba(15, 107, 98, 0.16);
+  border-radius: var(--r-lg);
+  padding: 14px 16px;
+}
+
+.mgrInline {
+  border-top: 1px solid var(--line);
+  margin-top: 14px;
+  padding-top: 13px;
+}
+
+.mgrMark {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  flex: none;
+  margin-top: 1px;
+}
+
+.mgrBody {
+  min-width: 0;
+}
+
+.mgrWho {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 3px;
+}
+
+.mgrText {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-2);
+}
+
+.mgrPanel .mgrText {
+  color: var(--text);
+}

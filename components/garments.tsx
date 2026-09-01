@@ -133,7 +133,7 @@ const LOGO_XY: Partial<Record<LogoPosition,
   // The sleeve is the narrowest placement: a small flat badge on the upper
   // arm, inboard of the cuff band. Rotating it to the sleeve angle was worse
   // -- at this size it just reads as tilted text.
-  sleeve: { x: 57, y: 58, w: 20, size: 5.5 },
+  sleeve: { x: 62, y: 58, w: 18, size: 5.5 },
   back: { x: 100, y: 96, w: 56, size: 10 },
 };
 

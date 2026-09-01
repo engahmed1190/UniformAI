@@ -32,20 +32,27 @@ assert.equal(
 // 3. A back logo sits on the centre line.
 assert.equal(xOf('back'), CENTRE, 'a back logo belongs on the centre seam');
 
-// 4. The sleeve badge must sit clear of the cuff band. The cuff runs from
-// x=36 to x=59 on the left sleeve; a badge overlapping it was the "square on
-// the sleeve" report -- the badge sat on top of a white cuff.
+// 4. The sleeve badge must sit clear of the cuff band -- a badge sitting on
+// a white cuff was the "square on the sleeve" report. The left cuff is the
+// quad (36,60)(48,82)(59,71)(47,49); its upper-right edge runs (47,49) to
+// (59,71), so at the badge's own baseline the cuff ends well left of 59.
 const sleeveX = xOf('sleeve');
-const sleeveW = Number(src.match(/sleeve:\s*\{[^}]*w:\s*(\d+)/)![1]);
-assert.ok(sleeveX - sleeveW / 2 >= 46,
-  `sleeve badge starts at ${sleeveX - sleeveW / 2}, inside the cuff band (ends x=59)`);
+const num = (key: string, field: string) =>
+  Number(src.match(new RegExp(`${key}:\\s*\\{[^}]*${field}:\\s*([\\d.]+)`))![1]);
+const sleeveW = num('sleeve', 'w');
+const sleeveY = num('sleeve', 'y');
+// Where the cuff's slanted edge sits at that height.
+const cuffEdgeAtY = 47 + (59 - 47) * (sleeveY - 49) / (71 - 49);
+assert.ok(sleeveX - sleeveW / 2 >= cuffEdgeAtY,
+  `sleeve badge starts at ${sleeveX - sleeveW / 2}, but the cuff reaches ` +
+  `x=${cuffEdgeAtY.toFixed(1)} at y=${sleeveY}`);
 
 // 5. Every placement carries a width and size, so a long company name is
 // scaled to its placement instead of running off the garment.
 for (const key of ['left_chest', 'right_chest', 'sleeve', 'back']) {
   const entry = src.match(new RegExp(`${key}:\\s*\\{([^}]*)\\}`))![1];
-  assert.match(entry, /w:\s*\d/, `${key} needs a width to scale text into`);
-  assert.match(entry, /size:\s*[\d.]/, `${key} needs a font size`);
+  assert.match(entry, /w:\s*[\d.]+\s*(,|$)/, `${key} needs a width to scale text into`);
+  assert.match(entry, /size:\s*[\d.]+\s*(,|$)/, `${key} needs a font size`);
 }
 // Long names are squeezed into the placement; short ones are left alone,
 // since textLength stretches as readily as it shrinks.

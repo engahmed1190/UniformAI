@@ -6,6 +6,16 @@ import { Sidebar, Topbar, type PageId } from '@/components/shell';
 import { type Locale, LOCALES, LOCALE_CODES, LOCALE_NAMES, dir, kitName, formatCurrency, formatDate, t } from '@/lib/i18n';
 import { ConceptCard } from '@/components/concept';
 import { Select } from '@/components/select';
+import { colourName } from '@/lib/refine';
+
+/** colourName() answers in English -- it is shared with the parser -- so the
+ *  screen turns its answer into the buyer's language. */
+function swatch(locale: Locale, name: string): string {
+  const near = /^Close to (.+)$/.exec(name);
+  return near
+    ? t(locale, 'colours.closeTo', { name: t(locale, `colours.${near[1]}`) })
+    : t(locale, `colours.${name}`);
+}
 import { Configurator } from '@/components/configurator';
 import { GarmentSvg, logoGarmentIndex } from '@/components/garments';
 import { CONCEPTS, selectConcepts } from '@/lib/concepts';
@@ -745,9 +755,14 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
               <tr><th>{t(locale, 'orders.colItem')}</th><th className={s.right}>{t(locale, 'orders.colQty')}</th><th>{t(locale, 'orders.colProgress')}</th><th className={s.right}>{t(locale, 'orders.colReady')}</th></tr>
             </thead>
             <tbody>
-              {o.lines.map((l) => (
-                <tr key={l.item}>
-                  <td><strong>{l.item}</strong><div className={s.sub}>{l.note}</div></td>
+              {o.lines.map((l, i) => (
+                <tr key={i}>
+                  <td>
+                    <strong>{l.garment
+                      ? `${t(locale, `garments.${l.garment}`)} · ${swatch(locale, colourName(l.colour ?? ''))}`
+                      : t(locale, l.logo === 'print' ? 'branding.printedLogo' : 'branding.embroideredLogo')}</strong>
+                    <div className={s.sub}>{l.fabric ?? (l.position ? t(locale, `branding.${l.position}`) : '')}</div>
+                  </td>
                   <td data-label="Qty" className={`${s.right} ${s.mono}`}>{l.qty}</td>
                   <td data-label="Progress">
                     <div className={s.progress}>

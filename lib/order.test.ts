@@ -20,10 +20,10 @@ assert.equal(o.staff, 40);
 // 2. One line per garment, plus one for the logo, each for every set.
 assert.equal(o.lines.length, c.garments.length + 1);
 assert.ok(o.lines.every((l) => l.qty === 42));
-assert.match(o.lines[o.lines.length - 1].item, /logo/i);
+assert.ok(o.lines[o.lines.length - 1].logo, 'the last line is the branding line');
 
 // 3. The upgrade the buyer chose is named on its line.
-assert.equal(o.lines[0].note, gradeName(c.garments[0], 1));
+assert.equal(o.lines[0].fabric, gradeName(c.garments[0], 1));
 
 // 4. No logo, no branding line.
 assert.equal(placeOrder(setLogo(c, { position: 'none' }), 40, 42, grades, per).lines.length, c.garments.length);
@@ -78,3 +78,14 @@ assert.ok(
   placeOrder(c, 40, 42, [], 500, new Date(2026, 11, 31, 23, 59, 59)).id,
   'the new year must sort after the old one',
 );
+
+// 10. Order lines hold data, not sentences. An order placed in Arabic and
+// reopened in English -- or the reverse -- must read in the language the
+// buyer is looking at, so the line stores what it IS and the screen says it.
+const line = o.lines[0];
+assert.ok('garment' in line || 'logo' in line, 'a line must name what it is, not a rendered string');
+const logoLine = o.lines[o.lines.length - 1];
+assert.equal(logoLine.logo, 'embroidery', 'the logo line stores the method');
+assert.equal(logoLine.position, 'left_chest', 'and the placement');
+assert.equal(line.garment, c.garments[0].type, 'a garment line stores its type');
+assert.ok(line.colour?.startsWith('#'), 'and its colour as the stored hex');

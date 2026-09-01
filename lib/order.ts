@@ -3,10 +3,23 @@
 // the number on the order.
 // ponytail: one order, kept in localStorage. A list when the demo needs two.
 
-import { type Concept, LABELS, gradeName } from './spec';
-import { colourName } from './refine';
+import { type Concept, type GarmentType, type LogoMethod, type LogoPosition, gradeName } from './spec';
 
-export type OrderLine = { item: string; note: string; qty: number };
+/** A line stores what it IS, never a rendered sentence: an order placed in
+ *  Arabic and reopened in English has to read in the language on screen, and
+ *  a baked-in string cannot. The screen turns these into words. */
+export type OrderLine = {
+  qty: number;
+  /** Set on a garment line. */
+  garment?: GarmentType;
+  /** The garment's main colour, as the stored hex. */
+  colour?: string;
+  /** The cloth name: catalogue data, the same in both languages. */
+  fabric?: string;
+  /** Set on the branding line instead. */
+  logo?: LogoMethod;
+  position?: LogoPosition;
+};
 
 export type Order = {
   id: string;
@@ -74,16 +87,13 @@ export function placeOrder(
   stage = 1,
 ): Order {
   const lines: OrderLine[] = concept.garments.map((g, i) => ({
-    item: `${LABELS[g.type]} · ${colourName(g.parts.body ?? g.parts.leg ?? Object.values(g.parts)[0])}`,
-    note: gradeName(g, grades[i] ?? 0),
     qty: sets,
+    garment: g.type,
+    colour: g.parts.body ?? g.parts.leg ?? Object.values(g.parts)[0],
+    fabric: gradeName(g, grades[i] ?? 0),
   }));
   if (concept.logo.position !== 'none') {
-    lines.push({
-      item: `${concept.logo.method === 'print' ? 'Printed' : 'Embroidered'} logo`,
-      note: concept.logo.position.replace('_', ' '),
-      qty: sets,
-    });
+    lines.push({ qty: sets, logo: concept.logo.method, position: concept.logo.position });
   }
   const due = new Date(now);
   due.setDate(due.getDate() + LEAD_DAYS);

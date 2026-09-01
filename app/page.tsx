@@ -86,6 +86,7 @@ export default function Page() {
         <Topbar trail={TRAIL[page]} user={USER} />
 
         <div className={s.body}>
+          <div className={`${s.stack} ${page === 'settings' ? s.stackNarrow : ''}`}>
           {page === 'home' && (
             <Home
               staff={staff}
@@ -105,7 +106,7 @@ export default function Page() {
                 </div>
               </div>
 
-              <div className={s.panel} style={{ maxWidth: 720, marginBottom: 20 }}>
+              <div className={s.panel}>
                 <div className={s.field}>
                   <label htmlFor="brief">What do you need?</label>
                   <textarea
@@ -139,22 +140,28 @@ export default function Page() {
 
               {concepts && !busy && (
                 <>
-                  <div className={s.sectionHead} style={{ marginTop: 0 }}>
+                  <div className={s.group}>
+                  <div className={s.sectionHead}>
                     <div>
                       <h2>Three kits for {staff} people</h2>
                       <p>Pick the closest one — you can change every detail next.</p>
                     </div>
                   </div>
-                  <div style={{ marginBottom: 14 }}>
-                    <ManagerNote tone="panel" note={whyTheseKits(brief, concepts)} />
-                  </div>
+                  <ManagerNote tone="panel" note={whyTheseKits(brief, concepts)} />
                   <div className={s.kitGrid}>
                     {concepts.map((c, i) => (
                       <ConceptCard key={c.id} concept={c} logoText={logoText} employees={staff}
                         selected={i === sel} onSelect={() => setSel(i)} />
                     ))}
                   </div>
-                  <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16 }}>
+                  </div>
+                  <div className={s.actionBar}>
+                    <div className={s.actionText}>
+                      <strong>{concepts[sel].name}</strong>
+                      <span className={s.sub}>
+                        {money(conceptPrice(concepts[sel]))} a person · {money(conceptPrice(concepts[sel]) * staff)} for {staff}
+                      </span>
+                    </div>
                     <button type="button" className={`${s.btn} ${s.btnPrimary}`}
                       onClick={() => setPage('configure')}>
                       Configure this kit
@@ -227,6 +234,7 @@ export default function Page() {
 
           {page === 'orders' && <Orders />}
           {page === 'settings' && <Settings company={COMPANY} staff={staff} onSave={() => flash('Settings saved')} />}
+          </div>
         </div>
       </div>
 
@@ -263,12 +271,10 @@ function Home({
   const [text, setText] = useState('');
   return (
     <>
-      <div style={{ marginBottom: 18 }}>
-        <ManagerNote tone="panel" intro note={greeting('Ahmed', 1)} />
-      </div>
+      <ManagerNote tone="panel" intro note={greeting('Ahmed', 1)} />
 
       {/* The primary job, first thing on the page. */}
-      <div className={s.panel} style={{ marginBottom: 22 }}>
+      <div className={s.panel}>
         <div className={s.panelHead}>
           <h3>What do you need to kit out?</h3>
           <p>Describe the team in your own words.</p>
@@ -304,6 +310,7 @@ function Home({
         <Stat label="Sizes collected" value="28" sub={` / ${staff}`} note="12 people still to confirm" />
       </div>
 
+      <div className={s.group}>
       <div className={s.sectionHead}>
         <div>
           <h2>Recent activity</h2>
@@ -318,19 +325,19 @@ function Home({
             </thead>
             <tbody>
               <tr>
-                <td><strong>Site technician polos</strong><div className={s.muted} style={{ fontSize: 12.5 }}>SO-2026-00418 · 158 sets</div></td>
+                <td><strong>Site technician polos</strong><div className={s.sub}>SO-2026-00418 · 158 sets</div></td>
                 <td><span className={`${s.pill} ${s.pillWarn}`}>In production</span></td>
                 <td className={`${s.right} ${s.mono}`}>EGP 68,250</td>
                 <td className={`${s.right} ${s.muted}`}>2 days ago</td>
               </tr>
               <tr>
-                <td><strong>Front desk shirts</strong><div className={s.muted} style={{ fontSize: 12.5 }}>QTN-2026-0091 · 22 sets</div></td>
+                <td><strong>Front desk shirts</strong><div className={s.sub}>QTN-2026-0091 · 22 sets</div></td>
                 <td><span className={s.pill}>Awaiting approval</span></td>
                 <td className={`${s.right} ${s.mono}`}>EGP 78,400</td>
                 <td className={`${s.right} ${s.muted}`}>5 days ago</td>
               </tr>
               <tr>
-                <td><strong>Warehouse workwear</strong><div className={s.muted} style={{ fontSize: 12.5 }}>Delivered 14 Aug</div></td>
+                <td><strong>Warehouse workwear</strong><div className={s.sub}>Delivered 14 Aug</div></td>
                 <td><span className={`${s.pill} ${s.pillGood}`}>Delivered</span></td>
                 <td className={`${s.right} ${s.mono}`}>EGP 141,900</td>
                 <td className={`${s.right} ${s.muted}`}>3 weeks ago</td>
@@ -339,7 +346,8 @@ function Home({
           </table>
         </div>
       </div>
-      <div style={{ marginTop: 14 }}>
+      </div>
+      <div>
         <button type="button" className={`${s.btn} ${s.btnQuiet}`} onClick={onKits}>Browse saved kits</button>
       </div>
     </>
@@ -434,15 +442,15 @@ function Orders() {
       </div>
 
       <div className={`${s.card} ${s.cardPad}`}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+        <div className={s.splitRow}>
           <div>
-            <div className={s.muted} style={{ fontSize: 12.5 }}>SO-2026-00418</div>
-            <h2 style={{ fontSize: 16, margin: '4px 0 3px' }}>Site technician polos</h2>
-            <div className={s.muted} style={{ fontSize: 13 }}>158 sets · EGP 68,250</div>
+            <div className={s.sub}>SO-2026-00418</div>
+            <h2 className={s.orderTitle}>Site technician polos</h2>
+            <div className={s.sub}>158 sets · EGP 68,250</div>
           </div>
-          <div style={{ textAlign: 'right' }}>
+          <div className={s.alignEnd}>
             <span className={`${s.pill} ${s.pillWarn}`}>In production</span>
-            <div className={s.muted} style={{ fontSize: 12.5, marginTop: 6 }}>Arrives 08 Sep</div>
+            <div className={`${s.muted} ${s.metaLine}`}>Arrives 08 Sep</div>
           </div>
         </div>
         <div className={s.timeline}>
@@ -456,10 +464,9 @@ function Orders() {
         </div>
       </div>
 
-      <div style={{ marginTop: 16 }}>
-        <ManagerNote tone="panel" note={orderNote()} />
-      </div>
+      <ManagerNote tone="panel" note={orderNote()} />
 
+      <div className={s.group}>
       <div className={s.sectionHead}>
         <div><h2>What is being made</h2></div>
       </div>
@@ -472,7 +479,7 @@ function Orders() {
             <tbody>
               {LINES.map(([item, note, pct]) => (
                 <tr key={item}>
-                  <td><strong>{item}</strong><div className={s.muted} style={{ fontSize: 12.5 }}>{note}</div></td>
+                  <td><strong>{item}</strong><div className={s.sub}>{note}</div></td>
                   <td className={`${s.right} ${s.mono}`}>158</td>
                   <td>
                     <div className={s.progress}>
@@ -487,6 +494,7 @@ function Orders() {
           </table>
         </div>
       </div>
+      </div>
     </>
   );
 }
@@ -500,7 +508,7 @@ function Settings({ company, staff, onSave }: { company: string; staff: number; 
           <p>Used to keep every kit on brand.</p>
         </div>
       </div>
-      <div className={s.panel} style={{ maxWidth: 640 }}>
+      <div className={s.panel}>
         <div className={s.row2}>
           <div className={s.field}>
             <label htmlFor="sName">Company name</label>
@@ -561,24 +569,24 @@ function Quote({
         <div className={s.modalBody}>
           {concept.garments.map((g, i) => (
             <div className={s.quoteLine} key={i}>
-              <span>{LABELS[g.type]}<div className={s.muted} style={{ fontSize: 12 }}>{g.fabric}</div></span>
+              <span>{LABELS[g.type]}<div className={s.sub}>{g.fabric}</div></span>
               <b>{money(g.unitPrice)}</b>
             </div>
           ))}
           {upgrade > 0 && (
             <div className={s.quoteLine}>
-              <span>Fabric upgrade<div className={s.muted} style={{ fontSize: 12 }}>{fabricName}</div></span>
+              <span>Fabric upgrade<div className={s.sub}>{fabricName}</div></span>
               <b>{money(upgrade)}</b>
             </div>
           )}
           <div className={s.quoteLine}>
-            <span>Branding<div className={s.muted} style={{ fontSize: 12 }}>
+            <span>Branding<div className={s.sub}>
               {concept.logo.position === 'none' ? 'None' : `${concept.logo.method}, ${concept.logo.position.replace('_', ' ')}`}
             </div></span>
             <b>{branding ? money(branding) : '—'}</b>
           </div>
           <div className={s.quoteLine}>
-            <span>Sets<div className={s.muted} style={{ fontSize: 12 }}>
+            <span>Sets<div className={s.sub}>
               {staff} people{spareSets > 0 ? ` plus ${spareSets} spare` : ', no spare'}
             </div></span>
             <b>{sets}</b>
@@ -587,9 +595,7 @@ function Quote({
             <span>Total</span>
             <b>{money(per * sets)}</b>
           </div>
-          <div style={{ marginTop: 14 }}>
-            <ManagerNote note={quoteNote(concept, staff, sets)} />
-          </div>
+          <ManagerNote note={quoteNote(concept, staff, sets)} />
         </div>
         <div className={s.modalFoot}>
           <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onClose}>Keep editing</button>

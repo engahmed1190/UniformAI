@@ -23,6 +23,26 @@
 
   --focus: #0f6b62;
 
+  /* One 4px scale. Every padding, gap and margin comes from here -- the
+     audit found 14 different padding values, which is what makes a layout
+     feel unconsidered even when nothing is visibly broken. */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 20px;
+  --s6: 24px;
+  --s8: 32px;
+  --s10: 40px;
+
+  /* Type scale. Five sizes, not ten. */
+  --t-xs: 12px;
+  --t-sm: 13px;
+  --t-base: 14px;
+  --t-lg: 16px;
+  --t-xl: 20px;
+  --t-2xl: 26px;
+
   --r-sm: 6px;
   --r: 10px;
   --r-lg: 14px;
@@ -52,7 +72,7 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
-  font-size: 14px;
+  font-size: var(--t-base);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
 }

@@ -152,7 +152,7 @@ export function Configurator({
             ))}
           </div>
 
-          <div className={s.panel}>
+          <div className={`${s.panel} ${s.panelScroll}`}>
             {step === 0 && (
               <>
                 <div className={s.panelHead}>
@@ -245,7 +245,7 @@ export function Configurator({
 
                 <div className={s.partBlock}>
                   <div className={s.partName}>Placement</div>
-                  <div className={s.optList} style={{ marginTop: 8 }}>
+                  <div className={s.optList}>
                     {PLACEMENTS.map((p) => (
                       <button
                         key={p.id}
@@ -340,21 +340,20 @@ export function Configurator({
             </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button
-              type="button"
-              className={`${s.btn} ${s.btnSecondary}`}
-              onClick={() => setStep((n) => Math.max(0, n - 1))}
-              disabled={step === 0}
-              style={{ visibility: step === 0 ? 'hidden' : 'visible' }}
-            >
-              Back
-            </button>
+          <div className={s.stepNav}>
+            {step > 0 && (
+              <button
+                type="button"
+                className={`${s.btn} ${s.btnSecondary}`}
+                onClick={() => setStep((n) => n - 1)}
+              >
+                Back
+              </button>
+            )}
             {step < STEPS.length - 1 ? (
               <button
                 type="button"
-                className={`${s.btn} ${s.btnPrimary}`}
-                style={{ flex: 1 }}
+                className={`${s.btn} ${s.btnPrimary} ${s.grow}`}
                 onClick={() => setStep((n) => n + 1)}
               >
                 Next: {STEPS[step + 1]}
@@ -362,8 +361,7 @@ export function Configurator({
             ) : (
               <button
                 type="button"
-                className={`${s.btn} ${s.btnSecondary}`}
-                style={{ flex: 1 }}
+                className={`${s.btn} ${s.btnSecondary} ${s.grow}`}
                 onClick={onSave}
               >
                 Save as a kit

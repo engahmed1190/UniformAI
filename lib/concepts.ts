@@ -84,7 +84,10 @@ export const CONCEPTS: Concept[] = [
       {
         type: 'polo',
         parts: { body: '#c8b393', collar: '#7a6a4f', placket: '#7a6a4f' },
-        fabric: 'Polyester Pique 200 GSM',
+        // The fabric step's base grade is cotton pique 220. A seed naming a
+        // different cloth made the quote contradict the option the customer
+        // had selected on screen.
+        fabric: 'Cotton Pique 220 GSM',
         unitPrice: 230,
       },
       {

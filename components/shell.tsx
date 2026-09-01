@@ -163,7 +163,8 @@ export function Topbar({ trail, user }: { trail: string[]; user: string }) {
         ))}
       </div>
       <div className={s.topRight}>
-        <input className={s.search} placeholder="Search kits and orders" aria-label="Search" />
+        {/* No search box until it searches something. A control that does
+            nothing when clicked costs more than the space it saves. */}
         <div className={s.avatar} title={user}>{initials}</div>
       </div>
     </header>

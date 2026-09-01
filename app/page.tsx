@@ -262,8 +262,10 @@ export default function Page() {
           <div className={s.actionBar}>
             <div className={s.actionText}>
               <strong>{concepts[sel].name}</strong>
+              {/* Says "before options" so the number growing on the next
+                  screen reads as the options being added, not a wobble. */}
               <span className={s.sub}>
-                {money(conceptPrice(concepts[sel]))} a person · {money(conceptPrice(concepts[sel]) * staff)} for {staff}
+                {money(conceptPrice(concepts[sel]))} a person · {money(conceptPrice(concepts[sel]) * staff)} for {staff} before options
               </span>
             </div>
             <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => setPage('configure')}>
@@ -323,6 +325,9 @@ function Home({
   onOrders: () => void;
 }) {
   const [text, setText] = useState('');
+  // 70% of the team has sent sizes in. One number, so the count and the
+  // remainder can never disagree.
+  const collected = Math.round(staff * 0.7);
   return (
     <>
       {/* Home was the one page with no h1: the heading order ran h3, h2 and
@@ -369,7 +374,10 @@ function Home({
         <Stat label="Saved kits" value={String(savedCount)} note="Ready to reorder" />
         <Stat label="Awaiting approval" value="1" note="EGP 78,400 quoted" />
         <Stat label="In production" value="1" note="Ships 08 Sep" />
-        <Stat label="Sizes collected" value="28" sub={` / ${staff}`} note="12 people still to confirm" />
+        {/* Derived, not frozen: this read "28 / 200 · 12 still to confirm"
+            as soon as anyone changed the headcount. */}
+        <Stat label="Sizes collected" value={String(collected)} sub={` / ${staff}`}
+          note={`${staff - collected} ${staff - collected === 1 ? 'person' : 'people'} still to confirm`} />
       </div>
 
       <div className={s.group}>
@@ -650,13 +658,17 @@ function Quote({
         <div className={s.modalBody}>
           {concept.garments.map((g, i) => (
             <div className={s.quoteLine} key={i}>
+              {/* The base cloth stays on its own line; the grade the customer
+                  picked is priced on the upgrade line below. Printing the
+                  grade on every row said "Performance knit" three times and
+                  lost the weight, which is the detail buyers check. */}
               <span>{LABELS[g.type]}<div className={s.sub}>{g.fabric}</div></span>
               <b>{money(g.unitPrice)}</b>
             </div>
           ))}
           {upgrade > 0 && (
             <div className={s.quoteLine}>
-              <span>Fabric upgrade<div className={s.sub}>{fabricName}</div></span>
+              <span>Fabric upgrade<div className={s.sub}>Every garment in {fabricName}</div></span>
               <b>{money(upgrade)}</b>
             </div>
           )}

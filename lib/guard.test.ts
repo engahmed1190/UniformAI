@@ -53,16 +53,35 @@ assert.ok(!labels.includes('Back to kits'), 'that label named the wrong destinat
 assert.ok(labels.includes('Choose a different kit'), 'the button must say where it goes');
 
 // 4. One h1 per page, and no h3 without an h2 above it. Home had neither.
-assert.match(page, /<h1>Home<\/h1>/, 'every page needs a title, Home included');
+// Titles come from the dictionary now, so this checks every page renders an
+// h1 from a translation key rather than looking for one English string.
+const h1s = [...page.matchAll(/<h1>\{t\(locale, '([\w.]+)'\)\}<\/h1>/g)].map((m) => m[1]);
+assert.ok(h1s.includes('home.title'), 'every page needs a title, Home included');
+assert.ok(h1s.length >= 5, `only ${h1s.length} pages carry an h1: ${h1s}`);
 assert.ok(!/<h3>/.test(page), 'panel headings sit under the page h1, so they are h2');
+
+// 4b. No component may carry its own English/Arabic branch: that is exactly
+// the duplication the dictionary exists to prevent.
+for (const [file, src] of [['page.tsx', page], ['shell.tsx', readFileSync(new URL('../components/shell.tsx', import.meta.url), 'utf8')]]) {
+  assert.ok(!/locale === '(ar|en)' \?/.test(src),
+    `${file} branches on locale inline -- put the string in lib/i18n.ts`);
+}
 
 // 5. A table header sits over its own data. `.tableCard th` set text-align
 // and outranked a bare `.right` on specificity, so every heading rendered
 // left while its numbers were right-aligned -- "Qty" sat 145px from its own
 // column of figures. The override has to be at least as specific.
 const css = readFileSync(new URL('../app/ui.module.css', import.meta.url), 'utf8');
-assert.match(css, /\.tableCard th\.right\s*\{[^}]*text-align:\s*right/,
+assert.match(css, /\.tableCard th\.right\s*\{[^}]*text-align:\s*end/,
   'a right-aligned header needs a rule that beats .tableCard th');
+
+// 5b. RTL: the stylesheet must stay on logical properties. A physical
+// margin-left or text-align:left reads wrong in Arabic, and the only
+// physical offsets allowed are symmetric pairs and centring.
+const rules = css.replace(/\/\*[^]*?\*\//g, '');
+const physical = [...rules.matchAll(/^\s*(margin|padding|border)-(left|right):|^\s*text-align:\s*(left|right)\b/gm)];
+assert.equal(physical.length, 0,
+  `physical directional properties found: ${physical.map((m) => m[0].trim())}`);
 
 // Every th carrying .right must have a td under it that also does, or the
 // column is aligned one way in the head and the other in the body.

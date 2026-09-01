@@ -76,7 +76,13 @@
   padding: 0 var(--s2) var(--s2);
 }
 
-.nav button {
+/* The phone bar. Hidden until the sidebar becomes a bottom bar at 760px. */
+.navPhone {
+  display: none;
+}
+
+.nav button,
+.navPhone button {
   border: 0;
   background: transparent;
   color: var(--text-2);
@@ -91,25 +97,29 @@
   transition: background 0.12s, color 0.12s;
 }
 
-.nav button svg {
+.nav button svg,
+.navPhone button svg {
   width: 15px;
   height: 15px;
   flex: none;
   color: var(--text-3);
 }
 
-.nav button:hover {
+.nav button:hover,
+.navPhone button:hover {
   background: var(--sunken);
   color: var(--text);
 }
 
-.nav button[aria-current='page'] {
+.nav button[aria-current='page'],
+.navPhone button[aria-current='page'] {
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
 }
 
-.nav button[aria-current='page'] svg {
+.nav button[aria-current='page'] svg,
+.navPhone button[aria-current='page'] svg {
   color: var(--accent);
 }
 
@@ -1389,11 +1399,14 @@
 
   .brand,
   .account,
-  .navLabel {
+  .navLabel,
+  .nav {
     display: none;
   }
 
-  .nav {
+  /* Four targets, not six: at 390px that is ~97px each, wide enough that
+     "New uniform" sits on one line instead of wrapping. */
+  .navPhone {
     display: grid;
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
@@ -1401,41 +1414,107 @@
     width: 100%;
   }
 
-  .nav button {
+  .navPhone button {
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 3px;
     padding: var(--s2) var(--s1);
     min-height: 52px;
-    font-size: 10.5px;
+    font-size: 11px;
     line-height: 1.15;
     text-align: center;
     border-radius: var(--r-sm);
+    position: relative;
   }
 
-  .nav button svg {
-    width: 19px;
-    height: 19px;
+  .navPhone button svg {
+    width: 21px;
+    height: 21px;
   }
 
-  .nav button[aria-current='page'] {
+  .navPhone button[aria-current='page'] {
     background: transparent;
     color: var(--accent);
   }
 
   .navCount {
     position: absolute;
-    transform: translate(14px, -14px);
+    top: 4px;
+    left: 50%;
+    margin: 0 0 0 6px;
     background: var(--accent);
     color: #fff;
     border-radius: 999px;
     min-width: 16px;
     height: 16px;
+    padding: 0 4px;
     display: grid;
     place-items: center;
     font-size: 10px;
-    margin: 0;
+  }
+
+  /* More sheet: sits above the bar, dismissed by the scrim behind it. */
+  .sheetScrim {
+    position: fixed;
+    inset: 0;
+    border: 0;
+    background: #0b0f1033;
+    z-index: 40;
+  }
+
+  .sheet {
+    position: fixed;
+    left: var(--s3);
+    right: var(--s3);
+    bottom: calc(62px + env(safe-area-inset-bottom));
+    z-index: 41;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--r-lg);
+    box-shadow: 0 12px 32px #0b0f1024;
+    padding: var(--s2);
+    display: grid;
+    gap: 2px;
+  }
+
+  .sheetItem {
+    display: flex;
+    align-items: center;
+    gap: var(--s3);
+    width: 100%;
+    border: 0;
+    background: transparent;
+    color: var(--text-2);
+    font-size: var(--t-lg);
+    text-align: left;
+    padding: var(--s3) var(--s3);
+    border-radius: var(--r);
+    min-height: 48px;
+  }
+
+  .sheetItem svg {
+    width: 18px;
+    height: 18px;
+    flex: none;
+    color: var(--text-3);
+  }
+
+  .sheetItem[aria-current='page'] {
+    background: var(--accent-soft);
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .sheetItem[aria-current='page'] svg {
+    color: var(--accent);
+  }
+
+  .sheetCount {
+    margin-left: auto;
+    font-family: var(--font-mono), monospace;
+    font-size: var(--t-sm);
+    color: var(--text-3);
   }
 
   .main {
@@ -1464,21 +1543,90 @@
     font-size: var(--t-xl);
   }
 
+  /* One stat per row. Two narrow columns broke every note onto three lines
+     and made the numbers hard to compare down the page. */
   .stats {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr;
+  }
+
+  .stat {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: baseline;
+    column-gap: var(--s4);
+    padding: var(--s3) var(--s4);
+  }
+
+  .stat .statLabel {
+    grid-column: 1;
+  }
+
+  .stat .statValue {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    align-self: center;
+    margin: 0;
+    font-size: var(--t-xl);
+  }
+
+  .stat .statNote {
+    grid-column: 1;
+  }
+
+  /* The primary action on the primary screen: full width, under the field,
+     not squeezed beside a truncated input. */
+  .askForm {
+    flex-direction: column;
+  }
+
+  .askForm input {
+    width: 100%;
+  }
+
+  .askForm .btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 46px;
   }
 
   .kitGrid {
     grid-template-columns: 1fr;
   }
 
-  /* Action bars: compact, thumb-height, full-width buttons. */
+  /* Action bars: the summary reads on one line, the primary action spans the
+     bar underneath it. A 140px button in a 390px bar wastes the reach that
+     matters most -- this is the one control the screen exists to offer. */
   .priceBar,
   .actionBar {
     padding: var(--s3) var(--s4);
+    padding-bottom: var(--s3);
     gap: var(--s2);
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     align-items: center;
+  }
+
+  .priceBar > *,
+  .actionBar > * {
+    min-width: 0;
+  }
+
+  .actionBar .actionText,
+  .priceBar .priceFigures {
+    flex: 1 1 100%;
+  }
+
+  /* Save kit and Get a quote share the row: two thumb-sized halves. */
+  .priceBar .priceActions {
+    display: flex;
+    flex: 1 1 100%;
+    gap: var(--s2);
+  }
+
+  .actionBar .btn,
+  .priceBar .btn {
+    flex: 1 1 auto;
+    justify-content: center;
+    min-height: 46px;
   }
 
   .priceFigures {
@@ -1507,9 +1655,11 @@
     min-height: 42px;
   }
 
-  /* Save is secondary on a phone; the quote is the job. */
+  /* Save shares the row with the quote rather than being hidden: Saved kits
+     is a destination in More, so a phone with no way to save leads there
+     and finds it empty. The quote keeps the primary weight. */
   .priceActions .btnSecondary {
-    display: none;
+    flex: 0 1 auto;
   }
 
   .stageArea {
@@ -1517,8 +1667,17 @@
     min-height: 200px;
   }
 
+  /* Cap the drawing, not just its wrapper. The svg is width/height 100% and
+     spills past a max-height on the parent alone -- a tall trouser then runs
+     out of the card. preserveAspectRatio keeps it centred as it shrinks. */
   .stageArea > * {
     max-height: 240px;
+  }
+
+  .stageArea svg {
+    max-height: 240px;
+    height: 100%;
+    display: block;
   }
 
   .stageFoot {
@@ -1573,11 +1732,8 @@
 }
 
 @media (max-width: 520px) {
-  /* Two stats per row still reads at 390px and halves the scroll. */
-  .stats {
-    grid-template-columns: 1fr 1fr;
-  }
-
+  /* Stats stay one per row here -- see the 760px block. Two-up looked
+     tighter but wrapped "12 people still to confirm" onto four lines. */
   .stat {
     padding: var(--s3);
   }

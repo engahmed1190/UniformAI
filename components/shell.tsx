@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import s from '@/app/ui.module.css';
 
 export type PageId = 'home' | 'design' | 'configure' | 'kits' | 'orders' | 'settings';
@@ -24,6 +25,37 @@ const NAV: [PageId, string][] = [
   ['settings', 'Settings'],
 ];
 
+/** On a phone the bar carries the three things people come here to do.
+ *  Configure is left out on purpose: it is a state you enter by opening a
+ *  kit, and tapping it cold lands on "Nothing to configure yet". Saved kits
+ *  and Settings move into More. */
+const PHONE_NAV: PageId[] = ['home', 'design', 'orders'];
+const MORE_NAV: PageId[] = ['kits', 'settings'];
+
+const LABELS = Object.fromEntries(NAV) as Record<PageId, string>;
+
+function NavButton({
+  id, label, current, count, onNavigate,
+}: {
+  id: PageId; label: string; current: boolean;
+  count?: number; onNavigate: (p: PageId) => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={() => onNavigate(id)}
+      aria-current={current ? 'page' : undefined}
+    >
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"
+        strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        {ICONS[id]}
+      </svg>
+      {label}
+      {count ? <span className={s.navCount}>{count}</span> : null}
+    </button>
+  );
+}
+
 export function Sidebar({
   page, onNavigate, company, staff, kitCount, orderCount,
 }: {
@@ -35,6 +67,19 @@ export function Sidebar({
   orderCount: number;
 }) {
   const counts: Partial<Record<PageId, number>> = { kits: kitCount, orders: orderCount };
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  // Close the sheet on Escape and whenever the page changes under it.
+  useEffect(() => setMoreOpen(false), [page]);
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setMoreOpen(false); };
+    addEventListener('keydown', onKey);
+    return () => removeEventListener('keydown', onKey);
+  }, [moreOpen]);
+
+  const moreCount = MORE_NAV.reduce((n, id) => n + (counts[id] ?? 0), 0);
+
   return (
     <aside className={s.sidebar}>
       <div className={s.brand}>
@@ -51,25 +96,56 @@ export function Sidebar({
         <div className={s.accountMeta}>{staff} staff · Summer 2026</div>
       </div>
 
+      {/* The full rail: every destination, shown from tablet width up. */}
       <nav className={s.nav} aria-label="Sections">
         <div className={s.navLabel}>Workspace</div>
         {NAV.map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => onNavigate(id)}
-            aria-current={page === id ? 'page' : undefined}
-          >
-            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"
-              strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              {ICONS[id]}
-            </svg>
-            {label}
-            {counts[id] ? <span className={s.navCount}>{counts[id]}</span> : null}
-          </button>
+          <NavButton key={id} id={id} label={label} current={page === id}
+            count={counts[id]} onNavigate={onNavigate} />
         ))}
       </nav>
 
+      {/* The phone bar: three destinations plus More. */}
+      <nav className={s.navPhone} aria-label="Sections">
+        {PHONE_NAV.map((id) => (
+          <NavButton key={id} id={id} label={LABELS[id]} current={page === id}
+            count={counts[id]} onNavigate={onNavigate} />
+        ))}
+        <button
+          type="button"
+          onClick={() => setMoreOpen((v) => !v)}
+          aria-expanded={moreOpen}
+          aria-current={MORE_NAV.includes(page) ? 'page' : undefined}
+        >
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"
+            strokeLinecap="round" aria-hidden="true">
+            <path d="M3 5h10M3 8h10M3 11h10" />
+          </svg>
+          More
+          {moreCount ? <span className={s.navCount}>{moreCount}</span> : null}
+        </button>
+      </nav>
+
+      {moreOpen && (
+        <>
+          <button type="button" className={s.sheetScrim} aria-label="Close menu"
+            onClick={() => setMoreOpen(false)} />
+          <div className={s.sheet} role="dialog" aria-label="More sections">
+            {MORE_NAV.map((id) => (
+              <button key={id} type="button" className={s.sheetItem}
+                onClick={() => { onNavigate(id); setMoreOpen(false); }}
+                aria-current={page === id ? 'page' : undefined}>
+                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5"
+                  strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  {ICONS[id]}
+                </svg>
+                {LABELS[id]}
+                {counts[id] ? <span className={s.sheetCount}>{counts[id]}</span> : null}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
     </aside>
   );
 }

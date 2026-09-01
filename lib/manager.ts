@@ -26,10 +26,14 @@ export type BriefRead = {
   durable: boolean;
 };
 
+/** One definition, used both to detect heat and to quote the word back. Two
+ *  copies would drift, and the note would cite a word the read never made. */
+const HEAT = /\b(summer|hot|heat|humid|cairo|gulf|outdoor|sun)\b/;
+
 export function readBrief(text: string): BriefRead {
   const t = text.toLowerCase();
   return {
-    heat: /\b(summer|hot|heat|humid|cairo|gulf|outdoor|sun)\b/.test(t),
+    heat: HEAT.test(t),
     outdoor: /\b(site|field|outdoor|warehouse|yard|driver)\b/.test(t),
     formal: /\b(formal|smart|front desk|reception|client|corporate|office)\b/.test(t),
     budget: /\b(budget|cheap|affordable|cost|tight)\b/.test(t),
@@ -41,37 +45,33 @@ export function readBrief(text: string): BriefRead {
 export function whyTheseKits(brief: string, concepts: Concept[]): string {
   const r = readBrief(brief);
   const cheapest = [...concepts].sort((a, b) => conceptPrice(a) - conceptPrice(b))[0];
-  const reasons: string[] = [];
-  if (r.heat) reasons.push('you mentioned heat, so everything here is a breathable weave');
-  if (r.outdoor) reasons.push('these are all cuts that hold up on site');
-  if (r.formal) reasons.push('I kept these smart enough for client-facing work');
-  if (r.durable) reasons.push('I leaned towards hard-wearing fabrics');
 
-  const lead = reasons.length
-    ? `${cap(reasons[0])}${reasons[1] ? `, and ${reasons[1]}` : ''}.`
-    : 'These are the three closest matches to what you described.';
+  // One reason, not a list of every signal that matched. The strongest read
+  // is the one worth saying; stacking three makes the note sound automated.
+  // Quote the word they wrote -- "summer" reported back as "you mentioned
+  // heat" is a claim they can check and find false.
+  const reason = r.heat ? `“${heatWord(brief)}”, so breathable weaves`
+    : r.durable ? 'hard-wearing fabrics throughout'
+      : r.outdoor ? 'cuts that hold up on site'
+        : r.formal ? 'smart enough for client-facing work'
+          : 'the closest matches to what you described';
 
-  // Say the literal instructions back only when they were actually carried
-  // out. Claiming to have read the brief while ignoring half of it is the
-  // fastest way to lose someone's trust in the suggestion.
+  // Only claim what was actually carried out. Their word, not our swatch
+  // name: someone who wrote "dark colours" did not ask for ink.
   const w = briefWishes(brief);
   const done = [
-    // Their word, not our swatch name: someone who wrote "dark colours" did
-    // not ask for ink. Families read as "kept them dark", names as "put them
-    // in navy" -- "put them in dark" is not English.
     w.colour
-      ? (FAMILY.has(w.said ?? '')
-        ? `kept them ${w.said}`
-        : `put them in ${w.said ?? colourName(w.colour).toLowerCase()}`)
+      ? (FAMILY.has(w.said ?? '') ? `kept ${w.said}` : `in ${w.said ?? colourName(w.colour).toLowerCase()}`)
       : null,
-    w.logo && w.logo !== 'none' ? `moved the logo to the ${PLACE[w.logo]}` : null,
-    w.logo === 'none' ? 'left them unbranded' : null,
+    w.logo && w.logo !== 'none' ? `logo on the ${PLACE[w.logo]}` : null,
+    w.logo === 'none' ? 'unbranded' : null,
   ].filter(Boolean) as string[];
-  const kept = done.length
-    ? ` I have ${done.join(' and ')}, as you asked.`
-    : '';
 
-  return `${lead}${kept} ${cheapest.name} is the most economical at ${money(conceptPrice(cheapest))} a person — worth a look before you decide.`;
+  const head = done.length
+    ? `${cap(done.join(', '))} — ${reason}.`
+    : `${cap(reason)}.`;
+
+  return `${head} ${cheapest.name} is the cheapest at ${money(conceptPrice(cheapest))} a person.`;
 }
 
 /** One line per configure step. Advice, not a readback of the control. */
@@ -87,36 +87,34 @@ export function stepAdvice(
   switch (step) {
     case 0:
       if (r.heat && fabricIndex !== 2) {
-        return 'For summer work I would put the extra 90 a person into the performance knit — it is the difference people notice by mid-afternoon.';
+        return 'In this heat the performance knit is worth the extra 90 a person.';
       }
-      if (fabricIndex === 2) {
-        return 'Good call for hot weather. It costs 90 more a person than the pique, and it is the one people comment on.';
-      }
-      return 'The pique is the workhorse here. Move up a grade only if these get worn every day.';
+      if (fabricIndex === 2) return 'Good call — 90 more a person, and people notice it by mid-afternoon.';
+      return 'The standard grade is fine unless these get worn every day.';
 
     case 1: {
       const top = concept.garments.find((g) => g.parts.body);
       const light = top && isLight(top.parts.body);
       return light
-        ? 'Light bodies look sharp but show marks fast on site. Worth keeping the trouser dark if the work is dirty.'
-        : 'Darker bodies hide wear and wash well. Keep one lighter accent so it does not read as a security uniform.';
+        ? 'Light bodies show marks fast on site — worth keeping the trouser dark.'
+        : 'Dark hides wear and washes well. One lighter accent stops it reading as security kit.';
     }
 
     case 2:
       if (concept.logo.position === 'none') {
-        return 'No branding saves the logo cost per person, but these stop reading as a uniform. Most teams keep at least a small chest mark.';
+        return 'Saves 17–35 a person, but without a mark these stop reading as a uniform.';
       }
       if (concept.logo.method === 'print') {
-        return 'Print keeps 17 a person versus embroidery. It is the right call on knits; it wears faster on anything washed hot.';
+        return 'Print saves 17 a person. Right on knits, but it fades if washed hot.';
       }
-      return 'Embroidery costs 17 more a person than print and outlasts the garment. On a two-year kit it is the cheaper option.';
+      return 'Embroidery is 17 more a person and outlasts the garment — cheaper over two years.';
 
     case 3: {
       const sets = Math.ceil(staff * (1 + spare));
       if (spare === 0) {
-        return `Exactly ${sets} sets means a new starter waits for the next run. Five percent spare is usually the cheapest insurance you can buy.`;
+        return `Exactly ${sets} sets — a new starter waits for the next run. 5% is cheap insurance.`;
       }
-      return `That is ${sets - staff} spare sets — enough for new starters and replacements without sitting on stock.`;
+      return `${sets - staff} spare sets, enough for new starters without sitting on stock.`;
     }
 
     default:
@@ -127,12 +125,12 @@ export function stepAdvice(
 /** What the quote means, in the terms a buyer worries about. */
 export function quoteNote(concept: Concept, staff: number, sets: number): string {
   const spare = sets - staff;
-  return `This covers ${staff} people${spare > 0 ? ` with ${spare} spare sets` : ''}. Nothing is charged until you place the order, and I will collect sizes from your team afterwards.`;
+  return `Covers ${staff} people${spare > 0 ? ` plus ${spare} spare` : ''}. Nothing is charged until you order — I collect sizes after that.`;
 }
 
 /** Where the order actually is, and what happens next. */
 export function orderNote(): string {
-  return 'Sewing is underway and the fabric is all in. Next is the quality check on the 5th, then delivery on the 8th — I will flag it here if either date moves.';
+  return 'Sewing now, fabric all in. Quality check on the 5th, delivery on the 8th — I will flag it here if either moves.';
 }
 
 /** The greeting: status plus whether anything needs the customer today. */
@@ -140,8 +138,14 @@ export function greeting(name: string, needsYou: number): string {
   const hour = new Date().getHours();
   const part = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
   return needsYou > 0
-    ? `${part}, ${name}. The technician polos are being sewn now, on track for the 8th. ${needsYou} quote${needsYou > 1 ? 's need' : ' needs'} your approval.`
-    : `${part}, ${name}. The technician polos are being sewn now, on track for the 8th. Nothing needs you today.`;
+    ? `${part}, ${name}. Technician polos on track for the 8th. ${needsYou} quote${needsYou > 1 ? 's need' : ' needs'} your approval.`
+    : `${part}, ${name}. Technician polos on track for the 8th. Nothing needs you today.`;
+}
+
+/** The word in the brief that triggered the heat read, so the note can quote
+ *  it rather than paraphrase it into a claim the customer never made. */
+function heatWord(brief: string): string {
+  return brief.toLowerCase().match(HEAT)?.[1] ?? 'heat';
 }
 
 const money = (n: number) => `EGP ${Math.round(n).toLocaleString()}`;

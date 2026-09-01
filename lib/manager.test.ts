@@ -29,7 +29,7 @@ assert.match(fabricAdviceLow, /performance knit/i, 'a hot brief should push the 
 
 // 4. Branding advice reflects the actual logo state.
 const noLogo = setLogo(c, { position: 'none' });
-assert.match(stepAdvice(2, noLogo, 0, hot, 40, 0.05), /No branding/);
+assert.match(stepAdvice(2, noLogo, 0, hot, 40, 0.05), /stop reading as a uniform/);
 assert.match(stepAdvice(2, setLogo(c, { method: 'print' }), 0, hot, 40, 0.05), /Print/);
 assert.match(stepAdvice(2, setLogo(c, { method: 'embroidery' }), 0, hot, 40, 0.05), /Embroidery/);
 
@@ -48,8 +48,15 @@ assert.match(greeting('Ahmed', 0), /Nothing needs you today/);
 assert.match(greeting('Ahmed', 2), /2 quotes need your approval/);
 
 // 8. The quote note states the real spare count, not a hardcoded one.
-assert.match(quoteNote(c, 40, 44), /40 people with 4 spare sets/);
-assert.match(quoteNote(c, 40, 40), /covers 40 people\./);
+assert.match(quoteNote(c, 40, 44), /40 people plus 4 spare/);
+assert.match(quoteNote(c, 40, 40), /Covers 40 people\./);
+
+// 8b. The note quotes the word the customer actually wrote. "Summer" is a
+// fair reason to reach for a breathable weave, but reporting it as "you
+// mentioned heat" is a claim they can check and find false.
+assert.match(whyTheseKits('Summer polos, navy', CONCEPTS.slice(0, 3)), /“summer”/);
+assert.doesNotMatch(whyTheseKits('Summer polos, navy', CONCEPTS.slice(0, 3)), /you mentioned heat/);
+assert.match(whyTheseKits('Hot weather kit for drivers', CONCEPTS.slice(0, 3)), /“hot”/);
 
 // 9. The brief's literal instructions are carried out, and only claimed when
 // they are. This is the demo's whole credibility: quoting a brief back while
@@ -69,7 +76,12 @@ assert.equal(navy[0].garments[1].parts.leg, trouserBefore,
 assert.equal(selectConcepts({ industry: 'warehouse workwear, dark colours' })[0].garments[0].parts.body,
   '#12161f', '"dark colours" must reach the garments like any other colour word');
 assert.match(whyTheseKits('Summer polos, navy, logo on the chest', navy), /navy.*chest/);
-assert.doesNotMatch(whyTheseKits(desk, CONCEPTS.slice(0, 3)), /as you asked/,
+assert.doesNotMatch(whyTheseKits(desk, CONCEPTS.slice(0, 3)), /logo on the/,
   'a brief naming no colour or placement must not claim to have honoured one');
+
+// The note quotes the word the customer actually wrote. "Summer" reported
+// back as "you mentioned heat" is a claim they can check and find false.
+assert.match(whyTheseKits('Summer polos, navy', CONCEPTS.slice(0, 3)), /“summer”/);
+assert.doesNotMatch(whyTheseKits('Summer polos, navy', CONCEPTS.slice(0, 3)), /mentioned heat/);
 
 console.log('manager: all assertions passed');

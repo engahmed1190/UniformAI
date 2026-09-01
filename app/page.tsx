@@ -344,9 +344,9 @@ export default function Page() {
                 />
               ) : (
                 <Empty
-                  title="Nothing to configure yet"
-                  note="Describe what you need and pick a kit first."
-                  action="Start a new uniform"
+                  title={t(locale, 'configure.nothingYet')}
+                  note={t(locale, 'configure.nothingYetNote')}
+                  action={t(locale, 'configure.startOne')}
                   onAct={() => setPage('design')}
                 />
               )}
@@ -548,9 +548,9 @@ function Home({
               {orders.length ? orders.map((o) => (
                 <tr key={o.id}>
                   <td><strong>{kitName(locale, o.concept.id)}</strong><div className={s.sub}>{t(locale, 'home.orderLine', { id: o.id, sets: o.sets })}</div></td>
-                  <td data-label="Status"><StatusPill order={o} locale={locale} /></td>
-                  <td data-label="Value" className={`${s.right} ${s.mono}`}>{money(o.total)}</td>
-                  <td data-label="Updated" className={`${s.right} ${s.muted}`}>{shortDay(stageDate(o, Math.min(o.stage, 5)))}</td>
+                  <td data-label={t(locale, 'home.colStatus')}><StatusPill order={o} locale={locale} /></td>
+                  <td data-label={t(locale, 'home.colValue')} className={`${s.right} ${s.mono}`}>{money(o.total)}</td>
+                  <td data-label={t(locale, 'home.colUpdated')} className={`${s.right} ${s.muted}`}>{shortDay(stageDate(o, Math.min(o.stage, 5)))}</td>
                 </tr>
               )) : (
                 <tr>
@@ -702,9 +702,9 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
                       <strong>{kitName(locale, x.concept.id)}</strong>
                       <div className={s.sub}>{t(locale, 'home.orderLine', { id: x.id, sets: x.sets })}</div>
                     </td>
-                    <td data-label="Status"><StatusPill order={x} locale={locale} /></td>
-                    <td data-label="Value" className={`${s.right} ${s.mono}`}>{money(x.total)}</td>
-                    <td data-label="Due" className={`${s.right} ${s.mono}`}>{shortDay(x.due)}</td>
+                    <td data-label={t(locale, 'orders.colStatus')}><StatusPill order={x} locale={locale} /></td>
+                    <td data-label={t(locale, 'orders.colValue')} className={`${s.right} ${s.mono}`}>{money(x.total)}</td>
+                    <td data-label={t(locale, 'orders.colDue')} className={`${s.right} ${s.mono}`}>{shortDay(x.due)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -763,14 +763,14 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
                       : t(locale, l.logo === 'print' ? 'branding.printedLogo' : 'branding.embroideredLogo')}</strong>
                     <div className={s.sub}>{l.fabric ?? (l.position ? t(locale, `branding.${l.position}`) : '')}</div>
                   </td>
-                  <td data-label="Qty" className={`${s.right} ${s.mono}`}>{l.qty}</td>
-                  <td data-label="Progress">
+                  <td data-label={t(locale, 'orders.colQty')} className={`${s.right} ${s.mono}`}>{l.qty}</td>
+                  <td data-label={t(locale, 'orders.colProgress')}>
                     <div className={s.progress}>
                       <div className={s.progressTrack}><i style={{ width: `${pct}%` }} /></div>
                       <span className={s.progressPct}>{pct === 0 ? t(locale, 'orders.waitingOnSizes') : `${pct}%`}</span>
                     </div>
                   </td>
-                  <td data-label="Ready" className={`${s.right} ${s.mono}`}>{shortDay(o.due)}</td>
+                  <td data-label={t(locale, 'orders.colReady')} className={`${s.right} ${s.mono}`}>{shortDay(o.due)}</td>
                 </tr>
               ))}
             </tbody>

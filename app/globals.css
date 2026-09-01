@@ -144,4 +144,22 @@ input[type='number'] {
    both languages, so a figure reads the same however the page is set. */
 html[dir='rtl'] body {
   font-family: var(--font-arabic), var(--font-sans), sans-serif;
+  /* Cairo sits smaller on the line than Inter at the same px, and Arabic has
+     no ascender/descender rhythm to carry tight leading. Both are nudged so
+     the two languages read at the same weight on the page. */
+  font-size: 1.02em;
+  line-height: 1.7;
+}
+
+/* Arabic has no upper case, so the tracked-out capitals used for eyebrow
+   labels in English just look like broken spacing. */
+html[dir='rtl'] .navLabel,
+html[dir='rtl'] [class*='eyebrow'] {
+  letter-spacing: 0;
+}
+
+/* Figures and ids stay in the mono face in both languages, so a price reads
+   the same however the page is set. */
+html[dir='rtl'] [class*='mono'] {
+  font-family: var(--font-mono), monospace;
 }

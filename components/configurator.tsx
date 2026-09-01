@@ -83,7 +83,7 @@ export function Configurator({
     const q = text.trim();
     if (!q) return;
     setDraft('');
-    const applied = refine(concept, q, grades);
+    const applied = refine(concept, q, grades, locale);
     const next: Msg[] = [{ who: 'you', text: q }];
     if (applied) {
       if (applied.concept !== concept) onChange(applied.concept);
@@ -93,7 +93,7 @@ export function Configurator({
     } else {
       next.push({
         who: 'app',
-        text: 'I can change a colour, a fabric, the branding, or the spare stock. Try “make the trouser navy” or “use the performance knit”.',
+        text: t(locale, 'errors.notUnderstood'),
       });
     }
     setLog((l) => [...l, ...next]);

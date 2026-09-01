@@ -161,7 +161,7 @@ assert.equal(fab?.concept, CONCEPTS[1], 'a fabric edit must not touch the garmen
 // confirmed a performance knit.
 const noKnit = refine(CONCEPTS[0], 'use the performance knit');
 assert.equal(noKnit?.grades, undefined, 'wovens have no performance knit');
-assert.match(noKnit!.note, /no performance knit/i);
+assert.match(noKnit!.note, /performance knit is not available/i);
 assert.match(noKnit!.note, /Brushed twill|Fine worsted/, 'a refusal must say what is on offer');
 assert.equal(refine(CONCEPTS[1], '10% spare')?.spare, 0.1);
 assert.equal(refine(CONCEPTS[1], 'no spare')?.spare, 0);
@@ -245,3 +245,38 @@ const fresh = refine(rBase, 'make the polo sand')!.concept;
 assert.equal(saveInto(fresh), 'Front Office v2', 'first save makes a copy');
 assert.equal(saveInto(fresh), null, 'saving the same kit again must be a no-op');
 assert.equal(lib.length, 2, `library grew to ${lib.length}`);
+
+// Every reply the editor gives back is in the customer's language. These are
+// the AI's own voice, so English here is the most visible way the feature
+// ships half-done.
+import { type Locale } from './i18n';
+const ARABIC_REPLY = /[؀-ۿ]/;
+const asks: [Locale, string][] = [
+  ['en', 'make the trouser navy'], ['en', 'use the performance knit'],
+  ['en', 'add 10% spare'], ['en', 'no logo'], ['en', 'move the logo to the sleeve'],
+  ['ar', 'make the trouser navy'], ['ar', 'use the performance knit'],
+  ['ar', 'add 10% spare'], ['ar', 'no logo'], ['ar', 'move the logo to the sleeve'],
+];
+for (const [loc, ask] of asks) {
+  const r = refine(rBase, ask, [], loc);
+  assert.ok(r, `"${ask}" should still be understood in ${loc}`);
+  assert.ok(r.note.length > 0, `"${ask}" gave an empty note in ${loc}`);
+  if (loc === 'ar') {
+    assert.match(r.note, ARABIC_REPLY, `${loc} "${ask}" replied in English: "${r.note}"`);
+  } else {
+    assert.doesNotMatch(r.note, ARABIC_REPLY, `en "${ask}" leaked Arabic`);
+  }
+  // The patch line is proof of what changed: code, not prose, in both.
+  assert.doesNotMatch(r.patch, ARABIC_REPLY, 'the patch line stays machine-readable');
+}
+
+// A reply that names a cloth we cannot offer must still read as one sentence:
+// "خامة performance knit لـهذه القطع" mixed the request's own English back
+// into Arabic prose. The cloth names stay Latin -- they are catalogue data --
+// but the sentence around them is built for the script it is read in.
+const woven = CONCEPTS[0];   // Front Office: all wovens, so a knit is refused
+const refused = refine(woven, 'use the performance knit', [], 'ar');
+assert.ok(refused, 'the refusal is still an answer');
+assert.doesNotMatch(refused.note, /\bfor\b|\bI can offer\b|\bthere is no\b/i,
+  `English prose left in an Arabic refusal: "${refused.note}"`);
+assert.match(refused.note, /[؀-ۿ]/, 'the refusal is Arabic');

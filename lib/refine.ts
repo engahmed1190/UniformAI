@@ -10,6 +10,7 @@ import {
   PARTS, setLogo, setPart, gradesFor, gradeName,
 } from './spec';
 import { isTop } from '../components/garments';
+import { type Locale, t } from './i18n';
 
 export const SWATCHES: [hex: string, name: string][] = [
   ['#1b2a4a', 'Navy'],
@@ -21,6 +22,16 @@ export const SWATCHES: [hex: string, name: string][] = [
   ['#7d2b2b', 'Oxblood'],
   ['#c8a24a', 'Brass'],
 ];
+
+/** The colour word in the buyer's language. colourName() answers in English
+ *  because the parser matches on English; this is what gets read back. */
+function swatchWord(locale: Locale, hex: string): string {
+  const name = colourName(hex);
+  const near = /^Close to (.+)$/.exec(name);
+  return near
+    ? t(locale, 'colours.closeTo', { name: t(locale, `colours.${near[1]}`) })
+    : t(locale, `colours.${name}`);
+}
 
 /** A name people say out loud. Falls back to the nearest swatch rather than
  *  showing a raw hex, which means nothing to someone ordering uniforms. */
@@ -107,10 +118,15 @@ function pickColour(t: string): string | null {
 
 /** One clause, one edit. This is the whole original engine: it assumes the
  *  text it gets names at most one colour and one thing to put it on. */
-function refineOne(concept: Concept, request: string, currentGrades: number[] = []): Applied | null {
-  const t = request.toLowerCase().trim();
-  if (!t) return null;
-  const hex = pickColour(t);
+function refineOne(
+  concept: Concept,
+  request: string,
+  currentGrades: number[] = [],
+  locale: Locale = 'en',
+): Applied | null {
+  const ask = request.toLowerCase().trim();
+  if (!ask) return null;
+  const hex = pickColour(ask);
 
   // Logo placement and method come first: they are unambiguous.
   const pos: [RegExp, LogoPosition][] = [
@@ -120,20 +136,20 @@ function refineOne(concept: Concept, request: string, currentGrades: number[] = 
     [/\bchest\b/, 'left_chest'],
     [/\bback\b/, 'back'],
   ];
-  if (/\b(no logo|remove the logo|without a logo|drop the logo)\b/.test(t)) {
+  if (/\b(no logo|remove the logo|without a logo|drop the logo)\b/.test(ask)) {
     return {
       concept: setLogo(concept, { position: 'none' }),
-      note: 'Dropped the logo. The branding line comes off the price.',
+      note: t(locale, 'reply.droppedLogo'),
       patch: 'logo.position = none',
     };
   }
-  if (/\b(logo|badge|branding|embroider|print)\b/.test(t)) {
-    const method: LogoMethod | null = /\bprint\b/.test(t)
+  if (/\b(logo|badge|branding|embroider|print)\b/.test(ask)) {
+    const method: LogoMethod | null = /\bprint\b/.test(ask)
       ? 'print'
-      : /\bembroider/.test(t)
+      : /\bembroider/.test(ask)
         ? 'embroidery'
         : null;
-    const hit = pos.find(([re]) => re.test(t));
+    const hit = pos.find(([re]) => re.test(ask));
     // ponytail: a request naming both the logo and a colour is read as
     // recolouring the logo. "Navy polo with a gold logo" is two edits here;
     // say them one at a time.
@@ -151,8 +167,8 @@ function refineOne(concept: Concept, request: string, currentGrades: number[] = 
       return {
         concept: next,
         note: hex && !method && !hit
-          ? `Set the logo to ${colourName(hex)}.`
-          : 'Updated the branding. The drawing and the price both follow.',
+          ? t(locale, 'reply.logoColour', { colour: swatchWord(locale, hex) })
+          : `${t(locale, 'reply.updatedBranding')} ${t(locale, 'reply.bothFollow')}`,
         patch: bits.join('\n'),
       };
     }
@@ -165,14 +181,14 @@ function refineOne(concept: Concept, request: string, currentGrades: number[] = 
   // Resolved by NAME, never by index. "Performance knit" is grade 2 of the
   // knit list, and a kit of wovens has no such cloth: taking index 2 would
   // have quietly billed fine worsted at +120 while confirming the knit.
-  const wants = /\bperformance|wicking|technical\b/.test(t) ? 'Performance knit'
-    : /\bworsted|smart|formal\b/.test(t) ? 'Fine worsted'
-      : /\bcombed\b/.test(t) ? 'Combed cotton'
-        : /\btwill|brushed|heavier\b/.test(t) ? 'Brushed twill'
-          : /\bsofter|premium|upgrade\b/.test(t) ? 'UP'
-            : /\bpique|standard|basic|cheapest|plain\b/.test(t) ? 'BASE'
+  const wants = /\bperformance|wicking|technical\b/.test(ask) ? 'Performance knit'
+    : /\bworsted|smart|formal\b/.test(ask) ? 'Fine worsted'
+      : /\bcombed\b/.test(ask) ? 'Combed cotton'
+        : /\btwill|brushed|heavier\b/.test(ask) ? 'Brushed twill'
+          : /\bsofter|premium|upgrade\b/.test(ask) ? 'UP'
+            : /\bpique|standard|basic|cheapest|plain\b/.test(ask) ? 'BASE'
               : null;
-  if (wants && /\bfabric|knit|cotton|pique|material|cloth|wicking|combed|performance|twill|worsted|weave\b/.test(t)) {
+  if (wants && /\bfabric|knit|cotton|pique|material|cloth|wicking|combed|performance|twill|worsted|weave\b/.test(ask)) {
     // Which garments can actually take it. A kit is usually one family, but
     // Front Office mixes none and Technicians mixes knit with woven.
     const hits = concept.garments.map((g, i) => {
@@ -188,7 +204,11 @@ function refineOne(concept: Concept, request: string, currentGrades: number[] = 
         (g) => gradesFor(g.type).slice(1).map((x) => x.name)))];
       return {
         concept,
-        note: `There is no ${wants.toLowerCase()} for ${concept.garments.length > 1 ? 'these garments' : 'this garment'}. I can offer ${offered.join(' or ')}.`,
+        note: t(locale, 'reply.noFabric', {
+          wanted: wants,
+          these: t(locale, concept.garments.length > 1 ? 'reply.theseGarments' : 'reply.thisGarment'),
+          offered: offered.join(t(locale, 'reply.or')),
+        }),
         patch: '',
       };
     }
@@ -198,42 +218,46 @@ function refineOne(concept: Concept, request: string, currentGrades: number[] = 
     return {
       concept,
       grades,
-      note: `Moved to ${[...new Set(named)].join(' and ')}. The price follows.`,
+      note: t(locale, 'reply.movedFabric', { fabric: [...new Set(named)].join(t(locale, 'reply.and')) }),
       patch: usable.map((h) => `${h.g.type}.fabric = ${gradeName(h.g, h.at)}`).join('\n'),
     };
   }
 
-  const spareAsk = t.match(/\b(\d+)\s*%/);
-  if (spareAsk && /\bspare|extra|spares|buffer\b/.test(t)) {
+  const spareAsk = ask.match(/\b(\d+)\s*%/);
+  if (spareAsk && /\bspare|extra|spares|buffer\b/.test(ask)) {
     const pct = Math.min(10, Math.max(0, +spareAsk[1]));
     return {
       concept,
       spare: pct / 100,
       note: pct === 0
-        ? 'Dropped the spare stock. A new starter waits for the next run.'
-        : `Set spare stock to ${pct}%. It covers new starters without sitting on stock.`,
+        ? t(locale, 'reply.droppedSpare')
+        : t(locale, 'reply.setSpare', { pct }),
       patch: `spare = ${pct / 100}`,
     };
   }
-  if (/\bno spare|without spare|exactly\b/.test(t)) {
+  if (/\bno spare|without spare|exactly\b/.test(ask)) {
     return {
       concept,
       spare: 0,
-      note: 'Dropped the spare stock. A new starter waits for the next run.',
+      note: t(locale, 'reply.droppedSpare'),
       patch: 'spare = 0',
     };
   }
 
   // Colour requests that did not name the logo.
   if (hex) {
-    const gi = pickGarment(concept, t);
+    const gi = pickGarment(concept, ask);
     if (gi < 0) return null;
-    const part = pickPart(concept, gi, t);
+    const part = pickPart(concept, gi, ask);
     if (!part) return null;
     const g = concept.garments[gi];
     return {
       concept: setPart(concept, gi, part, hex),
-      note: `Set the ${g.type} ${part} to ${colourName(hex)}.`,
+      note: t(locale, 'reply.setPart', {
+        garment: t(locale, `garments.${g.type}`),
+        part: t(locale, `parts.${part}`),
+        colour: swatchWord(locale, hex),
+      }),
       patch: `${g.type}.parts.${part} = ${hex}`,
     };
   }
@@ -299,11 +323,12 @@ export function refine(
   concept: Concept,
   request: string,
   currentGrades: number[] = [],
+  locale: Locale = 'en',
 ): Applied | null {
   const parts = clauses(request);
   // One clause is the overwhelming case; keep it on the original path so a
   // simple ask cannot regress behind the splitter.
-  if (parts.length <= 1) return refineOne(concept, request, currentGrades);
+  if (parts.length <= 1) return refineOne(concept, request, currentGrades, locale);
 
   let next = concept;
   let grades: number[] | undefined;
@@ -313,7 +338,7 @@ export function refine(
   const missed: string[] = [];
 
   for (const clause of parts) {
-    const step = refineOne(next, clause, grades ?? currentGrades);
+    const step = refineOne(next, clause, grades ?? currentGrades, locale);
     if (!step) { missed.push(clause); continue; }
     next = step.concept;
     if (step.grades) grades = step.grades;
@@ -326,7 +351,7 @@ export function refine(
 
   if (!patches.length && !notes.length) return null;
   if (missed.length) {
-    notes.push(`I did not follow “${missed.join('”, “')}” — say that one on its own and I will.`);
+    notes.push(t(locale, 'reply.notFollowed', { part: missed.join('”, “') }));
   }
   return {
     concept: next,

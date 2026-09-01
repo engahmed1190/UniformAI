@@ -68,6 +68,24 @@ assert.ok(h1s.includes('home.title'), 'every page needs a title, Home included')
 assert.ok(h1s.length >= 5, `only ${h1s.length} pages carry an h1: ${h1s}`);
 assert.ok(!/<h3>/.test(page), 'panel headings sit under the page h1, so they are h2');
 
+// 4c. No component may hold a sentence of its own. A hardcoded string is
+// invisible until someone reads that screen in the other language -- the
+// editor's fallback shipped in English this way. Anything long enough to be
+// prose, sitting in JSX or a text: field, has to come from the dictionary.
+for (const rel of ['../app/page.tsx', '../components/configurator.tsx', '../components/shell.tsx']) {
+  const src = readFileSync(new URL(rel, import.meta.url), 'utf8')
+    .replace(/\/\*[^]*?\*\/|\/\/[^\n]*/g, '');
+  // A quoted run with three or more words and sentence punctuation.
+  const prose = [
+    // A quoted run in JSX or a text: field.
+    ...[...src.matchAll(/(?:text:|>)\s*'([A-Z][^']*[.?!][^']*)'/g)].map((m) => m[1]),
+    // ...and the same thing passed as a prop. title="Nothing to configure yet"
+    // shipped in English because the first pattern did not look here.
+    ...[...src.matchAll(/\b(?:title|note|action|label|placeholder)="([A-Z][^"]{6,})"/g)].map((m) => m[1]),
+  ];
+  assert.equal(prose.length, 0, `${rel} holds its own prose: ${prose.slice(0, 2)}`);
+}
+
 // 4b. No component may carry its own English/Arabic branch: that is exactly
 // the duplication the dictionary exists to prevent.
 for (const [file, src] of [['page.tsx', page], ['shell.tsx', readFileSync(new URL('../components/shell.tsx', import.meta.url), 'utf8')]]) {

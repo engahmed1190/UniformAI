@@ -224,6 +224,27 @@ const en = {
     setsCount: '{count} sets',
     sets: '{count} sets',
   },
+  reply: {
+    // What the editor says back. Whole sentences per outcome: these read as
+    // the product's own voice, so a fragment glued together from an English
+    // template is exactly what does not survive translation.
+    droppedLogo: 'Dropped the logo. The branding line comes off the price.',
+    droppedSpare: 'Dropped the spare stock. A new starter waits for the next run.',
+    setPart: 'Set the {garment} {part} to {colour}.',
+    movedFabric: 'Moved to {fabric}. The price follows.',
+    noFabric: '{wanted} is not available for {these}. I can offer {offered}.',
+    theseGarments: 'these garments', thisGarment: 'this garment',
+    setSpare: 'Set spare stock to {pct}%. It covers new starters without sitting on stock.',
+    logoColour: 'Set the logo to {colour}.',
+    logoMethod: 'Switched the logo to {method}.',
+    logoPlace: 'Moved the logo to the {place}.',
+    and: ' and ',
+    or: ' or ',
+    updatedBranding: 'Updated the branding.',
+    bothFollow: 'The drawing and the price both follow.',
+    notFollowed: 'I did not follow “{part}” — say that one on its own and I will.',
+  },
+
   errors: {
     notUnderstood: 'I can change a colour, a fabric, the branding, or the spare stock. Try “make the trouser navy” or “use the performance knit”.',
   },
@@ -521,6 +542,24 @@ const ar: Dict<typeof en> = {
     note: '{count} طقم احتياطي للموظفين الجدد أو لاستبدال القطع عند الحاجة',
     setsCount: '{count} طقم',
     sets: '{count} طقم',
+  },
+
+  reply: {
+    droppedLogo: 'تم حذف الشعار، وأُزيلت تكلفة العلامة من السعر.',
+    droppedSpare: 'تم إلغاء الكمية الاحتياطية. أي موظف جديد سينتظر دورة الإنتاج التالية.',
+    setPart: 'تم ضبط {part} في {garment} على اللون {colour}.',
+    movedFabric: 'تم التغيير إلى {fabric}، وتم تحديث السعر تبعًا لذلك.',
+    noFabric: 'خامة {wanted} غير متاحة {these}. البدائل المتاحة: {offered}.',
+    theseGarments: 'لهذه القطع', thisGarment: 'لهذه القطعة',
+    setSpare: 'تم ضبط الكمية الاحتياطية على {pct}٪، وهي تغطي الموظفين الجدد دون تكديس المخزون.',
+    logoColour: 'تم ضبط لون الشعار على {colour}.',
+    logoMethod: 'تم تغيير طريقة تنفيذ الشعار إلى {method}.',
+    logoPlace: 'تم نقل الشعار إلى {place}.',
+    and: ' و',
+    or: ' أو ',
+    updatedBranding: 'تم تحديث العلامة.',
+    bothFollow: 'تم تحديث المعاينة والسعر معًا.',
+    notFollowed: 'لم أنفذ «{part}» — اذكرها بمفردها وسأنفذها.',
   },
 
   errors: {

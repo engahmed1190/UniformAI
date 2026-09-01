@@ -9,7 +9,7 @@ import { GarmentSvg, logoGarmentIndex } from '@/components/garments';
 import { selectConcepts } from '@/lib/concepts';
 import { type Concept, LABELS, conceptPrice, conceptPriceAt, gradeName, gradesFor } from '@/lib/spec';
 import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
-import { type Order, placeOrder, shortDate } from '@/lib/order';
+import { type Order, placeOrder, revive, shortDate } from '@/lib/order';
 import { ManagerNote } from '@/components/manager';
 import { Check } from '@/components/check';
 
@@ -64,6 +64,19 @@ export default function Page() {
   const [quoting, setQuoting] = useState(false);
   // The quote, carried over. Everything Orders and Home show comes from here.
   const [order, setOrder] = useState<Order | null>(null);
+  // Loaded after mount like the kits. With nothing stored, a sample order
+  // stands in so Home does not open on a row of zeros.
+  // ponytail: the sample is a real placeOrder() on a real concept, so every
+  // screen agrees with it. Delete the fallback for a blank-slate demo.
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('order');
+      if (stored) { setOrder(revive(stored)); return; }
+    } catch { /* fall through to the sample */ }
+    const c = selectConcepts({ industry: 'site technicians, navy, logo on the chest' })[0];
+    setOrder(placeOrder(c, PROFILE.staff, Math.ceil(PROFILE.staff * 1.05), [], conceptPriceAt(c, []),
+      new Date(Date.now() - 4 * 864e5)));
+  }, []);
   // Set by any configurator edit, cleared by a fresh generate. Guards the
   // one destructive path in the app: asking for new kits replaces these.
   const [edited, setEdited] = useState(false);
@@ -108,8 +121,6 @@ export default function Page() {
   function saveKit(c: Concept) {
     const next = saved.some((x) => x.id === c.id) ? saved : [...saved, c];
     setSaved(next);
-    // ponytail: the order is not persisted; a refresh clears it. Do the same
-    // here for it (reviving the two Dates) when the demo needs two sessions.
     try { localStorage.setItem('kits', JSON.stringify(next)); } catch { /* private mode */ }
     flash(`Saved “${c.name}” to your kits`);
   }
@@ -339,6 +350,7 @@ export default function Page() {
           onConfirm={() => {
             const o = placeOrder(active, staff, sets, grades, perPerson);
             setOrder(o);
+            try { localStorage.setItem('order', JSON.stringify(o)); } catch { /* private mode */ }
             setQuoting(false);
             flash(`${o.id} placed. Sizes are next.`);
             setTimeout(() => setPage('orders'), 800);

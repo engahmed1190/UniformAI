@@ -1,8 +1,7 @@
 // The sales order a confirmed quote becomes. Built once from what the quote
 // screen showed and never recomputed, so the number the buyer approved is
 // the number on the order.
-// ponytail: in-memory, one order per session. Persist alongside saved kits
-// when the demo needs a second one.
+// ponytail: one order, kept in localStorage. A list when the demo needs two.
 
 import { type Concept, LABELS, gradeName } from './spec';
 import { colourName } from './refine';
@@ -60,3 +59,7 @@ export function placeOrder(
     placed: now, due, lines,
   };
 }
+
+/** Back from JSON with the two dates as Dates again. */
+export const revive = (json: string): Order =>
+  JSON.parse(json, (k, v) => (k === 'placed' || k === 'due' ? new Date(v) : v));

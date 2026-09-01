@@ -33,3 +33,9 @@ assert.match(o.id, /^SO-2026-\d{5}$/);
 assert.ok(o.due > o.placed);
 
 console.log('order: all assertions passed');
+
+// 6. An order survives a reload with its dates still dates.
+import { revive } from './order';
+const back = revive(JSON.stringify(o));
+assert.equal(back.due.getTime(), o.due.getTime());
+assert.equal(back.id, o.id);

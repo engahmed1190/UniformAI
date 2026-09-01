@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import s from '@/app/ui.module.css';
+import { type Locale, LOCALES, LOCALE_NAMES, t } from '@/lib/i18n';
 
 export type PageId = 'home' | 'design' | 'configure' | 'kits' | 'orders' | 'settings';
 
@@ -16,13 +17,15 @@ const ICONS: Record<PageId, React.ReactNode> = {
     <path d="M8 2v1.8M8 12.2V14M14 8h-1.8M3.8 8H2M12.2 3.8l-1.3 1.3M5.1 10.9l-1.3 1.3M12.2 12.2l-1.3-1.3M5.1 5.1 3.8 3.8" /></>,
 };
 
+/** Order of the rail. The label for each is a translation key, not a string:
+ *  shell.test.ts reads this list, so it stays a plain array of ids. */
 const NAV: [PageId, string][] = [
-  ['home', 'Home'],
-  ['design', 'New uniform'],
-  ['configure', 'Configure'],
-  ['kits', 'Saved kits'],
-  ['orders', 'Orders'],
-  ['settings', 'Settings'],
+  ['home', 'nav.home'],
+  ['design', 'nav.newUniform'],
+  ['configure', 'nav.configure'],
+  ['kits', 'nav.savedKits'],
+  ['orders', 'nav.orders'],
+  ['settings', 'nav.settings'],
 ];
 
 /** On a phone the bar carries the three things people come here to do.
@@ -32,7 +35,7 @@ const NAV: [PageId, string][] = [
 const PHONE_NAV: PageId[] = ['home', 'design', 'orders'];
 const MORE_NAV: PageId[] = ['kits', 'settings'];
 
-const LABELS = Object.fromEntries(NAV) as Record<PageId, string>;
+const KEYS = Object.fromEntries(NAV) as Record<PageId, string>;
 
 function NavButton({
   id, label, current, count, onNavigate,
@@ -57,7 +60,7 @@ function NavButton({
 }
 
 export function Sidebar({
-  page, onNavigate, company, staff, kitCount, orderCount,
+  page, onNavigate, company, staff, kitCount, orderCount, locale,
 }: {
   page: PageId;
   onNavigate: (p: PageId) => void;
@@ -65,6 +68,7 @@ export function Sidebar({
   staff: number;
   kitCount: number;
   orderCount: number;
+  locale: Locale;
 }) {
   const counts: Partial<Record<PageId, number>> = { kits: kitCount, orders: orderCount };
   const [moreOpen, setMoreOpen] = useState(false);
@@ -93,22 +97,22 @@ export function Sidebar({
 
       <div className={s.account}>
         <span className={s.accountName}>{company}</span>
-        <div className={s.accountMeta}>{staff} staff · Summer 2026</div>
+        <div className={s.accountMeta}>{t(locale, 'nav.staff', { count: staff })}</div>
       </div>
 
       {/* The full rail: every destination, shown from tablet width up. */}
-      <nav className={s.nav} aria-label="Sections">
-        <div className={s.navLabel}>Workspace</div>
-        {NAV.map(([id, label]) => (
-          <NavButton key={id} id={id} label={label} current={page === id}
+      <nav className={s.nav} aria-label={t(locale, 'nav.sections')}>
+        <div className={s.navLabel}>{t(locale, 'nav.workspace')}</div>
+        {NAV.map(([id, key]) => (
+          <NavButton key={id} id={id} label={t(locale, key)} current={page === id}
             count={counts[id]} onNavigate={onNavigate} />
         ))}
       </nav>
 
       {/* The phone bar: three destinations plus More. */}
-      <nav className={s.navPhone} aria-label="Sections">
+      <nav className={s.navPhone} aria-label={t(locale, 'nav.sections')}>
         {PHONE_NAV.map((id) => (
-          <NavButton key={id} id={id} label={LABELS[id]} current={page === id}
+          <NavButton key={id} id={id} label={t(locale, KEYS[id])} current={page === id}
             count={counts[id]} onNavigate={onNavigate} />
         ))}
         <button
@@ -121,16 +125,16 @@ export function Sidebar({
             strokeLinecap="round" aria-hidden="true">
             <path d="M3 5h10M3 8h10M3 11h10" />
           </svg>
-          More
+          {t(locale, 'nav.more')}
           {moreCount ? <span className={s.navCount}>{moreCount}</span> : null}
         </button>
       </nav>
 
       {moreOpen && (
         <>
-          <button type="button" className={s.sheetScrim} aria-label="Close menu"
+          <button type="button" className={s.sheetScrim} aria-label={t(locale, 'nav.closeMenu')}
             onClick={() => setMoreOpen(false)} />
-          <div className={s.sheet} role="dialog" aria-label="More sections">
+          <div className={s.sheet} role="dialog" aria-label={t(locale, 'nav.moreSections')}>
             {MORE_NAV.map((id) => (
               <button key={id} type="button" className={s.sheetItem}
                 onClick={() => { onNavigate(id); setMoreOpen(false); }}
@@ -139,7 +143,7 @@ export function Sidebar({
                   strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   {ICONS[id]}
                 </svg>
-                {LABELS[id]}
+                {t(locale, KEYS[id])}
                 {counts[id] ? <span className={s.sheetCount}>{counts[id]}</span> : null}
               </button>
             ))}
@@ -150,7 +154,10 @@ export function Sidebar({
   );
 }
 
-export function Topbar({ trail, user }: { trail: string[]; user: string }) {
+export function Topbar({ trail, user, locale, onLocale }: {
+  trail: string[]; user: string;
+  locale: Locale; onLocale: (l: Locale) => void;
+}) {
   const initials = user.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   return (
     <header className={s.topbar}>
@@ -163,6 +170,18 @@ export function Topbar({ trail, user }: { trail: string[]; user: string }) {
         ))}
       </div>
       <div className={s.topRight}>
+        {/* Two languages, so the switch is a pair of buttons rather than a
+            select: one tap to change, and the other language is always
+            legible in its own script. */}
+        <div className={s.langSwitch} role="group" aria-label={t(locale, 'settings.interfaceLanguage')}>
+          {LOCALES.map((l) => (
+            <button key={l} type="button" onClick={() => onLocale(l)}
+              className={l === locale ? s.langOn : undefined}
+              aria-pressed={l === locale} lang={l}>
+              {LOCALE_NAMES[l]}
+            </button>
+          ))}
+        </div>
         {/* No search box until it searches something. A control that does
             nothing when clicked costs more than the space it saves. */}
         <div className={s.avatar} title={user}>{initials}</div>

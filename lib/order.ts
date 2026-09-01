@@ -28,6 +28,10 @@ export type Order = {
  *  falls on, counted from placing. One list, so the timeline, the status
  *  pill and the due date cannot disagree. */
 export const STAGES = ['Ordered', 'Sizes in', 'Fabric cut', 'Sewing', 'Checks', 'Delivery'];
+
+/** The same six stages as translation keys, in the same order. Kept beside
+ *  STAGES so a stage cannot be added to one list and missed in the other. */
+export const STAGE_KEYS = ['ordered', 'sizesIn', 'fabricCut', 'sewing', 'checks', 'delivery'] as const;
 const DAY = [0, 4, 10, 14, 18, 21];
 const LEAD_DAYS = DAY[DAY.length - 1];
 

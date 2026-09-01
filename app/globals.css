@@ -139,3 +139,9 @@ input[type='number'] {
     --t-2xl: 27px;
   }
 }
+
+/* Arabic gets a face drawn for the script; prices and order ids stay mono in
+   both languages, so a figure reads the same however the page is set. */
+html[dir='rtl'] body {
+  font-family: var(--font-arabic), var(--font-sans), sans-serif;
+}

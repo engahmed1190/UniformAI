@@ -3,17 +3,27 @@
 import { useEffect, useRef, useState } from 'react';
 import s from './ui.module.css';
 import { Sidebar, Topbar, type PageId } from '@/components/shell';
+import { type Locale, LOCALES, LOCALE_NAMES, dir, formatCurrency, formatDate, t } from '@/lib/i18n';
 import { ConceptCard } from '@/components/concept';
 import { Configurator } from '@/components/configurator';
 import { GarmentSvg, logoGarmentIndex } from '@/components/garments';
 import { CONCEPTS, selectConcepts } from '@/lib/concepts';
 import { type Concept, LABELS, asSavedKit, conceptPrice, conceptPriceAt, gradeName, gradesFor, sameKit } from '@/lib/spec';
 import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
-import { type Order, STAGES, placeOrder, progress, revive, shortDate, stageDate, status } from '@/lib/order';
+import { type Order, STAGES, STAGE_KEYS, placeOrder, progress, revive, shortDate, stageDate, status } from '@/lib/order';
 import { ManagerNote } from '@/components/manager';
 import { Check } from '@/components/check';
 
 const USER = 'Ahmed Osama';
+
+/** Industry values are stored in English and displayed translated: the value
+ *  is data the brief reads, the label is language. */
+const INDUSTRIES: [string, string][] = [
+  ['Technology', 'settings.industryTech'],
+  ['Hospitality', 'settings.industryHospitality'],
+  ['Facilities management', 'settings.industryFacilities'],
+  ['Retail', 'settings.industryRetail'],
+];
 
 /** What Settings holds. Company and staff reach the sidebar and the price;
  *  industry and the dress code are read into every brief. */
@@ -25,28 +35,57 @@ const PROFILE: Profile = {
   rules: 'Smart casual for client-facing teams. Hard-wearing kit for operations.',
 };
 
-const money = (n: number) => `EGP ${Math.round(n).toLocaleString()}`;
-
+/** Breadcrumb trails, as translation keys. */
 const TRAIL: Record<PageId, string[]> = {
-  home: ['Home'],
-  design: ['Home', 'New uniform'],
-  configure: ['Home', 'New uniform', 'Configure'],
-  kits: ['Home', 'Saved kits'],
-  orders: ['Home', 'Orders'],
-  settings: ['Home', 'Settings'],
+  home: ['nav.home'],
+  design: ['nav.home', 'nav.newUniform'],
+  configure: ['nav.home', 'nav.newUniform', 'nav.configure'],
+  kits: ['nav.home', 'nav.savedKits'],
+  orders: ['nav.home', 'nav.orders'],
+  settings: ['nav.home', 'nav.settings'],
 };
 
-const EXAMPLES = [
-  'Summer polos for 40 site technicians, navy, logo on the chest',
-  'Smart shirts and trousers for the front desk team',
-  'Hard-wearing workwear for the warehouse, dark colours',
-];
+/** Example briefs, per language. These get typed into the brief box, so they
+ *  have to be in the language the parser and the manager will read back. */
+const EXAMPLES: Record<Locale, string[]> = {
+  en: [
+    'Summer polos for 40 site technicians, navy, logo on the chest',
+    'Smart shirts and trousers for the front desk team',
+    'Hard-wearing workwear for the warehouse, dark colours',
+  ],
+  ar: [
+    'قمصان بولو صيفية لـ40 فني موقع، كحلي، الشعار على الصدر',
+    'قمصان وبناطيل رسمية لفريق الاستقبال',
+    'ملابس عمل متينة للمستودع، بألوان داكنة',
+  ],
+};
 
 export default function Page() {
   const [page, setPage] = useState<PageId>('home');
   const [brief, setBrief] = useState('');
   const [staff, setStaff] = useState(PROFILE.staff);
   const [profile, setProfile] = useState(PROFILE);
+  // Arabic first: this demo's audience reads Arabic. Loaded after mount like
+  // everything else, so the server render and the hydration agree.
+  const [locale, setLocale] = useState<Locale>('ar');
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('uniformai-locale');
+      if (stored === 'ar' || stored === 'en') setLocale(stored);
+    } catch { /* keep the default */ }
+  }, []);
+  // The document carries the direction, so scrollbars, text selection and the
+  // native form controls flip with the page rather than just our own layout.
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    document.documentElement.dir = dir(locale);
+  }, [locale]);
+  const money = (n: number) => formatCurrency(locale, n);
+  const shortDay = (d: Date) => formatDate(locale, d);
+  function changeLocale(next: Locale) {
+    setLocale(next);
+    try { localStorage.setItem('uniformai-locale', next); } catch { /* private mode */ }
+  }
   // Grades and spare live here so the price bar and the quote read one number.
   // One grade per garment, into that garment's own family list.
   const [grades, setGrades] = useState<number[]>([]);
@@ -119,8 +158,7 @@ export default function Page() {
   function generate(text = brief) {
     if (!text.trim()) return;
     if (edited && !confirm(
-      'New kits will replace the ones you have changed.\n\n' +
-      'Save the kit first if you want to keep it.')) return;
+      t(locale, 'design.replaceWarning'))) return;
     setEdited(false);
     setBusy(true);
     setPage('design');
@@ -137,7 +175,7 @@ export default function Page() {
     // Dedupe on what the kit IS, not just its id: an edit keeps the id, so
     // matching on that alone silently dropped a customised kit.
     if (saved.some((x) => sameKit(x, c))) {
-      flash(`“${c.name}” is already in your kits`);
+      flash(t(locale, 'kits.already', { name: c.name }));
       return;
     }
     // An edit keeps the seed's id, so a customised kit needs its own before
@@ -146,11 +184,11 @@ export default function Page() {
     const next = [...saved, kit];
     setSaved(next);
     try { localStorage.setItem('kits', JSON.stringify(next)); } catch { /* private mode */ }
-    flash(`Saved “${kit.name}” to your kits`);
+    flash(t(locale, 'kits.saved', { name: kit.name }));
   }
 
   return (
-    <div className={s.app}>
+    <div className={s.app} dir={dir(locale)}>
       <Sidebar
         page={page}
         onNavigate={setPage}
@@ -158,20 +196,25 @@ export default function Page() {
         staff={staff}
         kitCount={saved.length}
         orderCount={orders.filter((o) => o.stage < 5).length}
+        locale={locale}
       />
 
       <div className={s.main}>
-        <Topbar trail={TRAIL[page]} user={USER} />
+        <Topbar trail={TRAIL[page].map((k) => t(locale, k))} user={USER}
+          locale={locale} onLocale={changeLocale} />
 
         <div className={s.scroll} ref={scroller}>
           <div className={s.body}>
           <div className={s.stack}>
           {page === 'home' && (
             <Home
+              locale={locale}
+              money={money}
+              shortDay={shortDay}
               staff={staff}
               orders={orders}
               savedCount={saved.length}
-              onAsk={(t) => { setBrief(t); generate(t); }}
+              onAsk={(text) => { setBrief(text); generate(text); }}
               onKits={() => setPage('kits')}
               onOrders={() => setPage('orders')}
             />
@@ -181,8 +224,8 @@ export default function Page() {
             <>
               <div className={s.pageHead}>
                 <div>
-                  <h1>New uniform</h1>
-                  <p>Describe who it is for and we will put three kits together.</p>
+                  <h1>{t(locale, 'design.title')}</h1>
+                  <p>{t(locale, 'design.subtitle')}</p>
                 </div>
               </div>
 
@@ -191,17 +234,17 @@ export default function Page() {
               <div className={`${s.panel} ${s.briefPanel}`}>
                 <div className={s.briefMain}>
                   <div className={s.field}>
-                    <label htmlFor="brief">What do you need?</label>
+                    <label htmlFor="brief">{t(locale, 'design.needLabel')}</label>
                     <textarea
                       id="brief"
                       value={brief}
                       onChange={(e) => setBrief(e.target.value)}
-                      placeholder="Summer polos for 40 site technicians, navy, logo on the chest"
+                      placeholder={EXAMPLES[locale][0]}
                     />
-                    <div className={s.fieldHint}>Mention the team, the season, and any colours you have to stick to.</div>
+                    <div className={s.fieldHint}>{t(locale, 'design.needHint')}</div>
                   </div>
                   <div className={s.chips}>
-                    {EXAMPLES.map((e) => (
+                    {EXAMPLES[locale].map((e) => (
                       <button key={e} type="button" onClick={() => { setBrief(e); generate(e); }}>
                         {e}
                       </button>
@@ -211,14 +254,14 @@ export default function Page() {
 
                 <div className={s.briefSide}>
                   <div className={s.field}>
-                    <label htmlFor="people">How many people?</label>
+                    <label htmlFor="people">{t(locale, 'design.peopleLabel')}</label>
                     <input id="people" type="number" min={1} value={staff}
                       onChange={(e) => setStaff(Math.max(1, +e.target.value || 1))} />
                   </div>
                   <div className={s.field}>
-                    <label htmlFor="logo">Logo text</label>
+                    <label htmlFor="logo">{t(locale, 'design.logoLabel')}</label>
                     <input id="logo" value={logoText} onChange={(e) => setLogoText(e.target.value)} />
-                    <div className={s.fieldHint}>Shown on the garment previews.</div>
+                    <div className={s.fieldHint}>{t(locale, 'design.logoHint')}</div>
                   </div>
                   <button
                     type="button"
@@ -226,7 +269,7 @@ export default function Page() {
                     onClick={() => generate()}
                     disabled={busy || !brief.trim()}
                   >
-                    {busy ? 'Putting kits together…' : 'Show me some kits'}
+                    {t(locale, busy ? 'design.generating' : 'design.generate')}
                   </button>
                 </div>
               </div>
@@ -236,14 +279,15 @@ export default function Page() {
                   <div className={s.group}>
                   <div className={s.sectionHead}>
                     <div>
-                      <h2>Three kits for {staff} people</h2>
-                      <p>Pick the closest one — you can change every detail next.</p>
+                      <h2>{t(locale, 'design.threeKits', { count: staff })}</h2>
+                      <p>{t(locale, 'design.pickClosest')}</p>
                     </div>
                   </div>
                   <ManagerNote tone="panel" note={whyTheseKits(brief, concepts)} />
                   <div className={s.kitGrid}>
                     {concepts.map((c, i) => (
                       <ConceptCard key={c.id} concept={c} logoText={logoText} employees={staff}
+                        locale={locale} money={money}
                         selected={i === sel} onSelect={() => setSel(i)} />
                     ))}
                   </div>
@@ -257,8 +301,8 @@ export default function Page() {
             <>
               <div className={s.pageHead}>
                 <div>
-                  <h1>Configure</h1>
-                  <p>Indicative prices from the demo catalogue.</p>
+                  <h1>{t(locale, 'configure.title')}</h1>
+                  <p>{t(locale, 'configure.subtitle')}</p>
                 </div>
                 {/* Says where it goes. "Back to kits" read as the Saved kits
                     destination in the nav; this returns to the three
@@ -302,6 +346,8 @@ export default function Page() {
               saved={saved}
               logoText={logoText}
               staff={staff}
+              locale={locale}
+              money={money}
               onNew={() => setPage('design')}
               onOpen={(c) => {
                 // Add to the working set rather than replacing it, so going
@@ -318,9 +364,13 @@ export default function Page() {
             />
           )}
 
-          {page === 'orders' && <Orders orders={orders} onHome={() => setPage('home')} />}
+          {page === 'orders' && (
+            <Orders orders={orders} onHome={() => setPage('home')}
+              locale={locale} money={money} shortDay={shortDay} />
+          )}
           {page === 'settings' && (
-            <Settings profile={{ ...profile, staff }} onSave={(p) => { setProfile(p); setStaff(p.staff); flash('Settings saved'); }} />
+            <Settings profile={{ ...profile, staff }} locale={locale} onLocale={changeLocale}
+              onSave={(p) => { setProfile(p); setStaff(p.staff); flash(t(locale, 'settings.saved')); }} />
           )}
           </div>
           </div>
@@ -370,13 +420,15 @@ export default function Page() {
           perPerson={perPerson}
           sets={sets}
           grades={grades}
+          locale={locale}
+          money={money}
           onClose={() => setQuoting(false)}
           onConfirm={() => {
             const next = [placeOrder(active, staff, sets, grades, perPerson), ...orders];
             setOrders(next);
             try { localStorage.setItem('orders', JSON.stringify(next)); } catch { /* private mode */ }
             setQuoting(false);
-            flash(`${next[0].id} placed. Sizes are next.`);
+            flash(t(locale, 'kits.saved', { name: next[0].id }));
             setTimeout(() => setPage('orders'), 800);
           }}
         />
@@ -388,9 +440,12 @@ export default function Page() {
 }
 
 function Home({
-  staff, orders, savedCount, onAsk, onKits, onOrders,
+  staff, orders, savedCount, onAsk, onKits, onOrders, locale, money, shortDay,
 }: {
   staff: number;
+  locale: Locale;
+  money: (n: number) => string;
+  shortDay: (d: Date) => string;
   orders: Order[];
   savedCount: number;
   onAsk: (text: string) => void;
@@ -407,8 +462,8 @@ function Home({
           a screen reader had nothing to announce the page by. */}
       <div className={s.pageHead}>
         <div>
-          <h1>Home</h1>
-          <p>Where your uniform work stands today.</p>
+          <h1>{t(locale, 'home.title')}</h1>
+          <p>{t(locale, 'home.subtitle')}</p>
         </div>
       </div>
       <ManagerNote tone="panel" intro note={greeting('Ahmed', orders)} />
@@ -416,8 +471,8 @@ function Home({
       {/* The primary job, first thing on the page. */}
       <div className={s.panel}>
         <div className={s.panelHead}>
-          <h2>What do you need to kit out?</h2>
-          <p>Describe the team in your own words.</p>
+          <h2>{t(locale, 'home.askTitle')}</h2>
+          <p>{t(locale, 'home.askSubtitle')}</p>
         </div>
         <form
           className={s.askForm}
@@ -429,55 +484,59 @@ function Home({
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Summer polos for 40 site technicians, navy, logo on the chest"
-            aria-label="Describe what you need"
+            placeholder={EXAMPLES[locale][0]}
+            aria-label={t(locale, 'home.describeTeam')}
           />
           <button type="submit" className={`${s.btn} ${s.btnPrimary}`} disabled={!text.trim()}>
-            Show kits
+            {t(locale, 'home.showKits')}
           </button>
         </form>
         <div className={s.askChips}>
-          {EXAMPLES.map((e) => (
+          {EXAMPLES[locale].map((e) => (
             <button key={e} type="button" onClick={() => { setText(e); onAsk(e); }}>{e}</button>
           ))}
         </div>
       </div>
 
       <div className={s.stats}>
-        <Stat label="Saved kits" value={String(savedCount)} note="Ready to reorder" />
+        <Stat label={t(locale, 'home.savedKits')} value={String(savedCount)} note={t(locale, 'home.savedKitsNote')} />
         {/* Every number here is counted from the orders, or an honest zero. */}
-        <Stat label="Collecting sizes" value={String(sizing.length)}
-          note={sizing[0] ? `${sizing[0].id} · ${sizing[0].sets} sets` : 'None waiting'} />
-        <Stat label="In production" value={String(making.length)}
-          note={making[0] ? `Next due ${shortDate(making[0].due)}` : 'Nothing on the floor'} />
-        <Stat label="Delivered" value={String(done.length)}
-          note={done.length ? money(done.reduce((n, o) => n + o.total, 0)) : 'Nothing yet'} />
+        <Stat label={t(locale, 'home.collectingSizes')} value={String(sizing.length)}
+          note={sizing[0]
+            ? t(locale, 'home.orderLine', { id: sizing[0].id, sets: sizing[0].sets })
+            : t(locale, 'home.noneWaiting')} />
+        <Stat label={t(locale, 'home.inProduction')} value={String(making.length)}
+          note={making[0]
+            ? t(locale, 'home.nextDue', { date: shortDay(making[0].due) })
+            : t(locale, 'home.nothingOnFloor')} />
+        <Stat label={t(locale, 'home.delivered')} value={String(done.length)}
+          note={done.length ? money(done.reduce((n, o) => n + o.total, 0)) : t(locale, 'home.nothingYet')} />
       </div>
 
       <div className={s.group}>
       <div className={s.sectionHead}>
         <div>
-          <h2>Recent activity</h2>
+          <h2>{t(locale, 'home.recentActivity')}</h2>
         </div>
-        <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onOrders}>View orders</button>
+        <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onOrders}>{t(locale, 'home.viewOrders')}</button>
       </div>
       <div className={`${s.tableCard} ${s.tableFixed} ${s.tableActivity}`}>
         <div className={s.tableScroll}>
           <table>
             <thead>
-              <tr><th>What</th><th>Status</th><th className={s.right}>Value</th><th className={s.right}>Updated</th></tr>
+              <tr><th>{t(locale, 'home.colWhat')}</th><th>{t(locale, 'home.colStatus')}</th><th className={s.right}>{t(locale, 'home.colValue')}</th><th className={s.right}>{t(locale, 'home.colUpdated')}</th></tr>
             </thead>
             <tbody>
               {orders.length ? orders.map((o) => (
                 <tr key={o.id}>
-                  <td><strong>{o.name}</strong><div className={s.sub}>{o.id} · {o.sets} sets</div></td>
-                  <td data-label="Status"><StatusPill order={o} /></td>
+                  <td><strong>{o.name}</strong><div className={s.sub}>{t(locale, 'home.orderLine', { id: o.id, sets: o.sets })}</div></td>
+                  <td data-label="Status"><StatusPill order={o} locale={locale} /></td>
                   <td data-label="Value" className={`${s.right} ${s.mono}`}>{money(o.total)}</td>
-                  <td data-label="Updated" className={`${s.right} ${s.muted}`}>{shortDate(stageDate(o, Math.min(o.stage, 5)))}</td>
+                  <td data-label="Updated" className={`${s.right} ${s.muted}`}>{shortDay(stageDate(o, Math.min(o.stage, 5)))}</td>
                 </tr>
               )) : (
                 <tr>
-                  <td colSpan={4} className={s.muted}>Nothing yet. Your first order shows here.</td>
+                  <td colSpan={4} className={s.muted}>{t(locale, 'home.firstOrderHere')}</td>
                 </tr>
               )}
             </tbody>
@@ -486,7 +545,7 @@ function Home({
       </div>
       </div>
       <div>
-        <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onKits}>Browse saved kits</button>
+        <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onKits}>{t(locale, 'home.browseSavedKits')}</button>
       </div>
     </>
   );
@@ -518,9 +577,11 @@ function Empty({ title, note, action, onAct }: { title: string; note: string; ac
 }
 
 function Kits({
-  saved, logoText, staff, onNew, onOpen,
+  saved, logoText, staff, onNew, onOpen, locale, money,
 }: {
   saved: Concept[];
+  locale: Locale;
+  money: (n: number) => string;
   logoText: string;
   staff: number;
   onNew: () => void;
@@ -530,22 +591,23 @@ function Kits({
     <>
       <div className={s.pageHead}>
         <div>
-          <h1>Saved kits</h1>
-          <p>Reorder these without starting again.</p>
+          <h1>{t(locale, 'kits.title')}</h1>
+          <p>{t(locale, 'kits.subtitle')}</p>
         </div>
-        <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onNew}>New uniform</button>
+        <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onNew}>{t(locale, 'kits.newUniform')}</button>
       </div>
       {saved.length === 0 ? (
         <Empty
-          title="No saved kits yet"
-          note="When you configure a uniform you are happy with, save it here and reorder it any time."
-          action="Create your first kit"
+          title={t(locale, 'kits.noneTitle')}
+          note={t(locale, 'kits.noneNote')}
+          action={t(locale, 'kits.createFirst')}
           onAct={onNew}
         />
       ) : (
         <div className={s.kitGrid}>
           {saved.map((c) => (
             <ConceptCard key={c.id} concept={c} logoText={logoText} employees={staff}
+              locale={locale} money={money}
               selected={false} onSelect={() => onOpen(c)} />
           ))}
         </div>
@@ -555,13 +617,17 @@ function Kits({
 }
 
 /** One pill for one status, coloured the same everywhere it appears. */
-function StatusPill({ order }: { order: Order }) {
+function StatusPill({ order, locale }: { order: Order; locale: Locale }) {
   const st = status(order);
   const tone = st === 'Delivered' ? s.pillGood : st === 'Collecting sizes' ? s.pillWarn : '';
-  return <span className={`${s.pill} ${tone}`}>{st}</span>;
+  const key = st === 'Delivered' ? 'delivered' : st === 'Collecting sizes' ? 'collectingSizes' : 'inProduction';
+  return <span className={`${s.pill} ${tone}`}>{t(locale, `statuses.${key}`)}</span>;
 }
 
-function Orders({ orders, onHome }: { orders: Order[]; onHome: () => void }) {
+function Orders({ orders, onHome, locale, money, shortDay }: {
+  orders: Order[]; onHome: () => void; locale: Locale;
+  money: (n: number) => string; shortDay: (d: Date) => string;
+}) {
   // The open order is a choice on this page, not app state: leaving and
   // coming back should show the newest again.
   const [openId, setOpenId] = useState<string | null>(null);
@@ -569,8 +635,8 @@ function Orders({ orders, onHome }: { orders: Order[]; onHome: () => void }) {
   const head = (
     <div className={s.pageHead}>
       <div>
-        <h1>Orders</h1>
-        <p>Where everything is right now.</p>
+        <h1>{t(locale, 'orders.title')}</h1>
+        <p>{t(locale, 'orders.subtitle')}</p>
       </div>
     </div>
   );
@@ -579,9 +645,9 @@ function Orders({ orders, onHome }: { orders: Order[]; onHome: () => void }) {
       <>
         {head}
         <Empty
-          title="No orders yet"
-          note="Configure a kit, review the quote and place the order. It lands here with its production stages."
-          action="Start a uniform"
+          title={t(locale, 'orders.noneTitle')}
+          note={t(locale, 'orders.noneNote')}
+          action={t(locale, 'orders.startOne')}
           onAct={onHome}
         />
       </>
@@ -599,7 +665,7 @@ function Orders({ orders, onHome }: { orders: Order[]; onHome: () => void }) {
           <div className={s.tableScroll}>
             <table>
               <thead>
-                <tr><th>Order</th><th>Status</th><th className={s.right}>Value</th><th className={s.right}>Due</th></tr>
+                <tr><th>{t(locale, 'orders.colOrder')}</th><th>{t(locale, 'orders.colStatus')}</th><th className={s.right}>{t(locale, 'orders.colValue')}</th><th className={s.right}>{t(locale, 'orders.colDue')}</th></tr>
               </thead>
               <tbody>
                 {/* The whole row is the control. A View button needed a fifth
@@ -609,18 +675,18 @@ function Orders({ orders, onHome }: { orders: Order[]; onHome: () => void }) {
                 {orders.map((x) => (
                   <tr key={x.id} className={`${s.rowPick} ${x.id === o.id ? s.rowOpen : ''}`}
                     aria-current={x.id === o.id ? 'true' : undefined}
-                    tabIndex={0} role="button" aria-label={`Open ${x.name}, ${x.id}`}
+                    tabIndex={0} role="button" aria-label={t(locale, 'orders.open', { name: x.name, id: x.id })}
                     onClick={() => setOpenId(x.id)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenId(x.id); }
                     }}>
                     <td>
                       <strong>{x.name}</strong>
-                      <div className={s.sub}>{x.id} · {x.sets} sets</div>
+                      <div className={s.sub}>{t(locale, 'home.orderLine', { id: x.id, sets: x.sets })}</div>
                     </td>
-                    <td data-label="Status"><StatusPill order={x} /></td>
+                    <td data-label="Status"><StatusPill order={x} locale={locale} /></td>
                     <td data-label="Value" className={`${s.right} ${s.mono}`}>{money(x.total)}</td>
-                    <td data-label="Due" className={`${s.right} ${s.mono}`}>{shortDate(x.due)}</td>
+                    <td data-label="Due" className={`${s.right} ${s.mono}`}>{shortDay(x.due)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -634,21 +700,25 @@ function Orders({ orders, onHome }: { orders: Order[]; onHome: () => void }) {
           <div>
             <div className={s.sub}>{o.id}</div>
             <h2 className={s.orderTitle}>{o.name}</h2>
-            <div className={s.sub}>{o.sets} sets · {money(o.total)}</div>
+            <div className={s.sub}>{t(locale, 'orders.setsAndValue', { sets: o.sets, value: money(o.total) })}</div>
           </div>
           <div className={s.alignEnd}>
-            <StatusPill order={o} />
+            <StatusPill order={o} locale={locale} />
             <div className={`${s.muted} ${s.metaLine}`}>
-              {o.stage >= 5 ? `Delivered ${shortDate(o.due)}` : `Due around ${shortDate(o.due)}`}
+              {o.stage >= 5
+                ? t(locale, 'orders.deliveredOn', { date: shortDay(o.due) })
+                : t(locale, 'orders.dueAround', { date: shortDay(o.due) })}
             </div>
           </div>
         </div>
         <div className={s.timeline}>
-          {STAGES.map((name, i) => (
-            <div key={name} className={`${s.tStep} ${state(i) === 'done' ? s.tDone : state(i) === 'now' ? s.tNow : ''}`}>
+          {STAGE_KEYS.map((key, i) => (
+            <div key={key} className={`${s.tStep} ${state(i) === 'done' ? s.tDone : state(i) === 'now' ? s.tNow : ''}`}>
               <div className={s.tDot}>{state(i) === 'done' ? <Check /> : i + 1}</div>
-              <b>{name}</b>
-              <small>{state(i) === 'now' && o.stage < 5 ? 'Now' : reached(i) ? shortDate(stageDate(o, i)) : '—'}</small>
+              <b>{t(locale, `orders.${key}`)}</b>
+              <small>{state(i) === 'now' && o.stage < 5
+                ? t(locale, 'orders.now')
+                : reached(i) ? shortDay(stageDate(o, i)) : '—'}</small>
             </div>
           ))}
         </div>
@@ -658,13 +728,13 @@ function Orders({ orders, onHome }: { orders: Order[]; onHome: () => void }) {
 
       <div className={s.group}>
       <div className={s.sectionHead}>
-        <div><h2>{o.stage >= 5 ? 'What was made' : 'What is being made'}</h2></div>
+        <div><h2>{t(locale, o.stage >= 5 ? 'orders.whatWasMade' : 'orders.whatIsBeingMade')}</h2></div>
       </div>
       <div className={`${s.tableCard} ${s.tableFixed} ${s.tableLines}`}>
         <div className={s.tableScroll}>
           <table>
             <thead>
-              <tr><th>Item</th><th className={s.right}>Qty</th><th>Progress</th><th className={s.right}>Ready</th></tr>
+              <tr><th>{t(locale, 'orders.colItem')}</th><th className={s.right}>{t(locale, 'orders.colQty')}</th><th>{t(locale, 'orders.colProgress')}</th><th className={s.right}>{t(locale, 'orders.colReady')}</th></tr>
             </thead>
             <tbody>
               {o.lines.map((l) => (
@@ -674,10 +744,10 @@ function Orders({ orders, onHome }: { orders: Order[]; onHome: () => void }) {
                   <td data-label="Progress">
                     <div className={s.progress}>
                       <div className={s.progressTrack}><i style={{ width: `${pct}%` }} /></div>
-                      <span className={s.progressPct}>{pct === 0 ? 'Waiting on sizes' : `${pct}%`}</span>
+                      <span className={s.progressPct}>{pct === 0 ? t(locale, 'orders.waitingOnSizes') : `${pct}%`}</span>
                     </div>
                   </td>
-                  <td data-label="Ready" className={`${s.right} ${s.mono}`}>{shortDate(o.due)}</td>
+                  <td data-label="Ready" className={`${s.right} ${s.mono}`}>{shortDay(o.due)}</td>
                 </tr>
               ))}
             </tbody>
@@ -689,7 +759,10 @@ function Orders({ orders, onHome }: { orders: Order[]; onHome: () => void }) {
   );
 }
 
-function Settings({ profile, onSave }: { profile: Profile; onSave: (p: Profile) => void }) {
+function Settings({ profile, onSave, locale, onLocale }: {
+  profile: Profile; onSave: (p: Profile) => void;
+  locale: Locale; onLocale: (l: Locale) => void;
+}) {
   const [d, setD] = useState(profile);
   // Held as typed so the field can be emptied while editing; validated on
   // save. Clamping on every keystroke made the staff box impossible to clear.
@@ -702,8 +775,8 @@ function Settings({ profile, onSave }: { profile: Profile; onSave: (p: Profile) 
     <>
       <div className={s.pageHead}>
         <div>
-          <h1>Settings</h1>
-          <p>Used to keep every kit on brand.</p>
+          <h1>{t(locale, 'settings.title')}</h1>
+          <p>{t(locale, 'settings.subtitle')}</p>
         </div>
       </div>
       {/* Two things live here, so the page says so: who you are, and how
@@ -711,42 +784,54 @@ function Settings({ profile, onSave }: { profile: Profile; onSave: (p: Profile) 
       <div className={s.settings}>
         <section className={s.panel}>
           <div className={s.panelHead}>
-            <h2>Your company</h2>
-            <p>Shown on quotes and used to size every order.</p>
+            <h2>{t(locale, 'settings.company')}</h2>
+            <p>{t(locale, 'settings.companyNote')}</p>
           </div>
           <div className={s.formGrid}>
             <div className={`${s.field} ${s.fieldWide}`}>
-              <label htmlFor="sName">Company name</label>
+              <label htmlFor="sName">{t(locale, 'settings.companyName')}</label>
               <input id="sName" value={d.company} onChange={set('company')}
                 aria-invalid={!nameOk} aria-describedby={nameOk ? undefined : 'sNameErr'} />
-              {!nameOk && <div className={s.fieldHint} id="sNameErr" role="alert">A name is needed — it goes on every quote.</div>}
+              {!nameOk && <div className={s.fieldHint} id="sNameErr" role="alert">{t(locale, 'settings.nameNeeded')}</div>}
             </div>
             <div className={`${s.field} ${s.fieldNarrow}`}>
-              <label htmlFor="sStaff">Total staff</label>
+              <label htmlFor="sStaff">{t(locale, 'settings.totalStaff')}</label>
               <input id="sStaff" type="number" min={1} value={d.staff} onChange={set('staff')}
                 aria-invalid={!staffOk} aria-describedby={staffOk ? undefined : 'sStaffErr'} />
-              {!staffOk && <div className={s.fieldHint} id="sStaffErr" role="alert">At least one person.</div>}
+              {!staffOk && <div className={s.fieldHint} id="sStaffErr" role="alert">{t(locale, 'settings.staffNeeded')}</div>}
             </div>
             <div className={`${s.field} ${s.fieldWide}`}>
-              <label htmlFor="sInd">Industry</label>
+              <label htmlFor="sInd">{t(locale, 'settings.industry')}</label>
               <select id="sInd" value={d.industry} onChange={set('industry')}>
-                <option>Technology</option>
-                <option>Hospitality</option>
-                <option>Facilities management</option>
-                <option>Retail</option>
+                {INDUSTRIES.map(([value, key]) => (
+                  <option key={value} value={value}>{t(locale, key)}</option>
+                ))}
               </select>
-              <div className={s.fieldHint}>Sets the starting point for new kits.</div>
+              <div className={s.fieldHint}>{t(locale, 'settings.industryHint')}</div>
             </div>
           </div>
         </section>
 
         <section className={s.panel}>
           <div className={s.panelHead}>
-            <h2>Dress code</h2>
-            <p>I read this before suggesting kits, so write it in plain words.</p>
+            <h2>{t(locale, 'settings.language')}</h2>
+            <p>{t(locale, 'settings.languageNote')}</p>
           </div>
           <div className={s.field}>
-            <label htmlFor="sRules">What your teams should wear</label>
+            <label htmlFor="sLang">{t(locale, 'settings.interfaceLanguage')}</label>
+            <select id="sLang" value={locale} onChange={(e) => onLocale(e.target.value as Locale)}>
+              {LOCALES.map((l) => <option key={l} value={l}>{LOCALE_NAMES[l]}</option>)}
+            </select>
+          </div>
+        </section>
+
+        <section className={s.panel}>
+          <div className={s.panelHead}>
+            <h2>{t(locale, 'settings.dressCode')}</h2>
+            <p>{t(locale, 'settings.dressCodeNote')}</p>
+          </div>
+          <div className={s.field}>
+            <label htmlFor="sRules">{t(locale, 'settings.rulesLabel')}</label>
             <textarea id="sRules" value={d.rules} onChange={set('rules')} />
           </div>
         </section>
@@ -755,7 +840,7 @@ function Settings({ profile, onSave }: { profile: Profile; onSave: (p: Profile) 
           <button type="button" className={`${s.btn} ${s.btnPrimary}`}
             disabled={!nameOk || !staffOk}
             onClick={() => onSave({ ...d, company: d.company.trim(), staff: staffNum })}>
-            Save settings
+            {t(locale, 'settings.save')}
           </button>
         </div>
       </div>
@@ -764,10 +849,12 @@ function Settings({ profile, onSave }: { profile: Profile; onSave: (p: Profile) 
 }
 
 function Quote({
-  concept, staff, perPerson, sets, grades, onClose, onConfirm,
+  concept, staff, perPerson, sets, grades, onClose, onConfirm, locale, money,
 }: {
   concept: Concept;
   staff: number;
+  locale: Locale;
+  money: (n: number) => string;
   /** Passed in, never recomputed -- the price bar showed these same numbers. */
   perPerson: number;
   sets: number;
@@ -799,10 +886,10 @@ function Quote({
       <div className={s.modal}>
         <div className={s.modalHead}>
           <div>
-            <h2 id="qt">Your quote</h2>
-            <p>Held for 30 days.</p>
+            <h2 id="qt">{t(locale, 'quote.title')}</h2>
+            <p>{t(locale, 'quote.validFor')}</p>
           </div>
-          <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onClose}>Close</button>
+          <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onClose}>{t(locale, 'common.close')}</button>
         </div>
         <div className={s.modalBody}>
           {/* Each garment carries its own cloth and its own upgrade, so the
@@ -812,34 +899,38 @@ function Quote({
             const delta = gradesFor(g.type)[grade]?.delta ?? 0;
             return (
               <div className={s.quoteLine} key={i}>
-                <span>{LABELS[g.type]}<div className={s.sub}>
-                  {gradeName(g, grade)}{delta > 0 && ` · upgrade +${delta}`}
+                <span>{t(locale, `garments.${g.type}`)}<div className={s.sub}>
+                  {gradeName(g, grade)}{delta > 0 && ` · ${t(locale, 'quote.upgrade')} +${delta}`}
                 </div></span>
                 <b>{money(g.unitPrice + delta)}</b>
               </div>
             );
           })}
           <div className={s.quoteLine}>
-            <span>Branding<div className={s.sub}>
-              {concept.logo.position === 'none' ? 'None' : `${concept.logo.method}, ${concept.logo.position.replace('_', ' ')}`}
+            <span>{t(locale, 'quote.branding')}<div className={s.sub}>
+              {concept.logo.position === 'none'
+                ? t(locale, 'common.none')
+                : `${t(locale, `branding.${concept.logo.method}`)}, ${t(locale, `branding.${concept.logo.position}`)}`}
             </div></span>
             <b>{branding ? money(branding) : '—'}</b>
           </div>
           <div className={s.quoteLine}>
-            <span>Sets<div className={s.sub}>
-              {staff} people{spareSets > 0 ? ` plus ${spareSets} spare` : ', no spare'}
+            <span>{t(locale, 'quote.sets')}<div className={s.sub}>
+              {spareSets > 0
+                ? t(locale, 'quote.coversPeople', { people: staff, spare: spareSets })
+                : t(locale, 'quote.coversNoSpare', { people: staff })}
             </div></span>
             <b>{sets}</b>
           </div>
           <div className={s.quoteTotal}>
-            <span>Total</span>
+            <span>{t(locale, 'quote.total')}</span>
             <b>{money(per * sets)}</b>
           </div>
           <ManagerNote note={quoteNote(concept, staff, sets)} />
         </div>
         <div className={s.modalFoot}>
-          <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onClose} ref={first}>Keep editing</button>
-          <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onConfirm}>Place order</button>
+          <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onClose} ref={first}>{t(locale, 'quote.keepEditing')}</button>
+          <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onConfirm}>{t(locale, 'quote.submit')}</button>
         </div>
       </div>
     </div>

@@ -1,3 +1,10 @@
+/* Direction: this file uses CSS logical properties (inline-start/end) so one
+   stylesheet serves both English (LTR) and Arabic (RTL). The only physical
+   left/right left in here are symmetric pairs (left:0;right:0), centring
+   offsets (left:50% with translateX) and the timeline connector -- none of
+   which have a direction to flip. Adding a physical margin-left or a
+   text-align:left is a bug: it will read wrong in Arabic. */
+
 /* ---------- Shell ---------- */
 .app {
   height: 100dvh;
@@ -10,7 +17,7 @@
 /* Static inside a non-scrolling shell, so it can never drift up the page. */
 .sidebar {
   background: var(--surface);
-  border-right: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);
   padding: var(--s5) var(--s4);
   display: flex;
   flex-direction: column;
@@ -86,7 +93,7 @@
   border: 0;
   background: transparent;
   color: var(--text-2);
-  text-align: left;
+  text-align: start;
   padding: var(--s2) var(--s2);
   border-radius: var(--r-sm);
   display: flex;
@@ -124,7 +131,7 @@
 }
 
 .navCount {
-  margin-left: auto;
+  margin-inline-start: auto;
   font-size: var(--t-xs);
   color: var(--text-3);
   font-family: var(--font-mono), monospace;
@@ -448,7 +455,7 @@
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   overflow: hidden;
-  text-align: left;
+  text-align: start;
   padding: 0;
   width: 100%;
   display: flex;
@@ -488,7 +495,7 @@
 .kitCheck {
   position: absolute;
   top: 10px;
-  right: 10px;
+  inset-inline-end: 10px;
   width: 20px;
   height: 20px;
   border-radius: 50%;
@@ -666,7 +673,7 @@
   border: 0;
   background: transparent;
   padding: 0;
-  text-align: left;
+  text-align: start;
 }
 
 .trailBar {
@@ -755,7 +762,7 @@
   border: 1px solid var(--line);
   border-radius: var(--r);
   background: var(--surface);
-  text-align: left;
+  text-align: start;
   transition: border-color 0.12s, background 0.12s;
 }
 
@@ -909,7 +916,7 @@
    keyboard- and screen-reader-correct for free. */
 .field select {
   appearance: none;
-  padding-right: calc(var(--s3) * 2 + 8px);
+  padding-inline-end: calc(var(--s3) * 2 + 8px);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7' fill='none' stroke='%23667' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.5 5 5.5 9 1.5'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right var(--s3) center;
@@ -1097,7 +1104,7 @@
 }
 
 .tableCard th {
-  text-align: left;
+  text-align: start;
   padding: var(--s3) var(--s4);
   background: var(--sunken);
   border-bottom: 1px solid var(--line);
@@ -1111,7 +1118,7 @@
    on specificity, so every heading stayed left while the numbers under it
    were right-aligned -- "Qty" sat 145px from its own column of figures. */
 .tableCard th.right {
-  text-align: right;
+  text-align: end;
 }
 
 /* Columns sized to their content instead of however auto-layout divides the
@@ -1177,7 +1184,7 @@
 }
 
 .right {
-  text-align: right;
+  text-align: end;
 }
 
 .rowItem {
@@ -1243,6 +1250,7 @@
   content: '';
   position: absolute;
   top: 13px;
+  /* Symmetric span between two dots: mirrors with the row on its own. */
   left: -50%;
   right: 50%;
   height: 2px;
@@ -1511,7 +1519,7 @@
     width: 100%;
     padding: var(--s1) var(--s2);
     padding-bottom: max(var(--s1), env(safe-area-inset-bottom));
-    border-right: 0;
+    border-inline-end: 0;
     border-top: 1px solid var(--line);
     overflow: visible;
     gap: 0;
@@ -1608,7 +1616,7 @@
     background: transparent;
     color: var(--text-2);
     font-size: var(--t-lg);
-    text-align: left;
+    text-align: start;
     padding: var(--s3) var(--s3);
     border-radius: var(--r);
     min-height: 48px;
@@ -1632,7 +1640,7 @@
   }
 
   .sheetCount {
-    margin-left: auto;
+    margin-inline-start: auto;
     font-family: var(--font-mono), monospace;
     font-size: var(--t-sm);
     color: var(--text-3);
@@ -1856,8 +1864,8 @@
   .modalHead,
   .modalBody,
   .modalFoot {
-    padding-left: var(--s4);
-    padding-right: var(--s4);
+    padding-inline-start: var(--s4);
+    padding-inline-end: var(--s4);
   }
 
   .modalFoot .btn {
@@ -1937,7 +1945,7 @@
      right-aligned column, which left a ragged edge against the left-aligned
      title above it. */
   .alignEnd {
-    text-align: left;
+    text-align: start;
     display: flex;
     align-items: center;
     flex-wrap: wrap;
@@ -1986,7 +1994,7 @@
   .tableCard td {
     padding: 0;
     border: 0;
-    text-align: left;
+    text-align: start;
   }
 
   /* The first cell keeps its own weight: it is the row's name. */
@@ -2012,7 +2020,7 @@
   /* .right aligns text on a desktop grid; in a flex pair it fights the
      space-between that already puts the value on the right. */
   .tableCard td[data-label].right {
-    text-align: left;
+    text-align: start;
   }
 }
 
@@ -2115,7 +2123,7 @@
 }
 
 .alignEnd {
-  text-align: right;
+  text-align: end;
 }
 
 .orderTitle {
@@ -2253,8 +2261,8 @@
   display: flex;
   flex-direction: column;
   gap: var(--s4);
-  padding-left: var(--s6);
-  border-left: 1px solid var(--line);
+  padding-inline-start: var(--s6);
+  border-inline-start: 1px solid var(--line);
   align-self: stretch;
 }
 
@@ -2275,9 +2283,9 @@
   }
 
   .briefSide {
-    padding-left: 0;
+    padding-inline-start: 0;
     padding-top: var(--s5);
-    border-left: 0;
+    border-inline-start: 0;
     border-top: 1px solid var(--line);
   }
 
@@ -2306,4 +2314,52 @@
 .chips button:hover {
   border-color: var(--accent);
   color: var(--accent);
+}
+
+/* Language switch in the top bar: a segmented pair, so the language you are
+   not in stays readable in its own script rather than hidden in a menu. */
+.langSwitch {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--sunken);
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
+}
+
+.langSwitch button {
+  padding: 4px var(--s3);
+  min-height: 28px;
+  border: 0;
+  border-radius: calc(var(--r2) - 3px);
+  background: none;
+  color: var(--muted);
+  font: inherit;
+  font-size: var(--t-sm);
+  cursor: pointer;
+}
+
+.langSwitch button:hover {
+  color: var(--text);
+}
+
+.langSwitch button.langOn {
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 600;
+  box-shadow: 0 1px 2px #0b0f1014;
+}
+
+.langSwitch button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* On a phone the bar is tight: the switch keeps its tap target but loses the
+   padding it does not need. */
+@media (max-width: 719px) {
+  .langSwitch button {
+    padding: 4px var(--s2);
+    min-height: 32px;
+  }
 }

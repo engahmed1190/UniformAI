@@ -61,9 +61,13 @@ assert.match(src, /textLength: spot\.w/,
 assert.match(src, /text\.length > spot\.w/,
   'the constraint must be conditional, or short text gets stretched');
 
-// 6. The logo colour is a spec field, not a hardcoded fill.
-assert.match(src, /fill=\{logo\?\.colour \?\? '#ffffff'\}/,
-  'logo colour must come from the spec, defaulting to white');
+// 6. The logo colour is a spec field, not a hardcoded fill. The fallback is
+// computed from the cloth behind it: Front Office's shirt body is #ffffff,
+// and a white default rendered a logo you had to hunt for on the demo's own
+// second kit.
+assert.match(src, /fill=\{logo\?\.colour \?\? readableOn\(/,
+  'logo colour must come from the spec, falling back to something readable');
+assert.match(src, /function readableOn/, 'the fallback has to be defined');
 
 // 7. Only a back placement flips the view. Anything else stays front-on,
 // otherwise the garment reads as transparent.

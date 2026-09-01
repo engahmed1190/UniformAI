@@ -181,11 +181,25 @@ export function GarmentSvg({
           {...(text.length > spot.w / (spot.size * 0.62)
             ? { textLength: spot.w, lengthAdjust: 'spacingAndGlyphs' as const }
             : {})}
-          fill={logo?.colour ?? '#ffffff'} stroke="#00000055" strokeWidth="0.3"
+          fill={logo?.colour ?? readableOn(garment.parts.body ?? garment.parts.leg)}
+          stroke="#00000055" strokeWidth="0.3"
           paintOrder="stroke">
           {text}
         </text>
       )}
     </svg>
   );
+}
+
+/** A logo with no colour set takes one that can actually be read on the cloth
+ *  behind it. Front Office's shirt is white, and the white default rendered a
+ *  logo you had to hunt for on the demo's own second kit. An explicit
+ *  logo.colour still wins -- this only fills the gap. */
+function readableOn(hex: string | undefined): string {
+  if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) return '#ffffff';
+  const n = parseInt(hex.slice(1), 16);
+  const [r, g, b] = [n >> 16 & 255, n >> 8 & 255, n & 255].map((c) => c / 255);
+  const f = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
+  const L = 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+  return L > 0.5 ? '#12161f' : '#ffffff';
 }

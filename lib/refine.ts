@@ -110,7 +110,9 @@ const FABRIC_NOTE = [
   'Moved to the performance knit: 90 more a person, and the one people notice in the heat.',
 ];
 
-export function refine(concept: Concept, request: string): Applied | null {
+/** One clause, one edit. This is the whole original engine: it assumes the
+ *  text it gets names at most one colour and one thing to put it on. */
+function refineOne(concept: Concept, request: string): Applied | null {
   const t = request.toLowerCase().trim();
   if (!t) return null;
   const hex = pickColour(t);
@@ -249,4 +251,56 @@ export function applyBrief(c: Concept, text: string): Concept {
   }
   if (logo) next = setLogo(next, { position: logo });
   return next;
+}
+
+/** Where one instruction ends and the next begins. People chain edits with
+ *  "and", commas and "with" -- "navy polo with a gold logo" is two requests
+ *  in one breath, and reading it as one bound the gold to the polo's colour
+ *  word and set the LOGO navy. Splitting first means each clause names one
+ *  colour and one noun, which the single-edit path already gets right. */
+function clauses(text: string): string[] {
+  return text
+    .split(/\s+and\s+|\s*,\s*|\s+with\s+|\s*;\s*/i)
+    .map((c) => c.trim())
+    .filter(Boolean);
+}
+
+/** Apply every instruction in a request, in order. Each edit builds on the
+ *  last, so two clauses touching the same garment both land. Anything not
+ *  understood is named rather than dropped -- half-applying a request in
+ *  silence is the failure this whole file exists to avoid. */
+export function refine(concept: Concept, request: string): Applied | null {
+  const parts = clauses(request);
+  // One clause is the overwhelming case; keep it on the original path so a
+  // simple ask cannot regress behind the splitter.
+  if (parts.length <= 1) return refineOne(concept, request);
+
+  let next = concept;
+  let fabric: number | undefined;
+  let spare: number | undefined;
+  const notes: string[] = [];
+  const patches: string[] = [];
+  const missed: string[] = [];
+
+  for (const clause of parts) {
+    const step = refineOne(next, clause);
+    if (!step) { missed.push(clause); continue; }
+    next = step.concept;
+    if (step.fabric !== undefined) fabric = step.fabric;
+    if (step.spare !== undefined) spare = step.spare;
+    notes.push(step.note);
+    patches.push(step.patch);
+  }
+
+  if (!patches.length) return null;
+  if (missed.length) {
+    notes.push(`I did not follow “${missed.join('”, “')}” — say that one on its own and I will.`);
+  }
+  return {
+    concept: next,
+    fabric,
+    spare,
+    note: notes.join(' '),
+    patch: patches.join('\n'),
+  };
 }

@@ -159,3 +159,31 @@ assert.equal(refine(CONCEPTS[1], '10% spare')?.spare, 0.1);
 assert.equal(refine(CONCEPTS[1], 'no spare')?.spare, 0);
 assert.equal(refine(CONCEPTS[1], 'make me a sandwich'), null, 'unknown asks must not guess');
 console.log('refine: fabric and spare assertions passed');
+
+// Multi-part requests. These three were not merely unsupported before -- they
+// were silently WRONG: "navy polo with a gold logo" made the LOGO navy, and
+// "polo navy and trousers olive" turned the trousers navy and dropped olive.
+const multi = refine(CONCEPTS[1], 'navy polo with a gold logo');
+assert.match(multi!.patch, /polo\.parts\.body = #1b2a4a/, 'the polo takes the first colour');
+assert.match(multi!.patch, /logo\.colour = #c8a24a/, 'the logo takes its own colour');
+
+const two = refine(CONCEPTS[1], 'make the polo navy and the trousers olive');
+assert.match(two!.patch, /polo\.parts\.body = #1b2a4a/);
+assert.match(two!.patch, /cargo\.parts\.leg = #3d4a3a/, 'the second clause must not be dropped');
+
+// Partial success: apply what was understood, name what was not.
+const half = refine(CONCEPTS[1], 'make me a sandwich and the trouser navy');
+assert.match(half!.patch, /cargo\.parts\.leg = #1b2a4a/, 'the understood half still applies');
+assert.match(half!.note, /did not follow/, 'the ignored half has to be admitted');
+assert.doesNotMatch(half!.patch, /sandwich/);
+
+// Non-spec edits must not clone the concept, or every fabric ask trips the
+// unsaved-work guard.
+const nonSpec = refine(CONCEPTS[1], 'use the performance knit and 10% spare');
+assert.equal(nonSpec!.concept, CONCEPTS[1], 'fabric/spare edits must not touch the garments');
+assert.equal(nonSpec!.fabric, 2);
+assert.equal(nonSpec!.spare, 0.1);
+
+// A single clause still takes the original path unchanged.
+assert.equal(refine(CONCEPTS[1], 'make the trouser navy')!.patch, 'cargo.parts.leg = #1b2a4a');
+console.log('refine: multi-part assertions passed');

@@ -330,7 +330,8 @@ export function Configurator({
               <div className={s.askHead}>Or just tell me what to change</div>
               {log.length === 0 && (
                 <p className={s.askHint}>
-                  I will show you exactly what I changed, so nothing moves that you did not ask for.
+                  Ask for several things at once. I will show you exactly what I
+                  changed, so nothing moves that you did not ask for.
                 </p>
               )}
               {log.length > 0 && (
@@ -354,13 +355,13 @@ export function Configurator({
                 <input
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
-                  placeholder="Make the trouser navy"
+                  placeholder="Navy polo with a gold logo"
                   aria-label="Describe a change"
                 />
                 <button type="submit" className={`${s.btn} ${s.btnSecondary}`}>Apply</button>
               </form>
               <div className={s.askChips}>
-                {['Make the trouser navy', 'Use the performance knit', 'Move the logo to the sleeve', '10% spare'].map((q) => (
+                {['Navy polo with a gold logo', 'Use the performance knit', 'Move the logo to the sleeve', '10% spare'].map((q) => (
                   <button key={q} type="button" onClick={() => submitAsk(q)}>{q}</button>
                 ))}
               </div>

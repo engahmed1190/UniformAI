@@ -1012,7 +1012,11 @@
   font-family: var(--font-mono), monospace;
   font-size: var(--t-xs);
   color: var(--text-3);
-  word-break: break-all;
+  /* One patch line per edit. These are the proof of what moved, so they wrap
+     at the line breaks they were written with, and break between tokens
+     rather than through the middle of a hex. */
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 
 .askForm {
@@ -1439,22 +1443,28 @@
 @media (max-width: 760px) {
   .app {
     grid-template-columns: 1fr;
-    grid-template-rows: 1fr auto;
+    grid-template-rows: 1fr;
   }
 
-  /* Nav moves to the foot of the screen, in reach of a thumb. Every
-     destination is visible at once -- the old strip scrolled sideways and
-     hid half of them. */
+  /* Keep the mobile navigation attached to the viewport, not to the
+     scrolling app layout. The old grid-row placement let it move when the
+     browser changed the visual viewport during scroll. */
   .sidebar {
-    grid-row: 2;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 30;
     flex-direction: row;
     height: auto;
+    width: 100%;
     padding: var(--s1) var(--s2);
     padding-bottom: max(var(--s1), env(safe-area-inset-bottom));
     border-right: 0;
     border-top: 1px solid var(--line);
     overflow: visible;
     gap: 0;
+    box-shadow: 0 -4px 16px rgba(20, 24, 26, 0.06);
   }
 
   .brand,
@@ -1580,6 +1590,7 @@
   .main {
     grid-row: 1;
     min-height: 0;
+    padding-bottom: calc(62px + env(safe-area-inset-bottom));
   }
 
   .topbar {

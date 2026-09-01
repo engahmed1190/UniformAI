@@ -17,6 +17,8 @@ const money = (n: number) => `EGP ${Math.round(n).toLocaleString()}`;
 
 const STEPS = ['Garments', 'Colours', 'Branding', 'Quantity'] as const;
 
+const SPARES = [0, 0.05, 0.1];
+
 const LOGO_METHODS: { id: LogoMethod; name: string; note: string; price: number }[] = [
   { id: 'embroidery', name: 'Embroidery', note: 'Stitched. Hard wearing, premium finish.', price: 35 },
   { id: 'print', name: 'Screen print', note: 'Printed. Lower cost, best on flat knits.', price: 18 },
@@ -206,7 +208,7 @@ export function Configurator({
                 </div>
                 {parts.map((part) => (
                   <div className={s.partBlock} key={part}>
-                    <div className={s.partName}>{part}</div>
+                    <div className={`${s.partName} ${s.partNameData}`}>{part}</div>
                     <div className={s.partCurrent}>
                       {colourName(concept.garments[focus].parts[part])}
                     </div>
@@ -320,13 +322,36 @@ export function Configurator({
                     onChange={(e) => onStaffChange(Math.max(1, +e.target.value || 1))}
                   />
                 </div>
-                <div className={s.field}>
-                  <label htmlFor="spare">Spare stock</label>
-                  <select id="spare" value={spare} onChange={(e) => onSpareChange(+e.target.value)}>
-                    <option value={0}>None — exactly {staff} sets</option>
-                    <option value={0.05}>5% spare — {Math.ceil(staff * 1.05)} sets</option>
-                    <option value={0.1}>10% spare — {Math.ceil(staff * 1.1)} sets</option>
-                  </select>
+                {/* Three options, so they are all on screen. A native select
+                    renders as the OS wants -- a full-height wheel on a phone,
+                    a grey system menu on desktop -- next to buttons that look
+                    nothing like it, and hides two of the three choices. */}
+                <div className={s.partBlock}>
+                  <div className={s.partName}>Spare stock</div>
+                  <div className={s.optList}>
+                    {SPARES.map((pct) => (
+                      <button
+                        key={pct}
+                        type="button"
+                        className={s.opt}
+                        aria-pressed={spare === pct}
+                        onClick={() => onSpareChange(pct)}
+                      >
+                        <span className={s.optMark}>{spare === pct ? <Tick /> : null}</span>
+                        <span className={s.optText}>
+                          <span className={s.optName}>
+                            {pct === 0 ? 'No spare' : `${pct * 100}% spare`}
+                          </span>
+                          <span className={s.optNote}>
+                            {pct === 0
+                              ? 'A new starter waits for the next run'
+                              : `${Math.ceil(staff * (1 + pct)) - staff} sets for new starters and replacements`}
+                          </span>
+                        </span>
+                        <span className={s.optPrice}>{Math.ceil(staff * (1 + pct))} sets</span>
+                      </button>
+                    ))}
+                  </div>
                   <div className={s.fieldHint}>
                     Sizes are collected from staff after the order is placed.
                   </div>

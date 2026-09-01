@@ -379,7 +379,7 @@ function Home({
         </div>
         <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onOrders}>View orders</button>
       </div>
-      <div className={s.tableCard}>
+      <div className={`${s.tableCard} ${s.tableFixed} ${s.tableActivity}`}>
         <div className={s.tableScroll}>
           <table>
             <thead>
@@ -532,7 +532,7 @@ function Orders() {
       <div className={s.sectionHead}>
         <div><h2>What is being made</h2></div>
       </div>
-      <div className={s.tableCard}>
+      <div className={`${s.tableCard} ${s.tableFixed} ${s.tableLines}`}>
         <div className={s.tableScroll}>
           <table>
             <thead>

@@ -1091,6 +1091,34 @@
   white-space: nowrap;
 }
 
+/* A header sits over its own data. `.tableCard th` outranked a bare `.right`
+   on specificity, so every heading stayed left while the numbers under it
+   were right-aligned -- "Qty" sat 145px from its own column of figures. */
+.tableCard th.right {
+  text-align: right;
+}
+
+/* Columns sized to their content instead of however auto-layout divides the
+   remainder. The two tables carry different columns, so each names its own
+   widths; the first column is left unset and takes the slack. */
+.tableFixed table {
+  table-layout: fixed;
+}
+
+/* Item | Qty | Progress | Ready. The name column is capped rather than left
+   to swallow the slack: 748px of empty space between a two-word item and its
+   quantity is a gap, not a layout. */
+.tableLines th:nth-child(1) { width: 46%; }
+.tableLines th:nth-child(2) { width: 12%; }
+.tableLines th:nth-child(3) { width: 28%; }
+.tableLines th:nth-child(4) { width: 14%; }
+
+/* What | Status | Value | Updated */
+.tableActivity th:nth-child(1) { width: 40%; }
+.tableActivity th:nth-child(2) { width: 20%; }
+.tableActivity th:nth-child(3) { width: 20%; }
+.tableActivity th:nth-child(4) { width: 20%; }
+
 .tableCard td {
   padding: var(--s3) var(--s4);
   border-bottom: 1px solid var(--line);

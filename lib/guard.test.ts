@@ -56,4 +56,28 @@ assert.ok(labels.includes('Choose a different kit'), 'the button must say where 
 assert.match(page, /<h1>Home<\/h1>/, 'every page needs a title, Home included');
 assert.ok(!/<h3>/.test(page), 'panel headings sit under the page h1, so they are h2');
 
+// 5. A table header sits over its own data. `.tableCard th` set text-align
+// and outranked a bare `.right` on specificity, so every heading rendered
+// left while its numbers were right-aligned -- "Qty" sat 145px from its own
+// column of figures. The override has to be at least as specific.
+const css = readFileSync(new URL('../app/ui.module.css', import.meta.url), 'utf8');
+assert.match(css, /\.tableCard th\.right\s*\{[^}]*text-align:\s*right/,
+  'a right-aligned header needs a rule that beats .tableCard th');
+
+// Every th carrying .right must have a td under it that also does, or the
+// column is aligned one way in the head and the other in the body.
+const pageSrc = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
+for (const head of pageSrc.match(/<tr><th[^]*?<\/tr>/g) ?? []) {
+  const cols = head.match(/<th[^>]*>/g) ?? [];
+  cols.forEach((th, i) => {
+    if (!th.includes('s.right')) return;
+    // Find the matching cell position in the first body row after this head.
+    const after = pageSrc.slice(pageSrc.indexOf(head) + head.length);
+    const row = after.slice(0, after.indexOf('</tr>'));
+    const tds = row.match(/<td[^>]*>/g) ?? [];
+    assert.ok(tds[i]?.includes('s.right'),
+      `column ${i + 1} is right-aligned in the header but not in the body`);
+  });
+}
+
 console.log('guard: all assertions passed');

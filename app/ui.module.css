@@ -1129,6 +1129,32 @@
 .tableLines th:nth-child(3) { width: 28%; }
 .tableLines th:nth-child(4) { width: 14%; }
 
+/* Order | Status | Value | Due. The open row is marked by weight and a rule
+   down its left edge, so the list reads as a selector without a button
+   column -- five columns did not fit and scrolled the name out of sight. */
+.tableOrders th:nth-child(1) { width: 40%; }
+.tableOrders th:nth-child(2) { width: 22%; }
+.tableOrders th:nth-child(3) { width: 20%; }
+.tableOrders th:nth-child(4) { width: 18%; }
+
+.tableCard tbody tr.rowPick {
+  cursor: pointer;
+}
+
+.tableCard tbody tr.rowPick:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.tableCard tbody tr.rowOpen {
+  background: var(--sunken);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.rowOpen strong {
+  color: var(--accent);
+}
+
 /* What | Status | Value | Updated */
 .tableActivity th:nth-child(1) { width: 40%; }
 .tableActivity th:nth-child(2) { width: 20%; }

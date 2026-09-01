@@ -595,25 +595,32 @@ function Orders({ orders, onHome }: { orders: Order[]; onHome: () => void }) {
       {head}
 
       {orders.length > 1 && (
-        <div className={`${s.tableCard} ${s.tableFixed} ${s.tableActivity}`}>
+        <div className={`${s.tableCard} ${s.tableFixed} ${s.tableOrders}`}>
           <div className={s.tableScroll}>
             <table>
               <thead>
-                <tr><th>Order</th><th>Status</th><th className={s.right}>Value</th><th className={s.right}>Due</th><th /></tr>
+                <tr><th>Order</th><th>Status</th><th className={s.right}>Value</th><th className={s.right}>Due</th></tr>
               </thead>
               <tbody>
+                {/* The whole row is the control. A View button needed a fifth
+                    column the table had no room for, which pushed the order
+                    name off the left edge behind a scrollbar. Keyboard users
+                    get the same row via Enter or Space. */}
                 {orders.map((x) => (
-                  <tr key={x.id} aria-current={x.id === o.id ? 'true' : undefined}>
-                    <td><strong>{x.name}</strong><div className={s.sub}>{x.id} · {x.sets} sets</div></td>
+                  <tr key={x.id} className={`${s.rowPick} ${x.id === o.id ? s.rowOpen : ''}`}
+                    aria-current={x.id === o.id ? 'true' : undefined}
+                    tabIndex={0} role="button" aria-label={`Open ${x.name}, ${x.id}`}
+                    onClick={() => setOpenId(x.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenId(x.id); }
+                    }}>
+                    <td>
+                      <strong>{x.name}</strong>
+                      <div className={s.sub}>{x.id} · {x.sets} sets</div>
+                    </td>
                     <td data-label="Status"><StatusPill order={x} /></td>
                     <td data-label="Value" className={`${s.right} ${s.mono}`}>{money(x.total)}</td>
                     <td data-label="Due" className={`${s.right} ${s.mono}`}>{shortDate(x.due)}</td>
-                    <td className={s.right}>
-                      <button type="button" className={`${s.btn} ${s.btnSecondary}`}
-                        disabled={x.id === o.id} onClick={() => setOpenId(x.id)}>
-                        {x.id === o.id ? 'Viewing' : 'View'}
-                      </button>
-                    </td>
                   </tr>
                 ))}
               </tbody>

@@ -112,18 +112,30 @@ export default function Page() {
                 </div>
               </div>
 
-              <div className={s.panel}>
-                <div className={s.field}>
-                  <label htmlFor="brief">What do you need?</label>
-                  <textarea
-                    id="brief"
-                    value={brief}
-                    onChange={(e) => setBrief(e.target.value)}
-                    placeholder="Summer polos for 40 site technicians, navy, logo on the chest"
-                  />
-                  <div className={s.fieldHint}>Mention the team, the season, and any colours you have to stick to.</div>
+              {/* The brief takes the room it needs; the short answers sit
+                  beside it instead of leaving half the card empty. */}
+              <div className={`${s.panel} ${s.briefPanel}`}>
+                <div className={s.briefMain}>
+                  <div className={s.field}>
+                    <label htmlFor="brief">What do you need?</label>
+                    <textarea
+                      id="brief"
+                      value={brief}
+                      onChange={(e) => setBrief(e.target.value)}
+                      placeholder="Summer polos for 40 site technicians, navy, logo on the chest"
+                    />
+                    <div className={s.fieldHint}>Mention the team, the season, and any colours you have to stick to.</div>
+                  </div>
+                  <div className={s.chips}>
+                    {EXAMPLES.map((e) => (
+                      <button key={e} type="button" onClick={() => { setBrief(e); generate(e); }}>
+                        {e}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <div className={s.formGrid}>
+
+                <div className={s.briefSide}>
                   <div className={s.field}>
                     <label htmlFor="people">How many people?</label>
                     <input id="people" type="number" min={1} value={staff}
@@ -132,16 +144,17 @@ export default function Page() {
                   <div className={s.field}>
                     <label htmlFor="logo">Logo text</label>
                     <input id="logo" value={logoText} onChange={(e) => setLogoText(e.target.value)} />
+                    <div className={s.fieldHint}>Shown on the garment previews.</div>
                   </div>
+                  <button
+                    type="button"
+                    className={`${s.btn} ${s.btnPrimary} ${s.briefGo}`}
+                    onClick={() => generate()}
+                    disabled={busy || !brief.trim()}
+                  >
+                    {busy ? 'Putting kits together…' : 'Show me some kits'}
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  className={`${s.btn} ${s.btnPrimary}`}
-                  onClick={() => generate()}
-                  disabled={busy || !brief.trim()}
-                >
-                  {busy ? 'Putting kits together…' : 'Show me some kits'}
-                </button>
               </div>
 
               {concepts && !busy && (
@@ -173,7 +186,7 @@ export default function Page() {
                   <h1>Configure</h1>
                   <p>Every option is priced from live stock.</p>
                 </div>
-                <button type="button" className={`${s.btn} ${s.btnQuiet}`} onClick={() => setPage('design')}>
+                <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => setPage('design')}>
                   Back to kits
                 </button>
               </div>
@@ -343,7 +356,7 @@ function Home({
         <div>
           <h2>Recent activity</h2>
         </div>
-        <button type="button" className={`${s.btn} ${s.btnQuiet}`} onClick={onOrders}>View orders</button>
+        <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onOrders}>View orders</button>
       </div>
       <div className={s.tableCard}>
         <div className={s.tableScroll}>
@@ -376,7 +389,7 @@ function Home({
       </div>
       </div>
       <div>
-        <button type="button" className={`${s.btn} ${s.btnQuiet}`} onClick={onKits}>Browse saved kits</button>
+        <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onKits}>Browse saved kits</button>
       </div>
     </>
   );
@@ -594,7 +607,7 @@ function Quote({
             <h2 id="qt">Your quote</h2>
             <p>Held for 30 days.</p>
           </div>
-          <button type="button" className={`${s.btn} ${s.btnQuiet}`} onClick={onClose}>Close</button>
+          <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onClose}>Close</button>
         </div>
         <div className={s.modalBody}>
           {concept.garments.map((g, i) => (

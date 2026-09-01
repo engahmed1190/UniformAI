@@ -120,34 +120,6 @@
   font-family: var(--font-mono), monospace;
 }
 
-.sidebarFoot {
-  margin-top: auto;
-  flex: none;
-  padding: var(--s3);
-  border-radius: var(--r);
-  background: var(--sunken);
-  font-size: var(--t-xs);
-  line-height: 1.5;
-  color: var(--text-3);
-}
-
-.sidebarFoot b {
-  display: flex;
-  align-items: center;
-  gap: var(--s2);
-  color: var(--text-2);
-  font-weight: 600;
-  margin-bottom: 2px;
-}
-
-.dotLive {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--good);
-  flex: none;
-}
-
 /* ---------- Page frame ---------- */
 .main {
   min-width: 0;
@@ -311,16 +283,6 @@
 
 .btnSecondary:hover {
   background: var(--sunken);
-}
-
-.btnQuiet {
-  background: transparent;
-  color: var(--text-2);
-}
-
-.btnQuiet:hover {
-  background: var(--sunken);
-  color: var(--text);
 }
 
 .card {
@@ -704,10 +666,28 @@
   border: 1px solid var(--line);
   border-radius: var(--r-lg);
   padding: var(--s5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+/* Children never set their own vertical rhythm inside a panel. */
+.panel > .field {
+  margin-bottom: 0;
+}
+
+/* Flex children stretch by default; an action keeps its natural size. */
+.panel > .btn {
+  align-self: flex-start;
 }
 
 .panelHead {
-  margin-bottom: var(--s4);
+  margin-bottom: 0;
+}
+
+/* A heading sits closer to what it introduces than to the block before it. */
+.panelHead + * {
+  margin-top: calc(var(--s2) - var(--s4));
 }
 
 .panelHead h3 {
@@ -1402,7 +1382,6 @@
 
   .brand,
   .account,
-  .sidebarFoot,
   .navLabel {
     display: none;
   }
@@ -1779,8 +1758,12 @@
 }
 
 /* The brief textarea reads better at a comfortable measure than full-bleed. */
+ /* A long text input past ~720px is hard to read back, so the brief and the
+   field grid both stop at a comfortable measure inside a full-width card. */
 .briefField {
+  width: 100%;
   max-width: 720px;
+  align-self: flex-start;
 }
 
 /* ---------- Account manager ---------- */
@@ -1838,4 +1821,84 @@
 
 .mgrPanel .mgrText {
   color: var(--text);
+}
+
+/* ---------- Brief form ---------- */
+/* The brief is the long answer and the settings are short ones, so they sit
+   side by side rather than stacking and leaving the card half empty. */
+.briefPanel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: var(--s6);
+  align-items: start;
+}
+
+.briefMain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  min-width: 0;
+}
+
+.briefMain textarea {
+  min-height: 132px;
+}
+
+.briefSide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+  padding-left: var(--s6);
+  border-left: 1px solid var(--line);
+  align-self: stretch;
+}
+
+.briefSide .field {
+  margin-bottom: 0;
+}
+
+/* The action sits at the foot of its column, level with the brief. */
+.briefGo {
+  margin-top: auto;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .briefPanel {
+    grid-template-columns: 1fr;
+    gap: var(--s5);
+  }
+
+  .briefSide {
+    padding-left: 0;
+    padding-top: var(--s5);
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .briefGo {
+    margin-top: var(--s1);
+  }
+}
+
+/* ---------- Example chips ---------- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--s2);
+}
+
+.chips button {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  padding: var(--s1) var(--s3);
+  border-radius: 999px;
+  font-size: var(--t-sm);
+  color: var(--text-2);
+  transition: border-color 0.12s, color 0.12s;
+}
+
+.chips button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }

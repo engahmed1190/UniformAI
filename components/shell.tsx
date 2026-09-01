@@ -70,10 +70,6 @@ export function Sidebar({
         ))}
       </nav>
 
-      <div className={s.sidebarFoot}>
-        <b><span className={s.dotLive} />ERPNext connected</b>
-        Stock, pricing and orders stay in sync.
-      </div>
     </aside>
   );
 }

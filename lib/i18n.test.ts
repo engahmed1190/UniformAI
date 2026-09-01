@@ -72,3 +72,15 @@ assert.match(formatDate('ar', d), ARABIC);
 assert.doesNotMatch(formatDate('ar', d), /[٠-٩]/, 'dates keep Western digits too');
 
 console.log('i18n: all assertions passed');
+
+// 9. Kit names are stored data used as display text. The id stays stable and
+// the label translates, so an order placed in Arabic still reads correctly
+// after a switch to English -- and vice versa.
+import { kitName } from './i18n';
+assert.equal(kitName('en', 'technicians'), 'Technicians');
+assert.match(kitName('ar', 'technicians'), ARABIC);
+// A saved copy carries a -v2 suffix; the base name still resolves.
+assert.match(kitName('ar', 'technicians-v2'), /2/);
+assert.match(kitName('ar', 'technicians-v2'), ARABIC);
+// An unknown id falls back to itself rather than rendering blank.
+assert.equal(kitName('ar', 'bespoke-thing'), 'bespoke-thing');

@@ -2316,50 +2316,148 @@
   color: var(--accent);
 }
 
-/* Language switch in the top bar: a segmented pair, so the language you are
-   not in stays readable in its own script rather than hidden in a menu. */
-.langSwitch {
-  display: flex;
-  gap: 2px;
-  padding: 2px;
-  background: var(--sunken);
-  border: 1px solid var(--line);
-  border-radius: var(--r2);
+/* Language, as a garment label. The trigger shows the script you are reading
+   with its ISO code stitched alongside in mono -- the way a size tab carries
+   both a word and a code. Neutral until opened: the accent already means
+   "action" everywhere else in this UI, so it is spent only on the checked
+   row rather than on a control that is idle most of the time. */
+.lang {
+  position: relative;
 }
 
-.langSwitch button {
-  padding: 4px var(--s3);
-  min-height: 28px;
-  border: 0;
-  border-radius: calc(var(--r2) - 3px);
-  background: none;
-  color: var(--muted);
+.langTrigger {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  height: 32px;
+  padding: 0 var(--s2) 0 var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
+  background: var(--surface);
+  color: var(--text);
   font: inherit;
   font-size: var(--t-sm);
   cursor: pointer;
 }
 
-.langSwitch button:hover {
-  color: var(--text);
+.langTrigger:hover {
+  border-color: var(--muted);
 }
 
-.langSwitch button.langOn {
-  background: var(--surface);
-  color: var(--text);
-  font-weight: 600;
-  box-shadow: 0 1px 2px #0b0f1014;
+.langTrigger[aria-expanded='true'] {
+  border-color: var(--accent);
 }
 
-.langSwitch button:focus-visible {
+.langTrigger:focus-visible {
   outline: 2px solid var(--accent);
-  outline-offset: 1px;
+  outline-offset: 2px;
 }
 
-/* On a phone the bar is tight: the switch keeps its tap target but loses the
-   padding it does not need. */
+.langNow {
+  font-weight: 500;
+}
+
+/* Mono, like every other code in this product: order ids, quantities. */
+.langCode {
+  font-family: var(--font-mono), monospace;
+  font-size: var(--t-xs);
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding: 1px var(--s1);
+  border-radius: var(--r1);
+  background: var(--sunken);
+}
+
+.langCaret {
+  width: 13px;
+  height: 13px;
+  color: var(--muted);
+  transition: transform 120ms ease;
+}
+
+.langTrigger[aria-expanded='true'] .langCaret {
+  transform: rotate(180deg);
+}
+
+/* Clipped open from the top edge: one movement, 120ms, no fade or bounce. */
+.langMenu {
+  position: absolute;
+  inset-inline-end: 0;
+  top: calc(100% + 6px);
+  z-index: 20;
+  min-width: 160px;
+  margin: 0;
+  padding: var(--s1);
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r2);
+  box-shadow: 0 6px 20px #0b0f1018;
+  animation: langOpen 120ms ease;
+  transform-origin: top;
+}
+
+@keyframes langOpen {
+  from { clip-path: inset(0 0 100% 0); }
+  to { clip-path: inset(0 0 0 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .langMenu { animation: none; }
+  .langCaret { transition: none; }
+}
+
+.langMenu button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  width: 100%;
+  min-height: 36px;
+  padding: 0 var(--s2) 0 var(--s3);
+  border: 0;
+  border-radius: calc(var(--r2) - 3px);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--t-sm);
+  text-align: start;
+  cursor: pointer;
+}
+
+.langMenu button:hover {
+  background: var(--sunken);
+}
+
+.langMenu button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The one place the accent is spent on this control. */
+.langMenu button.langOn {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.langMenu button.langOn .langCode {
+  color: var(--accent);
+  background: #0f6b6214;
+}
+
+.langItemName {
+  font-size: var(--t-base);
+}
+
+/* On a phone the bar is tight: the name goes, the code stays. A two-letter
+   tab is still unambiguous, and it keeps a 44px target. */
 @media (max-width: 719px) {
-  .langSwitch button {
-    padding: 4px var(--s2);
-    min-height: 32px;
+  .langTrigger {
+    height: 36px;
+    padding: 0 var(--s2);
+  }
+
+  .langNow {
+    display: none;
   }
 }

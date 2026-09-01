@@ -10,6 +10,8 @@ export const LOCALES = ['en', 'ar'] as const;
 export const dir = (l: Locale): 'rtl' | 'ltr' => (l === 'ar' ? 'rtl' : 'ltr');
 
 export const LOCALE_NAMES: Record<Locale, string> = { en: 'English', ar: 'العربية' };
+/** The ISO code, shown beside the name the way a size label carries both. */
+export const LOCALE_CODES: Record<Locale, string> = { en: 'EN', ar: 'AR' };
 
 // Egyptian business Arabic, not literary Arabic: زي موحد, طقم, خامة, عرض سعر.
 // The product name stays UniformAI in both.
@@ -123,6 +125,10 @@ const en = {
     staffNeeded: 'At least one person.',
     industryTech: 'Technology', industryHospitality: 'Hospitality',
     industryFacilities: 'Facilities management', industryRetail: 'Retail',
+  },
+  kitNames: {
+    'front-office': 'Front Office', operations: 'Operations',
+    management: 'Management', technicians: 'Technicians',
   },
   statuses: {
     collectingSizes: 'Collecting sizes', inProduction: 'In production', delivered: 'Delivered',
@@ -336,6 +342,10 @@ const ar: Dict<typeof en> = {
     industryRetail: 'التجزئة',
   },
 
+  kitNames: {
+    'front-office': 'الاستقبال', operations: 'العمليات',
+    management: 'الإدارة', technicians: 'الفنيون',
+  },
   statuses: {
     collectingSizes: 'بانتظار المقاسات',
     inProduction: 'قيد الإنتاج',
@@ -447,4 +457,18 @@ export function spareMessage(locale: Locale, count: number): string {
   if (count === 2) return 'طقمان احتياطيان، يكفيان للموظفين الجدد دون تكديس المخزون.';
   if (count <= 10) return `${count} أطقم احتياطية، تكفي للموظفين الجدد دون تكديس المخزون.`;
   return `${count} طقمًا احتياطيًا، تكفي للموظفين الجدد دون تكديس المخزون.`;
+}
+
+/** A kit's display name. The stored id is stable data -- an order placed in
+ *  Arabic must still read correctly in English -- so only the label here
+ *  changes with the language. A saved copy carries a -v2 suffix on its id;
+ *  the base name is translated and the number kept. Anything unrecognised
+ *  falls back to the id, which is visible rather than blank. */
+export function kitName(locale: Locale, id: string): string {
+  const m = /^(.*?)(?:-v(\d+))?$/.exec(id);
+  const base = m?.[1] ?? id;
+  const version = m?.[2];
+  const label = (translations[locale].kitNames as Record<string, string>)[base];
+  if (!label) return id;
+  return version ? `${label} ${version}` : label;
 }

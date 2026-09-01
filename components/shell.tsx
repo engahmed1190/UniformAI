@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import s from '@/app/ui.module.css';
-import { type Locale, LOCALES, LOCALE_NAMES, t } from '@/lib/i18n';
+import { type Locale, LOCALES, LOCALE_CODES, LOCALE_NAMES, dir, t } from '@/lib/i18n';
 
 export type PageId = 'home' | 'design' | 'configure' | 'kits' | 'orders' | 'settings';
 
@@ -154,6 +154,73 @@ export function Sidebar({
   );
 }
 
+/** Language, as a garment label: the script you are reading, with its ISO
+ *  code stitched alongside. A globe icon would say "generic SaaS"; a size
+ *  tab says uniforms. Native <button> and a listbox, so keyboard and screen
+ *  readers get the real thing rather than a styled div. */
+function LangMenu({ locale, onLocale }: { locale: Locale; onLocale: (l: Locale) => void }) {
+  const [open, setOpen] = useState(false);
+  const box = useRef<HTMLDivElement>(null);
+
+  // Close on Escape and on any click outside. Focus returns to the trigger
+  // on Escape only -- a click elsewhere means the user is already gone.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setOpen(false);
+        box.current?.querySelector('button')?.focus();
+      }
+    };
+    const onDown = (e: MouseEvent) => {
+      if (!box.current?.contains(e.target as Node)) setOpen(false);
+    };
+    addEventListener('keydown', onKey);
+    addEventListener('mousedown', onDown);
+    return () => { removeEventListener('keydown', onKey); removeEventListener('mousedown', onDown); };
+  }, [open]);
+
+  return (
+    <div className={s.lang} ref={box}>
+      <button
+        type="button"
+        className={s.langTrigger}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
+        aria-label={t(locale, 'settings.interfaceLanguage')}
+      >
+        <span className={s.langNow} lang={locale}>{LOCALE_NAMES[locale]}</span>
+        <span className={s.langCode}>{LOCALE_CODES[locale]}</span>
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6"
+          strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" className={s.langCaret}>
+          <path d="M4 6.5 8 10.5l4-4" />
+        </svg>
+      </button>
+
+      {open && (
+        <ul className={s.langMenu} role="listbox"
+          aria-label={t(locale, 'settings.interfaceLanguage')}>
+          {LOCALES.map((l) => (
+            <li key={l} role="option" aria-selected={l === locale}>
+              <button
+                type="button"
+                className={l === locale ? s.langOn : undefined}
+                onClick={() => { onLocale(l); setOpen(false); }}
+                lang={l}
+                dir={dir(l)}
+              >
+                <span className={s.langItemName}>{LOCALE_NAMES[l]}</span>
+                <span className={s.langCode}>{LOCALE_CODES[l]}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 export function Topbar({ trail, user, locale, onLocale }: {
   trail: string[]; user: string;
   locale: Locale; onLocale: (l: Locale) => void;
@@ -170,18 +237,8 @@ export function Topbar({ trail, user, locale, onLocale }: {
         ))}
       </div>
       <div className={s.topRight}>
-        {/* Two languages, so the switch is a pair of buttons rather than a
-            select: one tap to change, and the other language is always
-            legible in its own script. */}
-        <div className={s.langSwitch} role="group" aria-label={t(locale, 'settings.interfaceLanguage')}>
-          {LOCALES.map((l) => (
-            <button key={l} type="button" onClick={() => onLocale(l)}
-              className={l === locale ? s.langOn : undefined}
-              aria-pressed={l === locale} lang={l}>
-              {LOCALE_NAMES[l]}
-            </button>
-          ))}
-        </div>
+        <LangMenu locale={locale} onLocale={onLocale} />
+
         {/* No search box until it searches something. A control that does
             nothing when clicked costs more than the space it saves. */}
         <div className={s.avatar} title={user}>{initials}</div>

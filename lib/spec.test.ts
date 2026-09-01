@@ -153,8 +153,16 @@ console.log('spec + refine: all assertions passed');
 // The ask box must understand the controls sitting right above it. A text
 // field that knows less than the panel beside it reads as decoration.
 const fab = refine(CONCEPTS[1], 'use the performance knit');
-assert.equal(fab?.fabric, 2, 'a fabric phrase must set the fabric grade');
+assert.deepEqual(fab?.grades, [2, 0], 'the knit applies to the polo, not the woven cargo');
 assert.equal(fab?.concept, CONCEPTS[1], 'a fabric edit must not touch the garments');
+
+// A grade named for another family must be refused, never substituted. Taking
+// index 2 of the woven list would bill fine worsted at +120 while the note
+// confirmed a performance knit.
+const noKnit = refine(CONCEPTS[0], 'use the performance knit');
+assert.equal(noKnit?.grades, undefined, 'wovens have no performance knit');
+assert.match(noKnit!.note, /no performance knit/i);
+assert.match(noKnit!.note, /Brushed twill|Fine worsted/, 'a refusal must say what is on offer');
 assert.equal(refine(CONCEPTS[1], '10% spare')?.spare, 0.1);
 assert.equal(refine(CONCEPTS[1], 'no spare')?.spare, 0);
 assert.equal(refine(CONCEPTS[1], 'make me a sandwich'), null, 'unknown asks must not guess');
@@ -181,7 +189,7 @@ assert.doesNotMatch(half!.patch, /sandwich/);
 // unsaved-work guard.
 const nonSpec = refine(CONCEPTS[1], 'use the performance knit and 10% spare');
 assert.equal(nonSpec!.concept, CONCEPTS[1], 'fabric/spare edits must not touch the garments');
-assert.equal(nonSpec!.fabric, 2);
+assert.deepEqual(nonSpec!.grades, [2, 0]);
 assert.equal(nonSpec!.spare, 0.1);
 
 // A single clause still takes the original path unchanged.

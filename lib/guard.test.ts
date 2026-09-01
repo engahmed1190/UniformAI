@@ -23,11 +23,11 @@ assert.ok(
 );
 
 // 2. Every route that changes a kit marks it. These are separate handlers:
-// the configurator's spec patches, and fabric and spare, which live in
-// page.tsx and would otherwise bypass the flag entirely.
+// the configurator's spec patches, and the fabric grades and spare, which
+// live in page.tsx and would otherwise bypass the flag entirely.
 const cfg = page.slice(page.indexOf('<Configurator'));
 const cfgProps = cfg.slice(0, cfg.indexOf('/>'));
-for (const handler of ['onChange', 'onFabricChange', 'onSpareChange']) {
+for (const handler of ['onChange', 'onGradesChange', 'onSpareChange']) {
   const at = cfgProps.indexOf(`${handler}={`);
   assert.ok(at > 0, `${handler} not passed to the configurator`);
   // Read to the end of THIS prop only. A fixed-width window ran on into the

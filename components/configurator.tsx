@@ -8,7 +8,7 @@ import { stepAdvice } from '@/lib/manager';
 import { ManagerNote } from './manager';
 import {
   type Concept, type LogoMethod, type LogoPosition,
-  LABELS, PARTS, setLogo, setPart,
+  LABELS, PARTS, setLogo, setPart, gradesFor, gradeName,
 } from '@/lib/spec';
 
 type Msg = { who: 'you' | 'app'; text: string; patch?: string };
@@ -16,12 +16,6 @@ type Msg = { who: 'you' | 'app'; text: string; patch?: string };
 const money = (n: number) => `EGP ${Math.round(n).toLocaleString()}`;
 
 const STEPS = ['Garments', 'Colours', 'Branding', 'Quantity'] as const;
-
-export const FABRICS = [
-  { name: 'Cotton pique', note: '220 GSM · breathable everyday knit', delta: 0 },
-  { name: 'Combed cotton', note: '240 GSM · softer hand, holds colour', delta: 45 },
-  { name: 'Performance knit', note: 'Moisture wicking · best for heat', delta: 90 },
-];
 
 const LOGO_METHODS: { id: LogoMethod; name: string; note: string; price: number }[] = [
   { id: 'embroidery', name: 'Embroidery', note: 'Stitched. Hard wearing, premium finish.', price: 35 },
@@ -38,7 +32,7 @@ const PLACEMENTS: { id: LogoPosition; name: string; note: string }[] = [
 
 export function Configurator({
   concept, onChange, logoText, staff, onStaffChange,
-  fabric, onFabricChange, spare, onSpareChange, perPerson, sets,
+  grades, onGradesChange, spare, onSpareChange, perPerson, sets,
   brief, onSave,
 }: {
   concept: Concept;
@@ -46,8 +40,9 @@ export function Configurator({
   logoText: string;
   staff: number;
   onStaffChange: (n: number) => void;
-  fabric: number;
-  onFabricChange: (i: number) => void;
+  /** One grade index per garment, into that garment's own family list. */
+  grades: number[];
+  onGradesChange: (g: number[]) => void;
   spare: number;
   onSpareChange: (n: number) => void;
   /** Computed by the page, so the price bar and the quote always agree. */
@@ -78,11 +73,11 @@ export function Configurator({
     const q = text.trim();
     if (!q) return;
     setDraft('');
-    const applied = refine(concept, q);
+    const applied = refine(concept, q, grades);
     const next: Msg[] = [{ who: 'you', text: q }];
     if (applied) {
       if (applied.concept !== concept) onChange(applied.concept);
-      if (applied.fabric !== undefined) { onFabricChange(applied.fabric); setStep(0); }
+      if (applied.grades) { onGradesChange(applied.grades); setStep(0); }
       if (applied.spare !== undefined) { onSpareChange(applied.spare); setStep(3); }
       next.push({ who: 'app', text: applied.note, patch: applied.patch });
     } else {
@@ -106,7 +101,15 @@ export function Configurator({
                 {concept.garments.map((g) => LABELS[g.type]).join(' · ')}
               </div>
             </div>
-            <span className={s.pill}>{FABRICS[fabric].name}</span>
+            <span className={s.pill}>{
+              // Compare grades, not cloth names: at grade 0 a shirt and a
+              // blazer legitimately name different cloth and are not "mixed".
+              new Set(concept.garments.map((_, i) => grades[i] ?? 0)).size > 1
+                ? 'Mixed grades'
+                : (grades[0] ?? 0) === 0
+                  ? 'Standard cloth'
+                  : gradeName(concept.garments[0], grades[0])
+            }</span>
           </div>
 
           <div className={s.stageArea}>
@@ -164,26 +167,34 @@ export function Configurator({
               <>
                 <div className={s.panelHead}>
                   <h2>Fabric</h2>
-                  <p>This kit includes {concept.garments.map((g) => LABELS[g.type]).join(', ')}.</p>
+                  <p>Each garment is priced on its own cloth.</p>
                 </div>
-                <div className={s.optList}>
-                  {FABRICS.map((f, i) => (
-                    <button
-                      key={f.name}
-                      type="button"
-                      className={s.opt}
-                      aria-pressed={i === fabric}
-                      onClick={() => onFabricChange(i)}
-                    >
-                      <span className={s.optMark}>{i === fabric ? <Tick /> : null}</span>
-                      <span className={s.optText}>
-                        <span className={s.optName}>{f.name}</span>
-                        <span className={s.optNote}>{f.note}</span>
-                      </span>
-                      <span className={s.optPrice}>{f.delta ? `+${f.delta}` : 'Included'}</span>
-                    </button>
-                  ))}
-                </div>
+                {/* A blazer has no "moisture-wicking knit" grade, so the
+                    options come from the garment's own family. */}
+                {concept.garments.map((g, gi) => (
+                  <div className={s.partBlock} key={gi}>
+                    <div className={s.partName}>{LABELS[g.type]}</div>
+                    <div className={s.optList}>
+                      {gradesFor(g.type).map((f, i) => (
+                        <button
+                          key={f.name}
+                          type="button"
+                          className={s.opt}
+                          aria-pressed={i === (grades[gi] ?? 0)}
+                          onClick={() => onGradesChange(
+                            concept.garments.map((_, j) => (j === gi ? i : grades[j] ?? 0)))}
+                        >
+                          <span className={s.optMark}>{i === (grades[gi] ?? 0) ? <Tick /> : null}</span>
+                          <span className={s.optText}>
+                            <span className={s.optName}>{gradeName(g, i)}</span>
+                            <span className={s.optNote}>{f.note}</span>
+                          </span>
+                          <span className={s.optPrice}>{f.delta ? `+${f.delta}` : 'Included'}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </>
             )}
 
@@ -323,7 +334,8 @@ export function Configurator({
               </>
             )}
 
-            <ManagerNote note={stepAdvice(step, concept, fabric, brief, staff, spare)} />
+            {/* Advice reads the top grade actually chosen on any garment. */}
+            <ManagerNote note={stepAdvice(step, concept, Math.max(0, ...grades, 0), brief, staff, spare)} />
 
             {/* Available at every step: describe the change instead of hunting for it. */}
             <div className={s.ask}>

@@ -7,7 +7,7 @@
 
 import {
   type Concept, type LogoMethod, type LogoPosition,
-  PARTS, setLogo, setPart,
+  PARTS, setLogo, setPart, gradesFor, gradeName,
 } from './spec';
 import { isTop } from '../components/garments';
 
@@ -63,7 +63,8 @@ export type Applied = {
   concept: Concept;
   note: string;
   patch: string;
-  fabric?: number;
+  /** One grade index per garment, into that garment's own family list. */
+  grades?: number[];
   spare?: number;
 };
 
@@ -104,15 +105,9 @@ function pickColour(t: string): string | null {
   return /^#[0-9a-f]{6}$/i.test(t) ? t : null;
 }
 
-const FABRIC_NOTE = [
-  'Back to the cotton pique. It is the workhorse -- fine unless these are worn daily.',
-  'Moved to combed cotton: 45 more a person, softer, and it holds colour longer.',
-  'Moved to the performance knit: 90 more a person, and the one people notice in the heat.',
-];
-
 /** One clause, one edit. This is the whole original engine: it assumes the
  *  text it gets names at most one colour and one thing to put it on. */
-function refineOne(concept: Concept, request: string): Applied | null {
+function refineOne(concept: Concept, request: string, currentGrades: number[] = []): Applied | null {
   const t = request.toLowerCase().trim();
   if (!t) return null;
   const hex = pickColour(t);
@@ -162,19 +157,48 @@ function refineOne(concept: Concept, request: string): Applied | null {
     }
   }
 
-  // Fabric and spare sit in controls right above this box, so the box has to
-  // understand them too -- a text field that knows less than the panel beside
+  // Fabric sits in a control right above this box, so the box has to
+  // understand it too -- a text field that knows less than the panel beside
   // it reads as decoration.
-  const grade = /\bperformance|wicking|technical\b/.test(t) ? 2
-    : /\bcombed|softer|premium\b/.test(t) ? 1
-      : /\bpique|standard|basic|cheapest\b/.test(t) ? 0
-        : null;
-  if (grade !== null && /\bfabric|knit|cotton|pique|material|cloth|wicking|combed|performance\b/.test(t)) {
+  //
+  // Resolved by NAME, never by index. "Performance knit" is grade 2 of the
+  // knit list, and a kit of wovens has no such cloth: taking index 2 would
+  // have quietly billed fine worsted at +120 while confirming the knit.
+  const wants = /\bperformance|wicking|technical\b/.test(t) ? 'Performance knit'
+    : /\bworsted|smart|formal\b/.test(t) ? 'Fine worsted'
+      : /\bcombed\b/.test(t) ? 'Combed cotton'
+        : /\btwill|brushed|heavier\b/.test(t) ? 'Brushed twill'
+          : /\bsofter|premium|upgrade\b/.test(t) ? 'UP'
+            : /\bpique|standard|basic|cheapest|plain\b/.test(t) ? 'BASE'
+              : null;
+  if (wants && /\bfabric|knit|cotton|pique|material|cloth|wicking|combed|performance|twill|worsted|weave\b/.test(t)) {
+    // Which garments can actually take it. A kit is usually one family, but
+    // Front Office mixes none and Technicians mixes knit with woven.
+    const hits = concept.garments.map((g, i) => {
+      const list = gradesFor(g.type);
+      const at = wants === 'BASE' ? 0
+        : wants === 'UP' ? 1
+          : list.findIndex((x) => x.name === wants);
+      return { i, g, at };
+    });
+    const usable = hits.filter((h) => h.at >= 0);
+    if (!usable.length) {
+      const offered = [...new Set(concept.garments.flatMap(
+        (g) => gradesFor(g.type).slice(1).map((x) => x.name)))];
+      return {
+        concept,
+        note: `There is no ${wants.toLowerCase()} for ${concept.garments.length > 1 ? 'these garments' : 'this garment'}. I can offer ${offered.join(' or ')}.`,
+        patch: '',
+      };
+    }
+    const grades = concept.garments.map((g, i) =>
+      usable.find((h) => h.i === i)?.at ?? currentGrades[i] ?? 0);
+    const named = usable.map((h) => gradeName(h.g, h.at));
     return {
       concept,
-      fabric: grade,
-      note: FABRIC_NOTE[grade],
-      patch: `fabric = ${['cotton pique', 'combed cotton', 'performance knit'][grade]}`,
+      grades,
+      note: `Moved to ${[...new Set(named)].join(' and ')}. The price follows.`,
+      patch: usable.map((h) => `${h.g.type}.fabric = ${gradeName(h.g, h.at)}`).join('\n'),
     };
   }
 
@@ -269,36 +293,42 @@ function clauses(text: string): string[] {
  *  last, so two clauses touching the same garment both land. Anything not
  *  understood is named rather than dropped -- half-applying a request in
  *  silence is the failure this whole file exists to avoid. */
-export function refine(concept: Concept, request: string): Applied | null {
+export function refine(
+  concept: Concept,
+  request: string,
+  currentGrades: number[] = [],
+): Applied | null {
   const parts = clauses(request);
   // One clause is the overwhelming case; keep it on the original path so a
   // simple ask cannot regress behind the splitter.
-  if (parts.length <= 1) return refineOne(concept, request);
+  if (parts.length <= 1) return refineOne(concept, request, currentGrades);
 
   let next = concept;
-  let fabric: number | undefined;
+  let grades: number[] | undefined;
   let spare: number | undefined;
   const notes: string[] = [];
   const patches: string[] = [];
   const missed: string[] = [];
 
   for (const clause of parts) {
-    const step = refineOne(next, clause);
+    const step = refineOne(next, clause, grades ?? currentGrades);
     if (!step) { missed.push(clause); continue; }
     next = step.concept;
-    if (step.fabric !== undefined) fabric = step.fabric;
+    if (step.grades) grades = step.grades;
     if (step.spare !== undefined) spare = step.spare;
     notes.push(step.note);
-    patches.push(step.patch);
+    // A clause can be understood but change nothing (an unavailable grade);
+    // it still gets a note, just no patch line.
+    if (step.patch) patches.push(step.patch);
   }
 
-  if (!patches.length) return null;
+  if (!patches.length && !notes.length) return null;
   if (missed.length) {
     notes.push(`I did not follow “${missed.join('”, “')}” — say that one on its own and I will.`);
   }
   return {
     concept: next,
-    fabric,
+    grades,
     spare,
     note: notes.join(' '),
     patch: patches.join('\n'),

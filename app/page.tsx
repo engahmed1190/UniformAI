@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import s from './ui.module.css';
 import { Sidebar, Topbar, type PageId } from '@/components/shell';
 import { ConceptCard } from '@/components/concept';
-import { Configurator, FABRICS } from '@/components/configurator';
+import { Configurator } from '@/components/configurator';
 import { GarmentSvg, logoGarmentIndex } from '@/components/garments';
 import { selectConcepts } from '@/lib/concepts';
-import { type Concept, LABELS, conceptPrice } from '@/lib/spec';
+import { type Concept, LABELS, conceptPrice, conceptPriceAt, gradeName, gradesFor } from '@/lib/spec';
 import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
 import { ManagerNote } from '@/components/manager';
 
@@ -35,8 +35,9 @@ export default function Page() {
   const [page, setPage] = useState<PageId>('home');
   const [brief, setBrief] = useState('');
   const [staff, setStaff] = useState(40);
-  // Fabric and spare live here so the price bar and the quote read one number.
-  const [fabric, setFabric] = useState(0);
+  // Grades and spare live here so the price bar and the quote read one number.
+  // One grade per garment, into that garment's own family list.
+  const [grades, setGrades] = useState<number[]>([]);
   const [spare, setSpare] = useState(0.05);
   const [logoText, setLogoText] = useState('BW');
   const [concepts, setConcepts] = useState<Concept[] | null>(null);
@@ -55,7 +56,12 @@ export default function Page() {
   useEffect(() => { scroller.current?.scrollTo({ top: 0 }); }, [page]);
 
   const active = concepts?.[sel] ?? null;
-  const perPerson = active ? conceptPrice(active) + FABRICS[fabric].delta : 0;
+  const perPerson = active ? conceptPriceAt(active, grades) : 0;
+
+  // Grades are positional, so carrying them across a kit change would put a
+  // different garment on an upgrade nobody picked -- and move the price on a
+  // screen the user never touched.
+  useEffect(() => { setGrades([]); }, [active?.id]);
   const sets = Math.ceil(staff * (1 + spare));
 
   function flash(msg: string) {
@@ -210,8 +216,8 @@ export default function Page() {
                   logoText={logoText}
                   staff={staff}
                   onStaffChange={setStaff}
-                  fabric={fabric}
-                  onFabricChange={(f) => { setEdited(true); setFabric(f); }}
+                  grades={grades}
+                  onGradesChange={(g) => { setEdited(true); setGrades(g); }}
                   spare={spare}
                   onSpareChange={(v) => { setEdited(true); setSpare(v); }}
                   perPerson={perPerson}
@@ -300,7 +306,7 @@ export default function Page() {
           staff={staff}
           perPerson={perPerson}
           sets={sets}
-          fabricName={FABRICS[fabric].name}
+          grades={grades}
           onClose={() => setQuoting(false)}
           onConfirm={() => {
             setQuoting(false);
@@ -628,21 +634,20 @@ function Settings({ company, staff, onSave }: { company: string; staff: number; 
 }
 
 function Quote({
-  concept, staff, perPerson, sets, fabricName, onClose, onConfirm,
+  concept, staff, perPerson, sets, grades, onClose, onConfirm,
 }: {
   concept: Concept;
   staff: number;
   /** Passed in, never recomputed -- the price bar showed these same numbers. */
   perPerson: number;
   sets: number;
-  fabricName: string;
+  grades: number[];
   onClose: () => void;
   onConfirm: () => void;
 }) {
   const per = perPerson;
   const garments = concept.garments.reduce((a, g) => a + g.unitPrice, 0);
   const branding = concept.logo.position === 'none' ? 0 : conceptPrice(concept) - garments;
-  const upgrade = per - garments - branding;
   const spareSets = sets - staff;
   return (
     <div className={s.overlay} role="dialog" aria-modal="true" aria-labelledby="qt"
@@ -656,22 +661,20 @@ function Quote({
           <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onClose}>Close</button>
         </div>
         <div className={s.modalBody}>
-          {concept.garments.map((g, i) => (
-            <div className={s.quoteLine} key={i}>
-              {/* The base cloth stays on its own line; the grade the customer
-                  picked is priced on the upgrade line below. Printing the
-                  grade on every row said "Performance knit" three times and
-                  lost the weight, which is the detail buyers check. */}
-              <span>{LABELS[g.type]}<div className={s.sub}>{g.fabric}</div></span>
-              <b>{money(g.unitPrice)}</b>
-            </div>
-          ))}
-          {upgrade > 0 && (
-            <div className={s.quoteLine}>
-              <span>Fabric upgrade<div className={s.sub}>Every garment in {fabricName}</div></span>
-              <b>{money(upgrade)}</b>
-            </div>
-          )}
+          {/* Each garment carries its own cloth and its own upgrade, so the
+              row a buyer queries is the row that explains itself. */}
+          {concept.garments.map((g, i) => {
+            const grade = grades[i] ?? 0;
+            const delta = gradesFor(g.type)[grade]?.delta ?? 0;
+            return (
+              <div className={s.quoteLine} key={i}>
+                <span>{LABELS[g.type]}<div className={s.sub}>
+                  {gradeName(g, grade)}{delta > 0 && ` · upgrade +${delta}`}
+                </div></span>
+                <b>{money(g.unitPrice + delta)}</b>
+              </div>
+            );
+          })}
           <div className={s.quoteLine}>
             <span>Branding<div className={s.sub}>
               {concept.logo.position === 'none' ? 'None' : `${concept.logo.method}, ${concept.logo.position.replace('_', ' ')}`}

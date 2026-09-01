@@ -95,3 +95,47 @@ export function colourFingerprint(c: Concept): string {
     .map((g) => PARTS[g.type].map((p) => `${g.type}.${p}=${g.parts[p] ?? '-'}`).join(','))
     .join('|');
 }
+
+/** Fabric grades, per garment family. A blazer offered "moisture-wicking
+ *  performance knit" is the kind of thing a buyer spots instantly, so knits
+ *  and wovens carry different cloth at the same three grades: the standard
+ *  the kit is quoted at, a step up, and the best in that family. */
+export type FabricFamily = 'knit' | 'woven';
+
+export const FABRIC_FAMILY: Record<GarmentType, FabricFamily> = {
+  polo: 'knit', shirt: 'woven', chino: 'woven', blazer: 'woven', cargo: 'woven',
+};
+
+export type Grade = { name: string; note: string; delta: number };
+
+export const GRADES: Record<FabricFamily, Grade[]> = {
+  knit: [
+    { name: 'Cotton pique', note: '220 GSM · breathable everyday knit', delta: 0 },
+    { name: 'Combed cotton', note: '240 GSM · softer hand, holds colour', delta: 45 },
+    { name: 'Performance knit', note: 'Moisture wicking · best for heat', delta: 90 },
+  ],
+  woven: [
+    { name: 'Standard weave', note: 'The cloth this kit is quoted at', delta: 0 },
+    // grade 0's name is replaced by the garment's own cloth at display time;
+    // see gradeName(). A generic label here contradicted the quote.
+    { name: 'Brushed twill', note: 'Heavier, softer, holds a press', delta: 60 },
+    { name: 'Fine worsted', note: 'Smooth finish · best for client-facing work', delta: 120 },
+  ],
+};
+
+/** The grades on offer for one garment. */
+export const gradesFor = (t: GarmentType): Grade[] => GRADES[FABRIC_FAMILY[t]];
+
+/** Per-employee cost of one concept at the chosen grades. `grades[i]` is the
+ *  index into that garment's own family list; anything missing is grade 0. */
+export function conceptPriceAt(c: Concept, grades: number[]): number {
+  const cloth = c.garments.reduce(
+    (sum, g, i) => sum + (gradesFor(g.type)[grades[i] ?? 0]?.delta ?? 0), 0);
+  return conceptPrice(c) + cloth;
+}
+
+/** What to call a grade for one garment. Grade 0 is the cloth the seed
+ *  already names, so the option, the quote and the pill cannot disagree. */
+export function gradeName(g: Garment, grade: number): string {
+  return grade === 0 ? g.fabric : (gradesFor(g.type)[grade]?.name ?? g.fabric);
+}

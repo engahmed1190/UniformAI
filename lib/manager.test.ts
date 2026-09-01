@@ -43,9 +43,15 @@ const darkTop = setPart(c, 0, 'body', '#12161f');
 assert.notEqual(stepAdvice(1, lightTop, 0, hot, 40, 0.05), stepAdvice(1, darkTop, 0, hot, 40, 0.05));
 assert.match(stepAdvice(1, lightTop, 0, hot, 40, 0.05), /show marks/);
 
-// 7. The greeting reflects whether anything is waiting.
-assert.match(greeting('Ahmed', 0), /Nothing needs you today/);
-assert.match(greeting('Ahmed', 2), /2 quotes need your approval/);
+// 7. The greeting and the order note say what the session's order actually
+// is -- and nothing about an order that does not exist.
+import { placeOrder } from './order';
+import { orderNote } from './manager';
+assert.match(greeting('Ahmed', null), /Nothing needs you today/);
+assert.doesNotMatch(greeting('Ahmed', null), /polos|8th/, 'no order, no order news');
+const placed = placeOrder(c, 40, 42, [], 500, new Date('2026-09-02T10:00:00Z'));
+assert.match(greeting('Ahmed', placed), /Front Office/, 'the greeting names the real order');
+assert.match(orderNote(placed), /23 Sep/, 'the note states the real due date');
 
 // 8. The quote note states the real spare count, not a hardcoded one.
 assert.match(quoteNote(c, 40, 44), /40 people plus 4 spare/);

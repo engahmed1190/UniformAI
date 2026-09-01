@@ -8,6 +8,7 @@
 
 import { type Concept, type LogoPosition, LABELS, conceptPrice } from './spec';
 import { briefWishes, colourName } from './refine';
+import { type Order, shortDate } from './order';
 
 /** Colour words that describe a family, not a specific cloth. */
 const FAMILY = new Set(['dark', 'light', 'neutral']);
@@ -129,17 +130,17 @@ export function quoteNote(concept: Concept, staff: number, sets: number): string
 }
 
 /** Where the order actually is, and what happens next. */
-export function orderNote(): string {
-  return 'Sewing now, fabric all in. Quality check on the 5th, delivery on the 8th — I will flag it here if either moves.';
+export function orderNote(o: Order): string {
+  return `Placed ${shortDate(o.placed)}. I am collecting sizes now — cutting starts once they are in, delivery around ${shortDate(o.due)}. I will flag it here if that moves.`;
 }
 
-/** The greeting: status plus whether anything needs the customer today. */
-export function greeting(name: string, needsYou: number): string {
+/** The greeting: the session's order if there is one, otherwise nothing. */
+export function greeting(name: string, order: Order | null): string {
   const hour = new Date().getHours();
   const part = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
-  return needsYou > 0
-    ? `${part}, ${name}. Technician polos on track for the 8th. ${needsYou} quote${needsYou > 1 ? 's need' : ' needs'} your approval.`
-    : `${part}, ${name}. Technician polos on track for the 8th. Nothing needs you today.`;
+  return order
+    ? `${part}, ${name}. ${order.name} is ordered — I am collecting sizes for ${order.id}.`
+    : `${part}, ${name}. Nothing needs you today.`;
 }
 
 /** The word in the brief that triggered the heat read, so the note can quote

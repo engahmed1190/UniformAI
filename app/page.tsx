@@ -9,6 +9,7 @@ import { GarmentSvg, logoGarmentIndex } from '@/components/garments';
 import { selectConcepts } from '@/lib/concepts';
 import { type Concept, LABELS, conceptPrice, conceptPriceAt, gradeName, gradesFor } from '@/lib/spec';
 import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
+import { type Order, placeOrder, shortDate } from '@/lib/order';
 import { ManagerNote } from '@/components/manager';
 
 const COMPANY = 'BrainWise Technology';
@@ -45,6 +46,8 @@ export default function Page() {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<Concept[]>([]);
   const [quoting, setQuoting] = useState(false);
+  // The quote, carried over. Everything Orders and Home show comes from here.
+  const [order, setOrder] = useState<Order | null>(null);
   // Set by any configurator edit, cleared by a fresh generate. Guards the
   // one destructive path in the app: asking for new kits replaces these.
   const [edited, setEdited] = useState(false);
@@ -97,7 +100,7 @@ export default function Page() {
         company={COMPANY}
         staff={staff}
         kitCount={saved.length}
-        orderCount={1}
+        orderCount={order ? 1 : 0}
       />
 
       <div className={s.main}>
@@ -109,6 +112,7 @@ export default function Page() {
           {page === 'home' && (
             <Home
               staff={staff}
+              order={order}
               savedCount={saved.length}
               onAsk={(t) => { setBrief(t); generate(t); }}
               onKits={() => setPage('kits')}
@@ -257,7 +261,7 @@ export default function Page() {
             />
           )}
 
-          {page === 'orders' && <Orders />}
+          {page === 'orders' && <Orders order={order} onHome={() => setPage('home')} />}
           {page === 'settings' && <Settings company={COMPANY} staff={staff} onSave={() => flash('Settings saved')} />}
           </div>
           </div>
@@ -309,8 +313,10 @@ export default function Page() {
           grades={grades}
           onClose={() => setQuoting(false)}
           onConfirm={() => {
+            const o = placeOrder(active, staff, sets, grades, perPerson);
+            setOrder(o);
             setQuoting(false);
-            flash('Order placed. You will get a confirmation by email.');
+            flash(`${o.id} placed. Sizes are next.`);
             setTimeout(() => setPage('orders'), 800);
           }}
         />
@@ -322,18 +328,16 @@ export default function Page() {
 }
 
 function Home({
-  staff, savedCount, onAsk, onKits, onOrders,
+  staff, order, savedCount, onAsk, onKits, onOrders,
 }: {
   staff: number;
+  order: Order | null;
   savedCount: number;
   onAsk: (text: string) => void;
   onKits: () => void;
   onOrders: () => void;
 }) {
   const [text, setText] = useState('');
-  // 70% of the team has sent sizes in. One number, so the count and the
-  // remainder can never disagree.
-  const collected = Math.round(staff * 0.7);
   return (
     <>
       {/* Home was the one page with no h1: the heading order ran h3, h2 and
@@ -344,7 +348,7 @@ function Home({
           <p>Where your uniform work stands today.</p>
         </div>
       </div>
-      <ManagerNote tone="panel" intro note={greeting('Ahmed', 1)} />
+      <ManagerNote tone="panel" intro note={greeting('Ahmed', order)} />
 
       {/* The primary job, first thing on the page. */}
       <div className={s.panel}>
@@ -378,12 +382,11 @@ function Home({
 
       <div className={s.stats}>
         <Stat label="Saved kits" value={String(savedCount)} note="Ready to reorder" />
-        <Stat label="Awaiting approval" value="1" note="EGP 78,400 quoted" />
-        <Stat label="In production" value="1" note="Ships 08 Sep" />
-        {/* Derived, not frozen: this read "28 / 200 · 12 still to confirm"
-            as soon as anyone changed the headcount. */}
-        <Stat label="Sizes collected" value={String(collected)} sub={` / ${staff}`}
-          note={`${staff - collected} ${staff - collected === 1 ? 'person' : 'people'} still to confirm`} />
+        {/* Every number here is the session's own order, or an honest zero. */}
+        <Stat label="Orders" value={order ? '1' : '0'} note={order ? `${order.id} · collecting sizes` : 'Nothing placed yet'} />
+        <Stat label="Ordered value" value={order ? money(order.total) : '—'} note={order ? `${order.sets} sets` : 'Comes from a quote'} />
+        <Stat label="Sizes collected" value="0" sub={order ? ` / ${order.staff}` : ''}
+          note={order ? 'Collection starts today' : 'Nothing to collect yet'} />
       </div>
 
       <div className={s.group}>
@@ -400,24 +403,18 @@ function Home({
               <tr><th>What</th><th>Status</th><th className={s.right}>Value</th><th className={s.right}>Updated</th></tr>
             </thead>
             <tbody>
-              <tr>
-                <td><strong>Site technician polos</strong><div className={s.sub}>SO-2026-00418 · 158 sets</div></td>
-                <td data-label="Status"><span className={`${s.pill} ${s.pillWarn}`}>In production</span></td>
-                <td data-label="Value" className={`${s.right} ${s.mono}`}>EGP 68,250</td>
-                <td data-label="Updated" className={`${s.right} ${s.muted}`}>2 days ago</td>
-              </tr>
-              <tr>
-                <td><strong>Front desk shirts</strong><div className={s.sub}>QTN-2026-0091 · 22 sets</div></td>
-                <td data-label="Status"><span className={s.pill}>Awaiting approval</span></td>
-                <td data-label="Value" className={`${s.right} ${s.mono}`}>EGP 78,400</td>
-                <td data-label="Updated" className={`${s.right} ${s.muted}`}>5 days ago</td>
-              </tr>
-              <tr>
-                <td><strong>Warehouse workwear</strong><div className={s.sub}>Delivered 14 Aug</div></td>
-                <td data-label="Status"><span className={`${s.pill} ${s.pillGood}`}>Delivered</span></td>
-                <td data-label="Value" className={`${s.right} ${s.mono}`}>EGP 141,900</td>
-                <td data-label="Updated" className={`${s.right} ${s.muted}`}>3 weeks ago</td>
-              </tr>
+              {order ? (
+                <tr>
+                  <td><strong>{order.name}</strong><div className={s.sub}>{order.id} · {order.sets} sets</div></td>
+                  <td data-label="Status"><span className={`${s.pill} ${s.pillWarn}`}>Collecting sizes</span></td>
+                  <td data-label="Value" className={`${s.right} ${s.mono}`}>{money(order.total)}</td>
+                  <td data-label="Updated" className={`${s.right} ${s.muted}`}>{shortDate(order.placed)}</td>
+                </tr>
+              ) : (
+                <tr>
+                  <td colSpan={4} className={s.muted}>Nothing yet. Your first order shows here.</td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -492,22 +489,31 @@ function Kits({
   );
 }
 
-const STEPS_ORDER: [string, string, 'done' | 'now' | ''][] = [
-  ['Ordered', '18 Aug', 'done'],
-  ['Sizes in', '22 Aug', 'done'],
-  ['Fabric cut', '28 Aug', 'done'],
-  ['Sewing', 'Now', 'now'],
-  ['Checks', '05 Sep', ''],
-  ['Delivery', '08 Sep', ''],
-];
+/** The production stages every order walks through. Only the first two
+ *  have happened for an order placed this session; the rest wait on sizes. */
+const STAGES = ['Ordered', 'Sizes in', 'Fabric cut', 'Sewing', 'Checks', 'Delivery'];
 
-const LINES: [string, string, number][] = [
-  ['Polo · Navy', 'Cotton pique 220 GSM', 72],
-  ['Chino · Sand', 'Cotton twill 240 GSM', 61],
-  ['Chest embroidery', 'Applied after sewing', 44],
-];
-
-function Orders() {
+function Orders({ order, onHome }: { order: Order | null; onHome: () => void }) {
+  if (!order) {
+    return (
+      <>
+        <div className={s.pageHead}>
+          <div>
+            <h1>Orders</h1>
+            <p>Where everything is right now.</p>
+          </div>
+        </div>
+        <Empty
+          title="No orders yet"
+          note="Configure a kit, review the quote and place the order. It lands here with its production stages."
+          action="Start a uniform"
+          onAct={onHome}
+        />
+      </>
+    );
+  }
+  const when = (i: number) => (i === 0 ? shortDate(order.placed) : i === 1 ? 'Now' : i === STAGES.length - 1 ? shortDate(order.due) : '—');
+  const state = (i: number) => (i === 0 ? 'done' : i === 1 ? 'now' : '');
   return (
     <>
       <div className={s.pageHead}>
@@ -520,27 +526,27 @@ function Orders() {
       <div className={`${s.card} ${s.cardPad}`}>
         <div className={s.splitRow}>
           <div>
-            <div className={s.sub}>SO-2026-00418</div>
-            <h2 className={s.orderTitle}>Site technician polos</h2>
-            <div className={s.sub}>158 sets · EGP 68,250</div>
+            <div className={s.sub}>{order.id}</div>
+            <h2 className={s.orderTitle}>{order.name}</h2>
+            <div className={s.sub}>{order.sets} sets · {money(order.total)}</div>
           </div>
           <div className={s.alignEnd}>
-            <span className={`${s.pill} ${s.pillWarn}`}>In production</span>
-            <div className={`${s.muted} ${s.metaLine}`}>Arrives 08 Sep</div>
+            <span className={`${s.pill} ${s.pillWarn}`}>Collecting sizes</span>
+            <div className={`${s.muted} ${s.metaLine}`}>Due around {shortDate(order.due)}</div>
           </div>
         </div>
         <div className={s.timeline}>
-          {STEPS_ORDER.map(([name, when, state], i) => (
-            <div key={name} className={`${s.tStep} ${state === 'done' ? s.tDone : state === 'now' ? s.tNow : ''}`}>
-              <div className={s.tDot}>{state === 'done' ? '✓' : i + 1}</div>
+          {STAGES.map((name, i) => (
+            <div key={name} className={`${s.tStep} ${state(i) === 'done' ? s.tDone : state(i) === 'now' ? s.tNow : ''}`}>
+              <div className={s.tDot}>{state(i) === 'done' ? '✓' : i + 1}</div>
               <b>{name}</b>
-              <small>{when}</small>
+              <small>{when(i)}</small>
             </div>
           ))}
         </div>
       </div>
 
-      <ManagerNote tone="panel" note={orderNote()} />
+      <ManagerNote tone="panel" note={orderNote(order)} />
 
       <div className={s.group}>
       <div className={s.sectionHead}>
@@ -553,17 +559,17 @@ function Orders() {
               <tr><th>Item</th><th className={s.right}>Qty</th><th>Progress</th><th className={s.right}>Ready</th></tr>
             </thead>
             <tbody>
-              {LINES.map(([item, note, pct]) => (
-                <tr key={item}>
-                  <td><strong>{item}</strong><div className={s.sub}>{note}</div></td>
-                  <td data-label="Qty" className={`${s.right} ${s.mono}`}>158</td>
+              {order.lines.map((l) => (
+                <tr key={l.item}>
+                  <td><strong>{l.item}</strong><div className={s.sub}>{l.note}</div></td>
+                  <td data-label="Qty" className={`${s.right} ${s.mono}`}>{l.qty}</td>
                   <td data-label="Progress">
                     <div className={s.progress}>
-                      <div className={s.progressTrack}><i style={{ width: `${pct}%` }} /></div>
-                      <span className={s.progressPct}>{pct}%</span>
+                      <div className={s.progressTrack}><i style={{ width: '0%' }} /></div>
+                      <span className={s.progressPct}>Waiting on sizes</span>
                     </div>
                   </td>
-                  <td data-label="Ready" className={`${s.right} ${s.mono}`}>08 Sep</td>
+                  <td data-label="Ready" className={`${s.right} ${s.mono}`}>{shortDate(order.due)}</td>
                 </tr>
               ))}
             </tbody>

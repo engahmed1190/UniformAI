@@ -1,17 +1,43 @@
+/* Neutral surface, one accent. Colour carries meaning here: teal = action or
+   progress, amber = in progress, green = done. Nothing is decorative. */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg: #f7f8f8;
+  --surface: #ffffff;
+  --sunken: #f1f3f3;
+
+  --text: #14181a;
+  --text-2: #4a5257;
+  --text-3: #79838a;
+
+  --line: #e3e7e8;
+  --line-2: #d2d8da;
+
+  --accent: #0f6b62;
+  --accent-hover: #0c5850;
+  --accent-soft: #e6f2f0;
+
+  --warn: #9a6510;
+  --warn-soft: #fdf3e3;
+  --good: #1f6b3f;
+  --good-soft: #e8f3ec;
+
+  --focus: #0f6b62;
+
+  --r-sm: 6px;
+  --r: 10px;
+  --r-lg: 14px;
+
+  --shadow-sm: 0 1px 2px rgba(20, 24, 26, 0.05);
+  --shadow: 0 1px 3px rgba(20, 24, 26, 0.06), 0 8px 20px -10px rgba(20, 24, 26, 0.12);
+  --shadow-lg: 0 24px 60px -20px rgba(20, 24, 26, 0.28);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 html {
-  height: 100%;
+  -webkit-text-size-adjust: 100%;
 }
 
 html,
@@ -21,29 +47,58 @@ body {
 }
 
 body {
-  min-height: 100%;
-  display: flex;
-  flex-direction: column;
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-* {
-  box-sizing: border-box;
-  padding: 0;
   margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
 }
 
-a {
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.014em;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
   color: inherit;
-  text-decoration: none;
 }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
+button {
+  cursor: pointer;
+}
+
+/* Quantities and money are compared down a column. */
+td,
+th,
+input[type='number'] {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--r-sm);
+}
+
+::selection {
+  background: var(--accent-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
   }
 }

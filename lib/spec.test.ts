@@ -62,3 +62,61 @@ for (const c of CONCEPTS) {
 }
 
 console.log(`ok - ${CONCEPTS.length} concepts, edits surgical, both briefs route, logo priced once`);
+
+// --- Refinement: a plain-words request becomes a patch, and only that patch.
+import { refine } from './refine';
+
+const rBase = CONCEPTS[0]; // shirt + chino + blazer
+const legIdx = rBase.garments.findIndex((g) => g.type === 'chino');
+
+// 5. A trouser request reaches the trouser, not the shirt. (This concept's
+// chino is already navy, so use a colour that actually moves.)
+const r1 = refine(rBase, 'make the trouser olive');
+assert.ok(r1, 'expected a patch for "make the trouser olive"');
+assert.equal(r1.concept.garments[legIdx].parts.leg, '#3d4a3a');
+assert.equal(r1.patch, 'chino.parts.leg = #3d4a3a');
+
+// 6. Exactly one colour moves -- the collar provably cannot drift.
+const fpBefore = colourFingerprint(rBase);
+const fpAfter = colourFingerprint(r1.concept);
+const moved = fpBefore.split(/[|,]/).filter((f, i) => f !== fpAfter.split(/[|,]/)[i]);
+assert.equal(moved.length, 1, `refine moved ${moved.length} colours: ${moved}`);
+
+// 7. The input concept is untouched.
+assert.equal(colourFingerprint(rBase), fpBefore, 'refine mutated its input');
+
+// 8. A shirt request lands on the shirt, not the trousers.
+const r2 = refine(rBase, 'try a sand shirt');
+assert.ok(r2);
+assert.equal(r2.concept.garments[0].parts.body, '#d6c19c');
+assert.equal(r2.concept.garments[legIdx].parts.leg, rBase.garments[legIdx].parts.leg);
+
+// 9. Logo placement is a logo patch, and leaves every colour alone.
+const r3 = refine(rBase, 'move the logo to the sleeve');
+assert.ok(r3);
+assert.equal(r3.concept.logo.position, 'sleeve');
+assert.equal(colourFingerprint(r3.concept), fpBefore, 'a logo move changed a colour');
+
+// 10. Naming a region hits that region, not the body.
+const r4 = refine(rBase, 'make the collar oxblood');
+assert.ok(r4);
+assert.equal(r4.concept.garments[0].parts.collar, '#7d2b2b');
+assert.equal(r4.concept.garments[0].parts.body, rBase.garments[0].parts.body);
+
+// 11. A blazer/jacket request reaches the blazer, not the first top. The
+// blazer branch must stay ahead of TOP_WORDS, which also matches "blazer".
+const blazerIdx = rBase.garments.findIndex((g) => g.type === 'blazer');
+for (const phrase of ['make the blazer navy', 'make the jacket navy']) {
+  const r = refine(rBase, phrase);
+  assert.ok(r, `expected a patch for "${phrase}"`);
+  assert.equal(r.patch, 'blazer.parts.body = #1b2a4a', `"${phrase}" hit the wrong garment`);
+  assert.equal(r.concept.garments[blazerIdx].parts.body, '#1b2a4a');
+  // The shirt -- the first top -- must be untouched.
+  assert.equal(r.concept.garments[0].parts.body, rBase.garments[0].parts.body);
+}
+
+// 12. Nonsense is refused rather than guessed at.
+assert.equal(refine(rBase, 'make it feel more premium'), null);
+assert.equal(refine(rBase, ''), null);
+
+console.log('spec + refine: all assertions passed');

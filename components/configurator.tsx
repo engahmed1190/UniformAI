@@ -161,7 +161,7 @@ export function Configurator({
             {step === 0 && (
               <>
                 <div className={s.panelHead}>
-                  <h3>Fabric</h3>
+                  <h2>Fabric</h2>
                   <p>This kit includes {concept.garments.map((g) => LABELS[g.type]).join(', ')}.</p>
                 </div>
                 <div className={s.optList}>
@@ -188,7 +188,7 @@ export function Configurator({
             {step === 1 && (
               <>
                 <div className={s.panelHead}>
-                  <h3>Colours</h3>
+                  <h2>Colours</h2>
                   <p>Editing the {LABELS[concept.garments[focus].type].toLowerCase()}. Pick another garment in the preview to switch.</p>
                 </div>
                 {parts.map((part) => (
@@ -219,7 +219,7 @@ export function Configurator({
             {step === 2 && (
               <>
                 <div className={s.panelHead}>
-                  <h3>Branding</h3>
+                  <h2>Branding</h2>
                   <p>Charged once per person, whatever the kit contains.</p>
                 </div>
                 <div className={s.optList}>
@@ -294,7 +294,7 @@ export function Configurator({
             {step === 3 && (
               <>
                 <div className={s.panelHead}>
-                  <h3>Quantity</h3>
+                  <h2>Quantity</h2>
                   <p>Spare stock covers new starters and replacements.</p>
                 </div>
                 <div className={s.field}>

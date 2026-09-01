@@ -44,6 +44,9 @@ export default function Page() {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<Concept[]>([]);
   const [quoting, setQuoting] = useState(false);
+  // Set by any configurator edit, cleared by a fresh generate. Guards the
+  // one destructive path in the app: asking for new kits replaces these.
+  const [edited, setEdited] = useState(false);
   const [toast, setToast] = useState('');
 
   const scroller = useRef<HTMLDivElement>(null);
@@ -62,6 +65,10 @@ export default function Page() {
 
   function generate(text = brief) {
     if (!text.trim()) return;
+    if (edited && !confirm(
+      'New kits will replace the ones you have changed.\n\n' +
+      'Save the kit first if you want to keep it.')) return;
+    setEdited(false);
     setBusy(true);
     setPage('design');
     setTimeout(() => {
@@ -186,21 +193,27 @@ export default function Page() {
                   <h1>Configure</h1>
                   <p>Every option is priced from live stock.</p>
                 </div>
+                {/* Says where it goes. "Back to kits" read as the Saved kits
+                    destination in the nav; this returns to the three
+                    suggestions you picked from. */}
                 <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => setPage('design')}>
-                  Back to kits
+                  Choose a different kit
                 </button>
               </div>
               {active ? (
                 <Configurator
                   concept={active}
-                  onChange={(c) => setConcepts((cs) => cs && cs.map((x, i) => (i === sel ? c : x)))}
+                  onChange={(c) => {
+                    setEdited(true);
+                    setConcepts((cs) => cs && cs.map((x, i) => (i === sel ? c : x)));
+                  }}
                   logoText={logoText}
                   staff={staff}
                   onStaffChange={setStaff}
                   fabric={fabric}
-                  onFabricChange={setFabric}
+                  onFabricChange={(f) => { setEdited(true); setFabric(f); }}
                   spare={spare}
-                  onSpareChange={setSpare}
+                  onSpareChange={(v) => { setEdited(true); setSpare(v); }}
                   perPerson={perPerson}
                   sets={sets}
                   brief={brief}
@@ -312,12 +325,20 @@ function Home({
   const [text, setText] = useState('');
   return (
     <>
+      {/* Home was the one page with no h1: the heading order ran h3, h2 and
+          a screen reader had nothing to announce the page by. */}
+      <div className={s.pageHead}>
+        <div>
+          <h1>Home</h1>
+          <p>Where your uniform work stands today.</p>
+        </div>
+      </div>
       <ManagerNote tone="panel" intro note={greeting('Ahmed', 1)} />
 
       {/* The primary job, first thing on the page. */}
       <div className={s.panel}>
         <div className={s.panelHead}>
-          <h3>What do you need to kit out?</h3>
+          <h2>What do you need to kit out?</h2>
           <p>Describe the team in your own words.</p>
         </div>
         <form
@@ -413,7 +434,7 @@ function Empty({ title, note, action, onAct }: { title: string; note: string; ac
           <path d="M3 3.5 5.5 2.5 8 4l2.5-1.5L13 3.5v3.8l-1.8.5V14H4.8V7.8L3 7.3z" />
         </svg>
       </div>
-      <h3>{title}</h3>
+      <h2>{title}</h2>
       <p>{note}</p>
       <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onAct}>{action}</button>
     </div>
@@ -549,32 +570,49 @@ function Settings({ company, staff, onSave }: { company: string; staff: number; 
           <p>Used to keep every kit on brand.</p>
         </div>
       </div>
-      <div className={s.panel}>
-        <div className={s.formGrid}>
-          <div className={s.field}>
-            <label htmlFor="sName">Company name</label>
-            <input id="sName" defaultValue={company} />
+      {/* Two things live here, so the page says so: who you are, and how
+          your uniforms should look. */}
+      <div className={s.settings}>
+        <section className={s.panel}>
+          <div className={s.panelHead}>
+            <h2>Your company</h2>
+            <p>Shown on quotes and used to size every order.</p>
+          </div>
+          <div className={s.formGrid}>
+            <div className={`${s.field} ${s.fieldWide}`}>
+              <label htmlFor="sName">Company name</label>
+              <input id="sName" defaultValue={company} />
+            </div>
+            <div className={`${s.field} ${s.fieldNarrow}`}>
+              <label htmlFor="sStaff">Total staff</label>
+              <input id="sStaff" type="number" defaultValue={staff} />
+            </div>
+            <div className={`${s.field} ${s.fieldWide}`}>
+              <label htmlFor="sInd">Industry</label>
+              <select id="sInd" defaultValue="Technology">
+                <option>Technology</option>
+                <option>Hospitality</option>
+                <option>Facilities management</option>
+                <option>Retail</option>
+              </select>
+              <div className={s.fieldHint}>Sets the starting point for new kits.</div>
+            </div>
+          </div>
+        </section>
+
+        <section className={s.panel}>
+          <div className={s.panelHead}>
+            <h2>Dress code</h2>
+            <p>I read this before suggesting kits, so write it in plain words.</p>
           </div>
           <div className={s.field}>
-            <label htmlFor="sStaff">Total staff</label>
-            <input id="sStaff" type="number" defaultValue={staff} />
-          </div>
-          <div className={s.field}>
-            <label htmlFor="sInd">Industry</label>
-            <select id="sInd" defaultValue="Technology">
-              <option>Technology</option>
-              <option>Hospitality</option>
-              <option>Facilities management</option>
-              <option>Retail</option>
-            </select>
-          </div>
-          <div className={`${s.field} ${s.formWide}`}>
-            <label htmlFor="sRules">Dress code notes</label>
+            <label htmlFor="sRules">What your teams should wear</label>
             <textarea id="sRules" defaultValue="Smart casual for client-facing teams. Hard-wearing kit for operations." />
           </div>
-          <div className={s.formWide}>
-            <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onSave}>Save settings</button>
-          </div>
+        </section>
+
+        <div className={s.settingsFoot}>
+          <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onSave}>Save settings</button>
         </div>
       </div>
     </>

@@ -215,21 +215,53 @@
   gap: var(--s5);
 }
 
-/* Form fields get a comfortable measure inside a full-width card, so a
-   settings page still lines up with every other page. */
+/* A field is as wide as what it holds. Giving "40" the same 352px as a
+   company name reads as a form that was laid out without looking at it. */
 .formGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--s3) var(--s4);
-  max-width: 720px;
+  grid-template-columns: repeat(12, 1fr);
+  gap: var(--s4);
+  align-items: start;
 }
 
 .formGrid .field {
   margin-bottom: 0;
+  grid-column: span 12;
+}
+
+/* Scoped to .formGrid so these beat the span-12 default above -- a bare
+   .fieldWide loses to .formGrid .field on specificity, not source order. */
+.formGrid .fieldWide {
+  grid-column: span 8;
+}
+
+.formGrid .fieldNarrow {
+  grid-column: span 4;
 }
 
 .formWide {
   grid-column: 1 / -1;
+}
+
+/* Settings is two subjects, not one long form: who you are, and how your
+   uniforms should look. Side by side they fill the page measure like every
+   other screen, while each form inside still sits at a readable width. */
+.settings {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s5);
+  align-items: start;
+}
+
+.settingsFoot {
+  grid-column: 1 / -1;
+  display: flex;
+}
+
+/* The dress code is one long field, so it takes the height it needs rather
+   than stretching to match the column beside it. */
+.settings .panel textarea {
+  min-height: 132px;
 }
 
 /* Blocks own their spacing through the stack gap, never their own margins. */
@@ -711,7 +743,7 @@
   margin-top: calc(var(--s2) - var(--s4));
 }
 
-.panelHead h3 {
+.panelHead h2 {
   font-size: var(--t-lg);
 }
 
@@ -1334,7 +1366,7 @@
   color: var(--text-3);
 }
 
-.empty h3 {
+.empty h2 {
   font-size: var(--t-lg);
   margin-bottom: var(--s1);
 }
@@ -1371,6 +1403,11 @@
 @media (max-width: 1000px) {
   .app {
     grid-template-columns: 200px 1fr;
+  }
+  /* Two settings columns get cramped once the page measure drops. */
+  .settings {
+    grid-template-columns: 1fr;
+    max-width: 680px;
   }
   .sidebar {
     padding: var(--s4) var(--s3);
@@ -1553,6 +1590,17 @@
 
   /* One stat per row. Two narrow columns broke every note onto three lines
      and made the numbers hard to compare down the page. */
+  .settings {
+    grid-template-columns: 1fr;
+  }
+
+  /* Every field takes the row on a phone. An 8/4 split of a 343px panel
+     leaves the narrow one too small to read its own label. */
+  .formGrid .fieldWide,
+  .formGrid .fieldNarrow {
+    grid-column: span 12;
+  }
+
   .stats {
     grid-template-columns: 1fr;
   }

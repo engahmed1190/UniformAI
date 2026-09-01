@@ -6,7 +6,7 @@ import s from '@/app/ui.module.css';
 import { GarmentSvg, logoGarmentIndex } from './garments';
 import { SWATCHES, colourName, refine } from '@/lib/refine';
 import { stepAdvice } from '@/lib/manager';
-import { type Locale, kitName } from '@/lib/i18n';
+import { type Locale, kitName, t } from '@/lib/i18n';
 import { ManagerNote } from './manager';
 import {
   type Concept, type LogoMethod, type LogoPosition,
@@ -17,21 +17,19 @@ type Msg = { who: 'you' | 'app'; text: string; patch?: string };
 
 const money = (n: number) => `EGP ${Math.round(n).toLocaleString()}`;
 
-const STEPS = ['Garments', 'Colours', 'Branding', 'Quantity'] as const;
+const STEPS = ['garments', 'colours', 'branding', 'quantity'] as const;
 
 const SPARES = [0, 0.05, 0.1];
 
-const LOGO_METHODS: { id: LogoMethod; name: string; note: string; price: number }[] = [
-  { id: 'embroidery', name: 'Embroidery', note: 'Stitched. Hard wearing, premium finish.', price: 35 },
-  { id: 'print', name: 'Screen print', note: 'Printed. Lower cost, best on flat knits.', price: 18 },
+// Names and notes come from the dictionary, keyed by id.
+const LOGO_METHODS: { id: LogoMethod; price: number }[] = [
+  { id: 'embroidery', price: 35 },
+  { id: 'print', price: 18 },
 ];
 
-const PLACEMENTS: { id: LogoPosition; name: string; note: string }[] = [
-  { id: 'left_chest', name: 'Left chest', note: 'The default for corporate wear.' },
-  { id: 'right_chest', name: 'Right chest', note: 'Use when a name badge sits left.' },
-  { id: 'sleeve', name: 'Sleeve', note: 'Subtle. Good for client-facing teams.' },
-  { id: 'back', name: 'Back', note: 'High visibility across a floor or site.' },
-  { id: 'none', name: 'No logo', note: 'Plain garments, no branding cost.' },
+const PLACEMENTS: { id: LogoPosition }[] = [
+  { id: 'left_chest' }, { id: 'right_chest' }, { id: 'sleeve' },
+  { id: 'back' }, { id: 'none' },
 ];
 
 export function Configurator({
@@ -103,16 +101,16 @@ export function Configurator({
             <div>
               <div className={s.stageTitle}>{kitName(locale, concept.id)}</div>
               <div className={s.stageSub}>
-                {concept.garments.map((g) => LABELS[g.type]).join(' · ')}
+                {concept.garments.map((g) => t(locale, `garments.${g.type}`)).join(' · ')}
               </div>
             </div>
             <span className={s.pill}>{
               // Compare grades, not cloth names: at grade 0 a shirt and a
               // blazer legitimately name different cloth and are not "mixed".
               new Set(concept.garments.map((_, i) => grades[i] ?? 0)).size > 1
-                ? 'Mixed grades'
+                ? t(locale, 'configure.mixedGrades')
                 : (grades[0] ?? 0) === 0
-                  ? 'Standard cloth'
+                  ? t(locale, 'configure.standardCloth')
                   : gradeName(concept.garments[0], grades[0])
             }</span>
           </div>
@@ -125,7 +123,7 @@ export function Configurator({
                   type="button"
                   className={s.garmentBtn}
                   aria-pressed={i === focus}
-                  aria-label={`Colour the ${LABELS[g.type]}`}
+                  aria-label={t(locale, 'configure.colourThe', { garment: t(locale, `garments.${g.type}`) })}
                   onClick={() => setFocus(i)}
                 >
                   <GarmentSvg garment={g} logo={concept.logo} logoText={logoText} showLogo={i === topIdx} />
@@ -141,10 +139,10 @@ export function Configurator({
           <div className={s.stageFoot}>
             <span>
               {concept.logo.position === 'back'
-                ? 'Showing the back, where the logo goes'
+                ? t(locale, 'configure.showingBack')
                 : picking
-                  ? 'Select a garment to recolour it'
-                  : 'Preview updates as you choose'}
+                  ? t(locale, 'configure.selectGarment')
+                  : t(locale, 'configure.previewUpdates')}
             </span>
             <span className={s.mono}>{money(per)} / person</span>
           </div>
@@ -158,11 +156,11 @@ export function Configurator({
                 type="button"
                 className={`${s.trailStep} ${i < step ? s.trailDone : ''} ${i === step ? s.trailCurrent : ''}`}
                 onClick={() => setStep(i)}
-                aria-label={`Step ${i + 1}: ${name}`}
+                aria-label={t(locale, 'configure.step', { n: i + 1, name: t(locale, `configure.${name}`) })}
               >
                 <span className={s.trailBar} />
                 <span className={s.trailNum}>{i < step ? <Check /> : i + 1}</span>
-                <span className={s.trailName}>{name}</span>
+                <span className={s.trailName}>{t(locale, `configure.${name}`)}</span>
               </button>
             ))}
           </div>
@@ -171,8 +169,8 @@ export function Configurator({
             {step === 0 && (
               <>
                 <div className={s.panelHead}>
-                  <h2>Fabric</h2>
-                  <p>Each garment is priced on its own cloth.</p>
+                  <h2>{t(locale, 'configure.fabric')}</h2>
+                  <p>{t(locale, 'configure.fabricNote')}</p>
                 </div>
                 {/* A blazer has no "moisture-wicking knit" grade, so the
                     options come from the garment's own family. */}
@@ -194,7 +192,7 @@ export function Configurator({
                             <span className={s.optName}>{gradeName(g, i)}</span>
                             <span className={s.optNote}>{f.note}</span>
                           </span>
-                          <span className={s.optPrice}>{f.delta ? `+${f.delta}` : 'Included'}</span>
+                          <span className={s.optPrice}>{f.delta ? `+${f.delta}` : t(locale, 'common.included')}</span>
                         </button>
                       ))}
                     </div>
@@ -206,7 +204,7 @@ export function Configurator({
             {step === 1 && (
               <>
                 <div className={s.panelHead}>
-                  <h2>Colours</h2>
+                  <h2>{t(locale, 'configure.colours')}</h2>
                   <p>Editing the {LABELS[concept.garments[focus].type].toLowerCase()}. Pick another garment in the preview to switch.</p>
                 </div>
                 {parts.map((part) => (
@@ -237,8 +235,8 @@ export function Configurator({
             {step === 2 && (
               <>
                 <div className={s.panelHead}>
-                  <h2>Branding</h2>
-                  <p>Charged once per person, whatever the kit contains.</p>
+                  <h2>{t(locale, 'configure.branding')}</h2>
+                  <p>{t(locale, 'configure.brandingNote')}</p>
                 </div>
                 <div className={s.optList}>
                   {LOGO_METHODS.map((m) => (
@@ -258,8 +256,8 @@ export function Configurator({
                         {concept.logo.method === m.id && concept.logo.position !== 'none' ? <Tick /> : null}
                       </span>
                       <span className={s.optText}>
-                        <span className={s.optName}>{m.name}</span>
-                        <span className={s.optNote}>{m.note}</span>
+                        <span className={s.optName}>{t(locale, `branding.${m.id}`)}</span>
+                        <span className={s.optNote}>{t(locale, `branding.${m.id}Note`)}</span>
                       </span>
                       <span className={s.optPrice}>+{m.price}</span>
                     </button>
@@ -268,7 +266,7 @@ export function Configurator({
 
                 {concept.logo.position !== 'none' && (
                 <div className={s.partBlock}>
-                  <div className={s.partName}>Logo colour</div>
+                  <div className={s.partName}>{t(locale, 'configure.logoColour')}</div>
                   <div className={s.swatches}>
                     {SWATCHES.map(([hex, name]) => (
                       <button
@@ -287,7 +285,7 @@ export function Configurator({
                 )}
 
                 <div className={s.partBlock}>
-                  <div className={s.partName}>Placement</div>
+                  <div className={s.partName}>{t(locale, 'configure.placement')}</div>
                   <div className={s.optList}>
                     {PLACEMENTS.map((p) => (
                       <button
@@ -299,8 +297,8 @@ export function Configurator({
                       >
                         <span className={s.optMark}>{concept.logo.position === p.id ? <Tick /> : null}</span>
                         <span className={s.optText}>
-                          <span className={s.optName}>{p.name}</span>
-                          <span className={s.optNote}>{p.note}</span>
+                          <span className={s.optName}>{t(locale, `branding.${p.id}`)}</span>
+                          <span className={s.optNote}>{t(locale, `branding.${p.id}Note`)}</span>
                         </span>
                       </button>
                     ))}
@@ -312,11 +310,11 @@ export function Configurator({
             {step === 3 && (
               <>
                 <div className={s.panelHead}>
-                  <h2>Quantity</h2>
-                  <p>Spare stock covers new starters and replacements.</p>
+                  <h2>{t(locale, 'configure.quantity')}</h2>
+                  <p>{t(locale, 'configure.quantityNote')}</p>
                 </div>
                 <div className={s.field}>
-                  <label htmlFor="staffCount">People to kit out</label>
+                  <label htmlFor="staffCount">{t(locale, 'configure.peopleToKit')}</label>
                   <input
                     id="staffCount"
                     type="number"
@@ -330,7 +328,7 @@ export function Configurator({
                     a grey system menu on desktop -- next to buttons that look
                     nothing like it, and hides two of the three choices. */}
                 <div className={s.partBlock}>
-                  <div className={s.partName}>Spare stock</div>
+                  <div className={s.partName}>{t(locale, 'configure.spareStock')}</div>
                   <div className={s.optList}>
                     {SPARES.map((pct) => (
                       <button
@@ -343,7 +341,7 @@ export function Configurator({
                         <span className={s.optMark}>{spare === pct ? <Tick /> : null}</span>
                         <span className={s.optText}>
                           <span className={s.optName}>
-                            {pct === 0 ? 'No spare' : `${pct * 100}% spare`}
+                            {pct === 0 ? t(locale, 'spare.none') : t(locale, 'configure.spareOf', { pct: pct * 100 })}
                           </span>
                           <span className={s.optNote}>
                             {pct === 0
@@ -367,7 +365,7 @@ export function Configurator({
 
             {/* Available at every step: describe the change instead of hunting for it. */}
             <div className={s.ask}>
-              <div className={s.askHead}>Or just tell me what to change</div>
+              <div className={s.askHead}>{t(locale, 'configure.askTitle')}</div>
               {log.length === 0 && (
                 <p className={s.askHint}>
                   Ask for several things at once. I will show you exactly what I
@@ -395,13 +393,13 @@ export function Configurator({
                 <input
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
-                  placeholder="Navy polo with a gold logo"
-                  aria-label="Describe a change"
+                  placeholder={t(locale, 'configure.examples').split('|')[0]}
+                  aria-label={t(locale, 'configure.describeChange')}
                 />
-                <button type="submit" className={`${s.btn} ${s.btnSecondary}`}>Apply</button>
+                <button type="submit" className={`${s.btn} ${s.btnSecondary}`}>{t(locale, 'configure.apply')}</button>
               </form>
               <div className={s.askChips}>
-                {['Navy polo with a gold logo', 'Use the performance knit', 'Move the logo to the sleeve', '10% spare'].map((q) => (
+                {t(locale, 'configure.examples').split('|').map((q) => (
                   <button key={q} type="button" onClick={() => submitAsk(q)}>{q}</button>
                 ))}
               </div>
@@ -415,7 +413,7 @@ export function Configurator({
                 className={`${s.btn} ${s.btnSecondary}`}
                 onClick={() => setStep((n) => n - 1)}
               >
-                Back
+                {t(locale, 'common.back')}
               </button>
             )}
             {step < STEPS.length - 1 ? (
@@ -424,7 +422,7 @@ export function Configurator({
                 className={`${s.btn} ${s.btnPrimary} ${s.grow}`}
                 onClick={() => setStep((n) => n + 1)}
               >
-                Next: {STEPS[step + 1]}
+                {t(locale, 'configure.nextStep', { name: t(locale, `configure.${STEPS[step + 1]}`) })}
               </button>
             ) : (
               <button
@@ -432,7 +430,7 @@ export function Configurator({
                 className={`${s.btn} ${s.btnSecondary} ${s.grow}`}
                 onClick={onSave}
               >
-                Save as a kit
+                {t(locale, 'configure.saveAsKit')}
               </button>
             )}
           </div>

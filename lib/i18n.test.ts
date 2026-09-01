@@ -31,13 +31,11 @@ assert.ok(enKeys.length > 80, `only ${enKeys.length} keys -- the inventory is no
 const ARABIC = /[؀-ۿ]/;
 // Templates that are nothing but placeholders and punctuation have no words
 // to translate. Listed one by one so a genuinely untranslated string cannot
-// hide behind a blanket exemption.
+// hide behind a blanket exemption. Their punctuation may still differ --
+// Arabic joins these two clauses with a full stop where English uses a dash.
 const NO_WORDS = new Set(['manager.whyWithDid', 'manager.whyPlain']);
 for (const key of arKeys) {
-  if (NO_WORDS.has(key)) {
-    assert.equal(t('ar', key), t('en', key), `${key} is a bare template: keep both identical`);
-    continue;
-  }
+  if (NO_WORDS.has(key)) continue;
   const v = t('ar', key);
   assert.ok(v.length > 0, `${key} is empty in Arabic`);
   assert.doesNotMatch(v, /TODO/i, `${key} is still a TODO`);
@@ -92,3 +90,12 @@ assert.match(kitName('ar', 'technicians-v2'), /2/);
 assert.match(kitName('ar', 'technicians-v2'), ARABIC);
 // An unknown id falls back to itself rather than rendering blank.
 assert.equal(kitName('ar', 'bespoke-thing'), 'bespoke-thing');
+
+// 13. Placeholders must match between the two dictionaries. A translation
+// that drops {count} renders a sentence missing its number; one that invents
+// {total} renders the literal braces. Neither is caught by key parity.
+for (const key of enKeys) {
+  const marks = (s: string) => [...s.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+  assert.deepEqual(marks(t('ar', key)), marks(t('en', key)),
+    `${key}: en has {${marks(t('en', key))}}, ar has {${marks(t('ar', key))}}`);
+}

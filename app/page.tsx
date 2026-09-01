@@ -405,10 +405,10 @@ export default function Page() {
             </div>
             <div className={s.priceActions}>
               <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => saveKit(active)}>
-                Save kit
+                {t(locale, 'configure.saveKit')}
               </button>
               <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => setQuoting(true)}>
-                Get a quote
+                {t(locale, 'configure.getQuote')}
               </button>
             </div>
           </div>

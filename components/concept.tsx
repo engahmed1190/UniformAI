@@ -1,5 +1,6 @@
 'use client';
 
+import { Check } from './check';
 import s from '@/app/ui.module.css';
 import { GarmentSvg, logoGarmentIndex } from './garments';
 import { type Concept, LABELS, conceptPrice } from '@/lib/spec';
@@ -20,7 +21,7 @@ export function ConceptCard({
   return (
     <button type="button" onClick={onSelect} aria-pressed={selected} className={s.kit}>
       <span className={s.kitPreview}>
-        {selected && <span className={s.kitCheck}>✓</span>}
+        {selected && <span className={s.kitCheck}><Check /></span>}
         {concept.garments.map((g, i) => (
           <GarmentSvg key={i} garment={g} logo={concept.logo} logoText={logoText} showLogo={i === logoAt} />
         ))}

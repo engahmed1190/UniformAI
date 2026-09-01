@@ -11,9 +11,19 @@ import { type Concept, LABELS, conceptPrice, conceptPriceAt, gradeName, gradesFo
 import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
 import { type Order, placeOrder, shortDate } from '@/lib/order';
 import { ManagerNote } from '@/components/manager';
+import { Check } from '@/components/check';
 
-const COMPANY = 'BrainWise Technology';
 const USER = 'Ahmed Osama';
+
+/** What Settings holds. Company and staff reach the sidebar and the price;
+ *  industry and the dress code are read into every brief. */
+type Profile = { company: string; staff: number; industry: string; rules: string };
+const PROFILE: Profile = {
+  company: 'BrainWise Technology',
+  staff: 40,
+  industry: 'Technology',
+  rules: 'Smart casual for client-facing teams. Hard-wearing kit for operations.',
+};
 
 const money = (n: number) => `EGP ${Math.round(n).toLocaleString()}`;
 
@@ -35,7 +45,8 @@ const EXAMPLES = [
 export default function Page() {
   const [page, setPage] = useState<PageId>('home');
   const [brief, setBrief] = useState('');
-  const [staff, setStaff] = useState(40);
+  const [staff, setStaff] = useState(PROFILE.staff);
+  const [profile, setProfile] = useState(PROFILE);
   // Grades and spare live here so the price bar and the quote read one number.
   // One grade per garment, into that garment's own family list.
   const [grades, setGrades] = useState<number[]>([]);
@@ -45,6 +56,11 @@ export default function Page() {
   const [sel, setSel] = useState(0);
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<Concept[]>([]);
+  // Loaded after mount, not in the initializer: the server renders an empty
+  // list and a lazy read would hydrate against something else.
+  useEffect(() => {
+    try { setSaved(JSON.parse(localStorage.getItem('kits') ?? '[]')); } catch { /* stay empty */ }
+  }, []);
   const [quoting, setQuoting] = useState(false);
   // The quote, carried over. Everything Orders and Home show comes from here.
   const [order, setOrder] = useState<Order | null>(null);
@@ -81,14 +97,20 @@ export default function Page() {
     setBusy(true);
     setPage('design');
     setTimeout(() => {
-      setConcepts(selectConcepts({ industry: text }));
+      // ponytail: the brief comes first, so on a clash the customer's own words
+      // win over the dress code. A real model gets these as separate fields.
+      setConcepts(selectConcepts({ industry: `${text}. ${profile.industry}. ${profile.rules}` }));
       setSel(0);
       setBusy(false);
     }, 650);
   }
 
   function saveKit(c: Concept) {
-    setSaved((k) => (k.some((x) => x.id === c.id) ? k : [...k, c]));
+    const next = saved.some((x) => x.id === c.id) ? saved : [...saved, c];
+    setSaved(next);
+    // ponytail: the order is not persisted; a refresh clears it. Do the same
+    // here for it (reviving the two Dates) when the demo needs two sessions.
+    try { localStorage.setItem('kits', JSON.stringify(next)); } catch { /* private mode */ }
     flash(`Saved “${c.name}” to your kits`);
   }
 
@@ -97,7 +119,7 @@ export default function Page() {
       <Sidebar
         page={page}
         onNavigate={setPage}
-        company={COMPANY}
+        company={profile.company}
         staff={staff}
         kitCount={saved.length}
         orderCount={order ? 1 : 0}
@@ -201,7 +223,7 @@ export default function Page() {
               <div className={s.pageHead}>
                 <div>
                   <h1>Configure</h1>
-                  <p>Every option is priced from live stock.</p>
+                  <p>Indicative prices from the demo catalogue.</p>
                 </div>
                 {/* Says where it goes. "Back to kits" read as the Saved kits
                     destination in the nav; this returns to the three
@@ -262,7 +284,9 @@ export default function Page() {
           )}
 
           {page === 'orders' && <Orders order={order} onHome={() => setPage('home')} />}
-          {page === 'settings' && <Settings company={COMPANY} staff={staff} onSave={() => flash('Settings saved')} />}
+          {page === 'settings' && (
+            <Settings profile={{ ...profile, staff }} onSave={(p) => { setProfile(p); setStaff(p.staff); flash('Settings saved'); }} />
+          )}
           </div>
           </div>
         </div>
@@ -538,7 +562,7 @@ function Orders({ order, onHome }: { order: Order | null; onHome: () => void }) 
         <div className={s.timeline}>
           {STAGES.map((name, i) => (
             <div key={name} className={`${s.tStep} ${state(i) === 'done' ? s.tDone : state(i) === 'now' ? s.tNow : ''}`}>
-              <div className={s.tDot}>{state(i) === 'done' ? '✓' : i + 1}</div>
+              <div className={s.tDot}>{state(i) === 'done' ? <Check /> : i + 1}</div>
               <b>{name}</b>
               <small>{when(i)}</small>
             </div>
@@ -581,7 +605,10 @@ function Orders({ order, onHome }: { order: Order | null; onHome: () => void }) 
   );
 }
 
-function Settings({ company, staff, onSave }: { company: string; staff: number; onSave: () => void }) {
+function Settings({ profile, onSave }: { profile: Profile; onSave: (p: Profile) => void }) {
+  const [d, setD] = useState(profile);
+  const set = (k: keyof Profile) => (e: { target: { value: string } }) =>
+    setD({ ...d, [k]: k === 'staff' ? Math.max(1, +e.target.value || 1) : e.target.value });
   return (
     <>
       <div className={s.pageHead}>
@@ -601,15 +628,15 @@ function Settings({ company, staff, onSave }: { company: string; staff: number; 
           <div className={s.formGrid}>
             <div className={`${s.field} ${s.fieldWide}`}>
               <label htmlFor="sName">Company name</label>
-              <input id="sName" defaultValue={company} />
+              <input id="sName" value={d.company} onChange={set('company')} />
             </div>
             <div className={`${s.field} ${s.fieldNarrow}`}>
               <label htmlFor="sStaff">Total staff</label>
-              <input id="sStaff" type="number" defaultValue={staff} />
+              <input id="sStaff" type="number" min={1} value={d.staff} onChange={set('staff')} />
             </div>
             <div className={`${s.field} ${s.fieldWide}`}>
               <label htmlFor="sInd">Industry</label>
-              <select id="sInd" defaultValue="Technology">
+              <select id="sInd" value={d.industry} onChange={set('industry')}>
                 <option>Technology</option>
                 <option>Hospitality</option>
                 <option>Facilities management</option>
@@ -627,12 +654,12 @@ function Settings({ company, staff, onSave }: { company: string; staff: number; 
           </div>
           <div className={s.field}>
             <label htmlFor="sRules">What your teams should wear</label>
-            <textarea id="sRules" defaultValue="Smart casual for client-facing teams. Hard-wearing kit for operations." />
+            <textarea id="sRules" value={d.rules} onChange={set('rules')} />
           </div>
         </section>
 
         <div className={s.settingsFoot}>
-          <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onSave}>Save settings</button>
+          <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={() => onSave(d)}>Save settings</button>
         </div>
       </div>
     </>
@@ -652,6 +679,20 @@ function Quote({
   onConfirm: () => void;
 }) {
   const per = perPerson;
+  // Escape closes; focus goes back to the button that opened it. The handler
+  // is read through a ref so an inline onClose does not re-arm this each render.
+  // ponytail: no focus trap. Tab can leave the dialog; add one if a reviewer asks.
+  const close = useRef(onClose);
+  close.current = onClose;
+  const first = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    // Read the opener before moving focus in; autoFocus would have beaten us to it.
+    const opener = document.activeElement as HTMLElement | null;
+    first.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close.current(); };
+    addEventListener('keydown', onKey);
+    return () => { removeEventListener('keydown', onKey); opener?.focus(); };
+  }, []);
   const garments = concept.garments.reduce((a, g) => a + g.unitPrice, 0);
   const branding = concept.logo.position === 'none' ? 0 : conceptPrice(concept) - garments;
   const spareSets = sets - staff;
@@ -700,7 +741,7 @@ function Quote({
           <ManagerNote note={quoteNote(concept, staff, sets)} />
         </div>
         <div className={s.modalFoot}>
-          <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onClose}>Keep editing</button>
+          <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onClose} ref={first}>Keep editing</button>
           <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onConfirm}>Place order</button>
         </div>
       </div>

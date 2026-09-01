@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "test": "for f in lib/*.test.ts; do npx tsx \"$f\" || exit 1; done"
   },
   "dependencies": {
     "next": "16.3.4",

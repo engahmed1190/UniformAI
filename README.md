@@ -24,8 +24,9 @@ Stand-ins, each marked `ponytail:` at the seam where the real thing plugs in:
   patch shape replaces `parse()`.
 - **Stock, lead time, sizing** are not connected. Prices are indicative and
   the due date is a fixed 21 days.
-- **Persistence** is `localStorage` for saved kits and the last order. With
-  nothing stored, a sample order is seeded so Home is not empty.
+- **Persistence** is `localStorage` for saved kits and orders. With nothing
+  stored, two sample kits and three sample orders (collecting sizes, in
+  production, delivered) are seeded so the screens are not empty.
 
 ## Layout
 

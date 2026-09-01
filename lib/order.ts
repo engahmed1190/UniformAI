@@ -19,10 +19,30 @@ export type Order = {
   placed: Date;
   /** Indicative. Real lead time is the ERP's to say. */
   due: Date;
+  /** Index into STAGES: where the order is right now. */
+  stage: number;
   lines: OrderLine[];
 };
 
-const LEAD_DAYS = 21;
+/** The production stages every order walks through, and the day each one
+ *  falls on, counted from placing. One list, so the timeline, the status
+ *  pill and the due date cannot disagree. */
+export const STAGES = ['Ordered', 'Sizes in', 'Fabric cut', 'Sewing', 'Checks', 'Delivery'];
+const DAY = [0, 4, 10, 14, 18, 21];
+const LEAD_DAYS = DAY[DAY.length - 1];
+
+export const stageDate = (o: Order, i: number): Date => {
+  const d = new Date(o.placed);
+  d.setDate(d.getDate() + DAY[i]);
+  return d;
+};
+
+export type Status = 'Collecting sizes' | 'In production' | 'Delivered';
+export const status = (o: Order): Status =>
+  o.stage >= 5 ? 'Delivered' : o.stage >= 2 ? 'In production' : 'Collecting sizes';
+
+/** How far along the making is. Nothing moves until sizes are in. */
+export const progress = (o: Order): number => [0, 0, 30, 60, 85, 100][Math.min(o.stage, 5)];
 
 /** "23 Sep". Hand-rolled: en-GB Intl gives "Sept" on newer ICU. */
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -35,6 +55,7 @@ export function placeOrder(
   grades: number[],
   perPerson: number,
   now = new Date(),
+  stage = 1,
 ): Order {
   const lines: OrderLine[] = concept.garments.map((g, i) => ({
     item: `${LABELS[g.type]} · ${colourName(g.parts.body ?? g.parts.leg ?? Object.values(g.parts)[0])}`,
@@ -56,10 +77,10 @@ export function placeOrder(
     name: concept.name,
     concept, staff, sets, perPerson,
     total: perPerson * sets,
-    placed: now, due, lines,
+    placed: now, due, stage, lines,
   };
 }
 
 /** Back from JSON with the two dates as Dates again. */
-export const revive = (json: string): Order =>
+export const revive = (json: string): Order[] =>
   JSON.parse(json, (k, v) => (k === 'placed' || k === 'due' ? new Date(v) : v));

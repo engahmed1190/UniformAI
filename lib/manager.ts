@@ -8,7 +8,7 @@
 
 import { type Concept, type LogoPosition, LABELS, conceptPrice } from './spec';
 import { briefWishes, colourName } from './refine';
-import { type Order, shortDate } from './order';
+import { type Order, STAGES, shortDate } from './order';
 
 /** Colour words that describe a family, not a specific cloth. */
 const FAMILY = new Set(['dark', 'light', 'neutral']);
@@ -131,16 +131,29 @@ export function quoteNote(concept: Concept, staff: number, sets: number): string
 
 /** Where the order actually is, and what happens next. */
 export function orderNote(o: Order): string {
+  if (o.stage >= 5) {
+    return `Delivered ${shortDate(o.due)}. Say the word if anything needs replacing — same spec, same price.`;
+  }
+  if (o.stage >= 2) {
+    return `${STAGES[o.stage]} now, fabric all in. Delivery around ${shortDate(o.due)} — I will flag it here if that moves.`;
+  }
   return `Placed ${shortDate(o.placed)}. I am collecting sizes now — cutting starts once they are in, delivery around ${shortDate(o.due)}. I will flag it here if that moves.`;
 }
 
-/** The greeting: the session's order if there is one, otherwise nothing. */
-export function greeting(name: string, order: Order | null): string {
+/** The greeting: what is open right now. Delivered orders need nobody. */
+export function greeting(name: string, orders: Order[]): string {
   const hour = new Date().getHours();
   const part = hour < 12 ? 'Morning' : hour < 18 ? 'Afternoon' : 'Evening';
-  return order
-    ? `${part}, ${name}. ${order.name} is ordered — I am collecting sizes for ${order.id}.`
-    : `${part}, ${name}. Nothing needs you today.`;
+  const open = orders.filter((o) => o.stage < 5);
+  if (open.length === 0) return `${part}, ${name}. Nothing needs you today.`;
+  if (open.length === 1) {
+    const o = open[0];
+    return o.stage < 2
+      ? `${part}, ${name}. ${o.name} is ordered — I am collecting sizes for ${o.id}.`
+      : `${part}, ${name}. ${o.name} is in production, due around ${shortDate(o.due)}.`;
+  }
+  const sizes = open.filter((o) => o.stage < 2).length;
+  return `${part}, ${name}. ${sizes} waiting on sizes, ${open.length - sizes} in production.`;
 }
 
 /** The word in the brief that triggered the heat read, so the note can quote

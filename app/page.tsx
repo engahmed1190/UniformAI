@@ -6,10 +6,10 @@ import { Sidebar, Topbar, type PageId } from '@/components/shell';
 import { ConceptCard } from '@/components/concept';
 import { Configurator } from '@/components/configurator';
 import { GarmentSvg, logoGarmentIndex } from '@/components/garments';
-import { selectConcepts } from '@/lib/concepts';
+import { CONCEPTS, selectConcepts } from '@/lib/concepts';
 import { type Concept, LABELS, conceptPrice, conceptPriceAt, gradeName, gradesFor } from '@/lib/spec';
 import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
-import { type Order, placeOrder, revive, shortDate } from '@/lib/order';
+import { type Order, STAGES, placeOrder, progress, revive, shortDate, stageDate, status } from '@/lib/order';
 import { ManagerNote } from '@/components/manager';
 import { Check } from '@/components/check';
 
@@ -57,25 +57,40 @@ export default function Page() {
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<Concept[]>([]);
   // Loaded after mount, not in the initializer: the server renders an empty
-  // list and a lazy read would hydrate against something else.
+  // list and a lazy read would hydrate against something else. With nothing
+  // stored, two sample kits stand in so the library is not bare.
   useEffect(() => {
-    try { setSaved(JSON.parse(localStorage.getItem('kits') ?? '[]')); } catch { /* stay empty */ }
+    let stored: Concept[] = [];
+    try { stored = JSON.parse(localStorage.getItem('kits') ?? '[]'); } catch { /* stay empty */ }
+    setSaved(stored.length ? stored : [
+      selectConcepts({ industry: 'site technicians, navy, logo on the chest' })[0],
+      selectConcepts({ industry: 'smart shirts for the front desk' })[0],
+    ]);
   }, []);
   const [quoting, setQuoting] = useState(false);
   // The quote, carried over. Everything Orders and Home show comes from here.
-  const [order, setOrder] = useState<Order | null>(null);
-  // Loaded after mount like the kits. With nothing stored, a sample order
-  // stands in so Home does not open on a row of zeros.
-  // ponytail: the sample is a real placeOrder() on a real concept, so every
-  // screen agrees with it. Delete the fallback for a blank-slate demo.
+  // Newest first. Loaded after mount like the kits. With nothing stored,
+  // three samples in three states stand in so Home does not open on zeros.
+  // ponytail: samples are real placeOrder() calls on real concepts, so every
+  // screen agrees with them. Delete the fallback for a blank-slate demo.
+  const [orders, setOrders] = useState<Order[]>([]);
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('order');
-      if (stored) { setOrder(revive(stored)); return; }
-    } catch { /* fall through to the sample */ }
-    const c = selectConcepts({ industry: 'site technicians, navy, logo on the chest' })[0];
-    setOrder(placeOrder(c, PROFILE.staff, Math.ceil(PROFILE.staff * 1.05), [], conceptPriceAt(c, []),
-      new Date(Date.now() - 4 * 864e5)));
+      const stored = localStorage.getItem('orders');
+      if (stored) { setOrders(revive(stored)); return; }
+    } catch { /* fall through to the samples */ }
+    // Named seeds, not briefs: selectConcepts only ever reaches three of the
+    // four, so a brief could not give three visibly different kits.
+    const sample = (kit: string, daysAgo: number, stage: number, people: number) => {
+      const c = CONCEPTS.find((x) => x.id === kit) ?? CONCEPTS[0];
+      return placeOrder(c, people, Math.ceil(people * 1.05), [], conceptPriceAt(c, []),
+        new Date(Date.now() - daysAgo * 864e5), stage);
+    };
+    setOrders([
+      sample('technicians', 4, 1, PROFILE.staff),
+      sample('operations', 18, 3, 24),
+      sample('management', 45, 5, 12),
+    ]);
   }, []);
   // Set by any configurator edit, cleared by a fresh generate. Guards the
   // one destructive path in the app: asking for new kits replaces these.
@@ -133,7 +148,7 @@ export default function Page() {
         company={profile.company}
         staff={staff}
         kitCount={saved.length}
-        orderCount={order ? 1 : 0}
+        orderCount={orders.filter((o) => o.stage < 5).length}
       />
 
       <div className={s.main}>
@@ -145,7 +160,7 @@ export default function Page() {
           {page === 'home' && (
             <Home
               staff={staff}
-              order={order}
+              orders={orders}
               savedCount={saved.length}
               onAsk={(t) => { setBrief(t); generate(t); }}
               onKits={() => setPage('kits')}
@@ -294,7 +309,7 @@ export default function Page() {
             />
           )}
 
-          {page === 'orders' && <Orders order={order} onHome={() => setPage('home')} />}
+          {page === 'orders' && <Orders orders={orders} onHome={() => setPage('home')} />}
           {page === 'settings' && (
             <Settings profile={{ ...profile, staff }} onSave={(p) => { setProfile(p); setStaff(p.staff); flash('Settings saved'); }} />
           )}
@@ -348,11 +363,11 @@ export default function Page() {
           grades={grades}
           onClose={() => setQuoting(false)}
           onConfirm={() => {
-            const o = placeOrder(active, staff, sets, grades, perPerson);
-            setOrder(o);
-            try { localStorage.setItem('order', JSON.stringify(o)); } catch { /* private mode */ }
+            const next = [placeOrder(active, staff, sets, grades, perPerson), ...orders];
+            setOrders(next);
+            try { localStorage.setItem('orders', JSON.stringify(next)); } catch { /* private mode */ }
             setQuoting(false);
-            flash(`${o.id} placed. Sizes are next.`);
+            flash(`${next[0].id} placed. Sizes are next.`);
             setTimeout(() => setPage('orders'), 800);
           }}
         />
@@ -364,16 +379,19 @@ export default function Page() {
 }
 
 function Home({
-  staff, order, savedCount, onAsk, onKits, onOrders,
+  staff, orders, savedCount, onAsk, onKits, onOrders,
 }: {
   staff: number;
-  order: Order | null;
+  orders: Order[];
   savedCount: number;
   onAsk: (text: string) => void;
   onKits: () => void;
   onOrders: () => void;
 }) {
   const [text, setText] = useState('');
+  const sizing = orders.filter((o) => status(o) === 'Collecting sizes');
+  const making = orders.filter((o) => status(o) === 'In production');
+  const done = orders.filter((o) => status(o) === 'Delivered');
   return (
     <>
       {/* Home was the one page with no h1: the heading order ran h3, h2 and
@@ -384,7 +402,7 @@ function Home({
           <p>Where your uniform work stands today.</p>
         </div>
       </div>
-      <ManagerNote tone="panel" intro note={greeting('Ahmed', order)} />
+      <ManagerNote tone="panel" intro note={greeting('Ahmed', orders)} />
 
       {/* The primary job, first thing on the page. */}
       <div className={s.panel}>
@@ -418,11 +436,13 @@ function Home({
 
       <div className={s.stats}>
         <Stat label="Saved kits" value={String(savedCount)} note="Ready to reorder" />
-        {/* Every number here is the session's own order, or an honest zero. */}
-        <Stat label="Orders" value={order ? '1' : '0'} note={order ? `${order.id} · collecting sizes` : 'Nothing placed yet'} />
-        <Stat label="Ordered value" value={order ? money(order.total) : '—'} note={order ? `${order.sets} sets` : 'Comes from a quote'} />
-        <Stat label="Sizes collected" value="0" sub={order ? ` / ${order.staff}` : ''}
-          note={order ? 'Collection starts today' : 'Nothing to collect yet'} />
+        {/* Every number here is counted from the orders, or an honest zero. */}
+        <Stat label="Collecting sizes" value={String(sizing.length)}
+          note={sizing[0] ? `${sizing[0].id} · ${sizing[0].sets} sets` : 'None waiting'} />
+        <Stat label="In production" value={String(making.length)}
+          note={making[0] ? `Next due ${shortDate(making[0].due)}` : 'Nothing on the floor'} />
+        <Stat label="Delivered" value={String(done.length)}
+          note={done.length ? money(done.reduce((n, o) => n + o.total, 0)) : 'Nothing yet'} />
       </div>
 
       <div className={s.group}>
@@ -439,14 +459,14 @@ function Home({
               <tr><th>What</th><th>Status</th><th className={s.right}>Value</th><th className={s.right}>Updated</th></tr>
             </thead>
             <tbody>
-              {order ? (
-                <tr>
-                  <td><strong>{order.name}</strong><div className={s.sub}>{order.id} · {order.sets} sets</div></td>
-                  <td data-label="Status"><span className={`${s.pill} ${s.pillWarn}`}>Collecting sizes</span></td>
-                  <td data-label="Value" className={`${s.right} ${s.mono}`}>{money(order.total)}</td>
-                  <td data-label="Updated" className={`${s.right} ${s.muted}`}>{shortDate(order.placed)}</td>
+              {orders.length ? orders.map((o) => (
+                <tr key={o.id}>
+                  <td><strong>{o.name}</strong><div className={s.sub}>{o.id} · {o.sets} sets</div></td>
+                  <td data-label="Status"><StatusPill order={o} /></td>
+                  <td data-label="Value" className={`${s.right} ${s.mono}`}>{money(o.total)}</td>
+                  <td data-label="Updated" className={`${s.right} ${s.muted}`}>{shortDate(stageDate(o, Math.min(o.stage, 5)))}</td>
                 </tr>
-              ) : (
+              )) : (
                 <tr>
                   <td colSpan={4} className={s.muted}>Nothing yet. Your first order shows here.</td>
                 </tr>
@@ -525,20 +545,30 @@ function Kits({
   );
 }
 
-/** The production stages every order walks through. Only the first two
- *  have happened for an order placed this session; the rest wait on sizes. */
-const STAGES = ['Ordered', 'Sizes in', 'Fabric cut', 'Sewing', 'Checks', 'Delivery'];
+/** One pill for one status, coloured the same everywhere it appears. */
+function StatusPill({ order }: { order: Order }) {
+  const st = status(order);
+  const tone = st === 'Delivered' ? s.pillGood : st === 'Collecting sizes' ? s.pillWarn : '';
+  return <span className={`${s.pill} ${tone}`}>{st}</span>;
+}
 
-function Orders({ order, onHome }: { order: Order | null; onHome: () => void }) {
-  if (!order) {
+function Orders({ orders, onHome }: { orders: Order[]; onHome: () => void }) {
+  // The open order is a choice on this page, not app state: leaving and
+  // coming back should show the newest again.
+  const [openId, setOpenId] = useState<string | null>(null);
+  const o = orders.find((x) => x.id === openId) ?? orders[0];
+  const head = (
+    <div className={s.pageHead}>
+      <div>
+        <h1>Orders</h1>
+        <p>Where everything is right now.</p>
+      </div>
+    </div>
+  );
+  if (!o) {
     return (
       <>
-        <div className={s.pageHead}>
-          <div>
-            <h1>Orders</h1>
-            <p>Where everything is right now.</p>
-          </div>
-        </div>
+        {head}
         <Empty
           title="No orders yet"
           note="Configure a kit, review the quote and place the order. It lands here with its production stages."
@@ -548,27 +578,53 @@ function Orders({ order, onHome }: { order: Order | null; onHome: () => void }) 
       </>
     );
   }
-  const when = (i: number) => (i === 0 ? shortDate(order.placed) : i === 1 ? 'Now' : i === STAGES.length - 1 ? shortDate(order.due) : '—');
-  const state = (i: number) => (i === 0 ? 'done' : i === 1 ? 'now' : '');
+  const reached = (i: number) => i <= o.stage || i === STAGES.length - 1;
+  const state = (i: number) => (o.stage >= 5 || i < o.stage ? 'done' : i === o.stage ? 'now' : '');
+  const pct = progress(o);
   return (
     <>
-      <div className={s.pageHead}>
-        <div>
-          <h1>Orders</h1>
-          <p>Where everything is right now.</p>
+      {head}
+
+      {orders.length > 1 && (
+        <div className={`${s.tableCard} ${s.tableFixed} ${s.tableActivity}`}>
+          <div className={s.tableScroll}>
+            <table>
+              <thead>
+                <tr><th>Order</th><th>Status</th><th className={s.right}>Value</th><th className={s.right}>Due</th><th /></tr>
+              </thead>
+              <tbody>
+                {orders.map((x) => (
+                  <tr key={x.id} aria-current={x.id === o.id ? 'true' : undefined}>
+                    <td><strong>{x.name}</strong><div className={s.sub}>{x.id} · {x.sets} sets</div></td>
+                    <td data-label="Status"><StatusPill order={x} /></td>
+                    <td data-label="Value" className={`${s.right} ${s.mono}`}>{money(x.total)}</td>
+                    <td data-label="Due" className={`${s.right} ${s.mono}`}>{shortDate(x.due)}</td>
+                    <td className={s.right}>
+                      <button type="button" className={`${s.btn} ${s.btnSecondary}`}
+                        disabled={x.id === o.id} onClick={() => setOpenId(x.id)}>
+                        {x.id === o.id ? 'Viewing' : 'View'}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+      )}
 
       <div className={`${s.card} ${s.cardPad}`}>
         <div className={s.splitRow}>
           <div>
-            <div className={s.sub}>{order.id}</div>
-            <h2 className={s.orderTitle}>{order.name}</h2>
-            <div className={s.sub}>{order.sets} sets · {money(order.total)}</div>
+            <div className={s.sub}>{o.id}</div>
+            <h2 className={s.orderTitle}>{o.name}</h2>
+            <div className={s.sub}>{o.sets} sets · {money(o.total)}</div>
           </div>
           <div className={s.alignEnd}>
-            <span className={`${s.pill} ${s.pillWarn}`}>Collecting sizes</span>
-            <div className={`${s.muted} ${s.metaLine}`}>Due around {shortDate(order.due)}</div>
+            <StatusPill order={o} />
+            <div className={`${s.muted} ${s.metaLine}`}>
+              {o.stage >= 5 ? `Delivered ${shortDate(o.due)}` : `Due around ${shortDate(o.due)}`}
+            </div>
           </div>
         </div>
         <div className={s.timeline}>
@@ -576,17 +632,17 @@ function Orders({ order, onHome }: { order: Order | null; onHome: () => void }) 
             <div key={name} className={`${s.tStep} ${state(i) === 'done' ? s.tDone : state(i) === 'now' ? s.tNow : ''}`}>
               <div className={s.tDot}>{state(i) === 'done' ? <Check /> : i + 1}</div>
               <b>{name}</b>
-              <small>{when(i)}</small>
+              <small>{state(i) === 'now' && o.stage < 5 ? 'Now' : reached(i) ? shortDate(stageDate(o, i)) : '—'}</small>
             </div>
           ))}
         </div>
       </div>
 
-      <ManagerNote tone="panel" note={orderNote(order)} />
+      <ManagerNote tone="panel" note={orderNote(o)} />
 
       <div className={s.group}>
       <div className={s.sectionHead}>
-        <div><h2>What is being made</h2></div>
+        <div><h2>{o.stage >= 5 ? 'What was made' : 'What is being made'}</h2></div>
       </div>
       <div className={`${s.tableCard} ${s.tableFixed} ${s.tableLines}`}>
         <div className={s.tableScroll}>
@@ -595,17 +651,17 @@ function Orders({ order, onHome }: { order: Order | null; onHome: () => void }) 
               <tr><th>Item</th><th className={s.right}>Qty</th><th>Progress</th><th className={s.right}>Ready</th></tr>
             </thead>
             <tbody>
-              {order.lines.map((l) => (
+              {o.lines.map((l) => (
                 <tr key={l.item}>
                   <td><strong>{l.item}</strong><div className={s.sub}>{l.note}</div></td>
                   <td data-label="Qty" className={`${s.right} ${s.mono}`}>{l.qty}</td>
                   <td data-label="Progress">
                     <div className={s.progress}>
-                      <div className={s.progressTrack}><i style={{ width: '0%' }} /></div>
-                      <span className={s.progressPct}>Waiting on sizes</span>
+                      <div className={s.progressTrack}><i style={{ width: `${pct}%` }} /></div>
+                      <span className={s.progressPct}>{pct === 0 ? 'Waiting on sizes' : `${pct}%`}</span>
                     </div>
                   </td>
-                  <td data-label="Ready" className={`${s.right} ${s.mono}`}>{shortDate(order.due)}</td>
+                  <td data-label="Ready" className={`${s.right} ${s.mono}`}>{shortDate(o.due)}</td>
                 </tr>
               ))}
             </tbody>

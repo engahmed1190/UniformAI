@@ -47,11 +47,15 @@ assert.match(stepAdvice(1, lightTop, 0, hot, 40, 0.05), /show marks/);
 // is -- and nothing about an order that does not exist.
 import { placeOrder } from './order';
 import { orderNote } from './manager';
-assert.match(greeting('Ahmed', null), /Nothing needs you today/);
-assert.doesNotMatch(greeting('Ahmed', null), /polos|8th/, 'no order, no order news');
+assert.match(greeting('Ahmed', []), /Nothing needs you today/);
+assert.doesNotMatch(greeting('Ahmed', []), /polos|8th/, 'no order, no order news');
 const placed = placeOrder(c, 40, 42, [], 500, new Date('2026-09-02T10:00:00Z'));
-assert.match(greeting('Ahmed', placed), /Front Office/, 'the greeting names the real order');
+const sewing = placeOrder(c, 40, 42, [], 500, new Date('2026-08-20T10:00:00Z'), 3);
+assert.match(greeting('Ahmed', [placed]), /Front Office/, 'the greeting names the real order');
+assert.match(greeting('Ahmed', [placed, sewing]), /1 in production/, 'the greeting counts states');
 assert.match(orderNote(placed), /23 Sep/, 'the note states the real due date');
+assert.match(orderNote(sewing), /Sewing/, 'the note says where a production order is');
+assert.match(orderNote({ ...sewing, stage: 5 }), /Delivered/);
 
 // 8. The quote note states the real spare count, not a hardcoded one.
 assert.match(quoteNote(c, 40, 44), /40 people plus 4 spare/);

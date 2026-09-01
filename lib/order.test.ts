@@ -32,10 +32,26 @@ assert.equal(placeOrder(setLogo(c, { position: 'none' }), 40, 42, grades, per).l
 assert.match(o.id, /^SO-2026-\d{5}$/);
 assert.ok(o.due > o.placed);
 
-console.log('order: all assertions passed');
 
 // 6. An order survives a reload with its dates still dates.
 import { revive } from './order';
-const back = revive(JSON.stringify(o));
+const [back] = revive(JSON.stringify([o]));
 assert.equal(back.due.getTime(), o.due.getTime());
 assert.equal(back.id, o.id);
+
+// 7. Stage drives status and progress -- one source, so the pill, the bar
+// and the timeline cannot disagree.
+import { status, progress } from './order';
+assert.equal(o.stage, 1, 'a fresh order is waiting on sizes');
+assert.equal(status(o), 'Collecting sizes');
+assert.equal(status({ ...o, stage: 3 }), 'In production');
+assert.equal(status({ ...o, stage: 5 }), 'Delivered');
+assert.equal(progress({ ...o, stage: 1 }), 0);
+assert.equal(progress({ ...o, stage: 5 }), 100);
+assert.ok(progress({ ...o, stage: 3 }) > progress({ ...o, stage: 2 }));
+assert.equal(placeOrder(c, 40, 42, grades, per, new Date(), 5).stage, 5);
+
+// 8. A list round-trips.
+assert.equal(revive(JSON.stringify([o, o])).length, 2);
+
+console.log('order: all assertions passed');

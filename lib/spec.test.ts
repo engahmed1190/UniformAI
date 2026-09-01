@@ -149,3 +149,13 @@ assert.equal(refine(rBase, 'make it feel more premium'), null);
 assert.equal(refine(rBase, ''), null);
 
 console.log('spec + refine: all assertions passed');
+
+// The ask box must understand the controls sitting right above it. A text
+// field that knows less than the panel beside it reads as decoration.
+const fab = refine(CONCEPTS[1], 'use the performance knit');
+assert.equal(fab?.fabric, 2, 'a fabric phrase must set the fabric grade');
+assert.equal(fab?.concept, CONCEPTS[1], 'a fabric edit must not touch the garments');
+assert.equal(refine(CONCEPTS[1], '10% spare')?.spare, 0.1);
+assert.equal(refine(CONCEPTS[1], 'no spare')?.spare, 0);
+assert.equal(refine(CONCEPTS[1], 'make me a sandwich'), null, 'unknown asks must not guess');
+console.log('refine: fabric and spare assertions passed');

@@ -52,8 +52,17 @@ const WORDS: Record<string, string> = {
   brass: '#c8a24a', gold: '#c8a24a',
 };
 
-/** Applied edit, plus the patch line shown to the user as proof. */
-export type Applied = { concept: Concept; note: string; patch: string };
+/** Applied edit, plus the patch line shown to the user as proof. Fabric and
+ *  spare are not part of the spec -- they are the page's own state -- so they
+ *  come back as fields the caller applies, keeping setPart/setLogo the only
+ *  way the drawing itself can change. */
+export type Applied = {
+  concept: Concept;
+  note: string;
+  patch: string;
+  fabric?: number;
+  spare?: number;
+};
 
 const TOP_WORDS = /\b(shirt|polo|top|blazer|jacket|body)\b/;
 const LEG_WORDS = /\b(trouser|trousers|chino|chinos|pant|pants|cargo|leg|legs|bottom)\b/;
@@ -91,6 +100,12 @@ function pickColour(t: string): string | null {
   if (word) return WORDS[word];
   return /^#[0-9a-f]{6}$/i.test(t) ? t : null;
 }
+
+const FABRIC_NOTE = [
+  'Back to the cotton pique. It is the workhorse -- fine unless these are worn daily.',
+  'Moved to combed cotton: 45 more a person, softer, and it holds colour longer.',
+  'Moved to the performance knit: 90 more a person, and the one people notice in the heat.',
+];
 
 export function refine(concept: Concept, request: string): Applied | null {
   const t = request.toLowerCase().trim();
@@ -140,6 +155,43 @@ export function refine(concept: Concept, request: string): Applied | null {
         patch: bits.join('\n'),
       };
     }
+  }
+
+  // Fabric and spare sit in controls right above this box, so the box has to
+  // understand them too -- a text field that knows less than the panel beside
+  // it reads as decoration.
+  const grade = /\bperformance|wicking|technical\b/.test(t) ? 2
+    : /\bcombed|softer|premium\b/.test(t) ? 1
+      : /\bpique|standard|basic|cheapest\b/.test(t) ? 0
+        : null;
+  if (grade !== null && /\bfabric|knit|cotton|pique|material|cloth|wicking|combed|performance\b/.test(t)) {
+    return {
+      concept,
+      fabric: grade,
+      note: FABRIC_NOTE[grade],
+      patch: `fabric = ${['cotton pique', 'combed cotton', 'performance knit'][grade]}`,
+    };
+  }
+
+  const spareAsk = t.match(/\b(\d+)\s*%/);
+  if (spareAsk && /\bspare|extra|spares|buffer\b/.test(t)) {
+    const pct = Math.min(10, Math.max(0, +spareAsk[1]));
+    return {
+      concept,
+      spare: pct / 100,
+      note: pct === 0
+        ? 'Dropped the spare stock. A new starter waits for the next run.'
+        : `Set spare stock to ${pct}%. It covers new starters without sitting on stock.`,
+      patch: `spare = ${pct / 100}`,
+    };
+  }
+  if (/\bno spare|without spare|exactly\b/.test(t)) {
+    return {
+      concept,
+      spare: 0,
+      note: 'Dropped the spare stock. A new starter waits for the next run.',
+      patch: 'spare = 0',
+    };
   }
 
   // Colour requests that did not name the logo.

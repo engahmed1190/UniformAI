@@ -81,12 +81,14 @@ export function Configurator({
     const applied = refine(concept, q);
     const next: Msg[] = [{ who: 'you', text: q }];
     if (applied) {
-      onChange(applied.concept);
+      if (applied.concept !== concept) onChange(applied.concept);
+      if (applied.fabric !== undefined) { onFabricChange(applied.fabric); setStep(0); }
+      if (applied.spare !== undefined) { onSpareChange(applied.spare); setStep(3); }
       next.push({ who: 'app', text: applied.note, patch: applied.patch });
     } else {
       next.push({
         who: 'app',
-        text: 'I can change a colour, a part of a garment, or where the logo sits. Try “make the trouser navy”.',
+        text: 'I can change a colour, a fabric, the branding, or the spare stock. Try “make the trouser navy” or “use the performance knit”.',
       });
     }
     setLog((l) => [...l, ...next]);
@@ -358,7 +360,7 @@ export function Configurator({
                 <button type="submit" className={`${s.btn} ${s.btnSecondary}`}>Apply</button>
               </form>
               <div className={s.askChips}>
-                {['Make the trouser navy', 'Try a white shirt', 'Move the logo to the sleeve'].map((q) => (
+                {['Make the trouser navy', 'Use the performance knit', 'Move the logo to the sleeve', '10% spare'].map((q) => (
                   <button key={q} type="button" onClick={() => submitAsk(q)}>{q}</button>
                 ))}
               </div>

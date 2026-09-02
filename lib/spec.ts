@@ -3,12 +3,28 @@
 // patch to this object, so "make the shirt beige" provably cannot move a collar.
 
 export type GarmentType = 'polo' | 'shirt' | 'chino' | 'blazer' | 'cargo';
+export type GarmentFit = 'slim' | 'regular' | 'relaxed';
+export type GarmentCut = 'men' | 'women' | 'unisex';
+export type GarmentSize = 'XS' | 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL';
+export type SizingMode = 'collect_later' | 'allocate_now';
+
+export type SizeAllocation = Partial<
+  Record<GarmentCut, Partial<Record<GarmentSize, number>>>
+>;
+
+export type SizePlan = {
+  mode: SizingMode;
+  /** Counts across the production cuts. These are order quantities, not artwork. */
+  allocation: SizeAllocation;
+};
 
 export type Garment = {
   type: GarmentType;
   /** Named regions of the garment -> hex colour. Keys are per-type; see PARTS. */
   parts: Record<string, string>;
   fabric: string;
+  /** Construction ease. Unlike a size, this changes the silhouette. */
+  fit: GarmentFit;
   /** EGP, per unit. The seam where ERPNext Item Price takes over later. */
   unitPrice: number;
 };
@@ -21,6 +37,8 @@ export type Concept = {
   /** The role this outfit is for: "Front Office", "Technicians". */
   name: string;
   garments: Garment[];
+  /** Production blocks offered for this shared design. */
+  cuts: GarmentCut[];
   /** colour is optional: undefined means white, so the seeds need no edit. */
   logo: { position: LogoPosition; method: LogoMethod; colour?: string };
 };
@@ -41,6 +59,35 @@ export const LABELS: Record<GarmentType, string> = {
   chino: 'Chino Trouser',
   blazer: 'Blazer',
   cargo: 'Cargo Trouser',
+};
+
+export const SIZES: GarmentSize[] = ['XS', 'S', 'M', 'L', 'XL', '2XL', '3XL'];
+
+/** Neutral catalogue pieces used when a buyer builds onto a suggested kit. */
+export const GARMENT_CATALOG: Record<GarmentType, Garment> = {
+  polo: {
+    type: 'polo',
+    parts: { body: '#1b2a4a', collar: '#ffffff', placket: '#ffffff' },
+    fabric: 'Cotton Pique 220 GSM', fit: 'regular', unitPrice: 260,
+  },
+  shirt: {
+    type: 'shirt',
+    parts: { body: '#ffffff', collar: '#ffffff', cuffs: '#ffffff' },
+    fabric: 'Cotton Poplin 130 GSM', fit: 'regular', unitPrice: 380,
+  },
+  blazer: {
+    type: 'blazer',
+    parts: { body: '#1b2a4a', lapel: '#1b2a4a', buttons: '#c8a24a' },
+    fabric: 'Wool Blend 260 GSM', fit: 'regular', unitPrice: 1150,
+  },
+  chino: {
+    type: 'chino', parts: { leg: '#1b2a4a' },
+    fabric: 'Cotton Twill 240 GSM', fit: 'regular', unitPrice: 420,
+  },
+  cargo: {
+    type: 'cargo', parts: { leg: '#3d4a3a', pockets: '#3d4a3a' },
+    fabric: 'Ripstop Cotton 280 GSM', fit: 'relaxed', unitPrice: 460,
+  },
 };
 
 export const LOGO_PRICE: Record<LogoMethod, number> = { embroidery: 35, print: 18 };
@@ -88,6 +135,60 @@ export function setLogo(
   return next;
 }
 
+export function setGarmentFit(
+  c: Concept,
+  garmentIndex: number,
+  fit: GarmentFit,
+): Concept {
+  const next = cloneConcept(c);
+  const garment = next.garments[garmentIndex];
+  if (!garment) throw new Error(`no garment at index ${garmentIndex}`);
+  garment.fit = fit;
+  return next;
+}
+
+export function setCuts(c: Concept, cuts: GarmentCut[]): Concept {
+  if (cuts.length === 0) throw new Error('a kit needs at least one cut');
+  const next = cloneConcept(c);
+  next.cuts = [...cuts];
+  return next;
+}
+
+export function setGarmentIncluded(
+  c: Concept,
+  type: GarmentType,
+  included: boolean,
+): Concept {
+  const next = cloneConcept(c);
+  const at = next.garments.findIndex((g) => g.type === type);
+  if (included && at < 0) next.garments.push(structuredClone(GARMENT_CATALOG[type]));
+  if (!included && at >= 0) next.garments.splice(at, 1);
+  return next;
+}
+
+export function setSizeCount(
+  allocation: SizeAllocation,
+  cut: GarmentCut,
+  size: GarmentSize,
+  count: number,
+): SizeAllocation {
+  return {
+    ...allocation,
+    [cut]: { ...allocation[cut], [size]: Math.max(0, Math.floor(count)) },
+  };
+}
+
+export function allocatedSizeCount(
+  allocation: SizeAllocation,
+  cuts: GarmentCut[],
+): number {
+  return cuts.reduce(
+    (total, cut) => total + SIZES.reduce(
+      (cutTotal, size) => cutTotal + (allocation[cut]?.[size] ?? 0), 0),
+    0,
+  );
+}
+
 /** Every hex in the concept, in a stable order. Used to prove an edit
  *  changed exactly what it claimed to. */
 export function colourFingerprint(c: Concept): string {
@@ -102,7 +203,9 @@ export function colourFingerprint(c: Concept): string {
  *  and saving it again used to be a silent no-op. */
 export function kitKey(c: Concept): string {
   const { position, method, colour = '' } = c.logo;
-  return `${c.id}|${colourFingerprint(c)}|${position}/${method}/${colour}`;
+  const make = c.garments.map((g) => `${g.type}:${g.fit ?? 'regular'}`).join(',');
+  const cuts = (c.cuts?.length ? c.cuts : ['men', 'women']).join(',');
+  return `${c.id}|${colourFingerprint(c)}|${position}/${method}/${colour}|${make}|${cuts}`;
 }
 
 /** Whether two kits are the same garments in the same colours with the same

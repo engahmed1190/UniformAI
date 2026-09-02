@@ -13,11 +13,20 @@ const page = readFileSync(new URL('../app/page.tsx', import.meta.url), 'utf8');
 // the app spinning on a cancel.
 const gen = page.slice(page.indexOf('function generate('));
 const body = gen.slice(0, gen.indexOf('\n  }'));
-assert.match(body, /if \(edited && !confirm\(/, 'generate must ask before replacing edited kits');
+assert.match(body, /if \(edited && !\(await confirm\(/,
+  'generate must ask before replacing edited kits');
 assert.ok(
   body.indexOf('confirm(') < body.indexOf('setBusy(true)'),
   'the question has to come before the app starts working',
 );
+
+// 1b. The question is the app's own dialog, not the browser's. window.confirm
+// prints "localhost:3000 says" over the copy, ignores the stylesheet and lays
+// out left-to-right in Arabic, so it cannot be part of a translated UI.
+assert.match(page, /import \{ useConfirm \} from '@\/components\/confirm'/,
+  'the confirmation has to come from the app, not the browser');
+assert.doesNotMatch(page, /(?<!\.)\bwindow\.confirm\(|(?<![.\w])confirm\(t\(/,
+  'no bare window.confirm may come back');
 assert.ok(
   body.indexOf('setEdited(false)') < body.indexOf('setConcepts('),
   'fresh kits start unedited',

@@ -133,8 +133,19 @@ export function stepAdvice(
 }
 
 /** What the quote means, in the terms a buyer worries about. */
-export function quoteNote(locale: Locale, concept: Concept, staff: number, sets: number): string {
+export function quoteNote(
+  locale: Locale,
+  concept: Concept,
+  staff: number,
+  sets: number,
+  sizesReady = false,
+): string {
   const spare = sets - staff;
+  if (sizesReady) {
+    return spare > 0
+      ? t(locale, 'manager.quoteSized', { people: staff, spare })
+      : t(locale, 'manager.quoteSizedNoSpare', { people: staff });
+  }
   return spare > 0
     ? t(locale, 'manager.quoteCovers', { people: staff, spare })
     : t(locale, 'manager.quoteCoversNoSpare', { people: staff });

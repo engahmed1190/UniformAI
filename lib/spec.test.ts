@@ -1,7 +1,10 @@
 // Run: npx tsx lib/spec.test.ts
 // The one thing worth checking: an edit changes exactly what it says and nothing else.
 import assert from 'node:assert/strict';
-import { type Concept, setPart, setLogo, cloneConcept, colourFingerprint, conceptPrice, PARTS } from './spec';
+import {
+  type Concept, setPart, setLogo, setCuts, setGarmentFit, setGarmentIncluded,
+  setSizeCount, allocatedSizeCount, cloneConcept, colourFingerprint, conceptPrice, PARTS,
+} from './spec';
 import { CONCEPTS, selectConcepts } from './concepts';
 import { logoGarmentIndex } from '../components/garments';
 
@@ -280,3 +283,27 @@ assert.ok(refused, 'the refusal is still an answer');
 assert.doesNotMatch(refused.note, /\bfor\b|\bI can offer\b|\bthere is no\b/i,
   `English prose left in an Arabic refusal: "${refused.note}"`);
 assert.match(refused.note, /[؀-ۿ]/, 'the refusal is Arabic');
+
+// Outfit construction, production cuts and size counts are different axes.
+// Each edit stays immutable and the saved-kit identity follows design choices,
+// while an order allocation remains a plain quantity table.
+const fitted = setGarmentFit(rBase, 0, 'relaxed');
+assert.equal(fitted.garments[0].fit, 'relaxed');
+assert.equal(rBase.garments[0].fit, 'regular', 'fit edit mutated the seed');
+assert.notEqual(kitKey(fitted), kitKey(rBase), 'fit is part of a saved design');
+
+const womenOnly = setCuts(rBase, ['women']);
+assert.deepEqual(womenOnly.cuts, ['women']);
+assert.deepEqual(rBase.cuts, ['men', 'women'], 'cut edit mutated the seed');
+assert.notEqual(kitKey(womenOnly), kitKey(rBase), 'production cuts distinguish kits');
+
+const withPolo = setGarmentIncluded(rBase, 'polo', true);
+assert.equal(withPolo.garments.at(-1)?.type, 'polo');
+assert.equal(conceptPrice(withPolo), conceptPrice(rBase) + 260);
+assert.equal(rBase.garments.some((g) => g.type === 'polo'), false, 'catalogue edit mutated the seed');
+
+const oneSize = setSizeCount({}, 'women', 'M', 12);
+const twoSizes = setSizeCount(oneSize, 'men', 'L', 8);
+assert.equal(allocatedSizeCount(twoSizes, ['women', 'men']), 20);
+assert.equal(allocatedSizeCount(twoSizes, ['women']), 12, 'inactive cuts are not ordered');
+assert.equal(oneSize.men, undefined, 'size edit mutated the prior allocation');

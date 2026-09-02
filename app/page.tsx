@@ -19,10 +19,14 @@ function swatch(locale: Locale, name: string): string {
 import { Configurator } from '@/components/configurator';
 import { GarmentSvg, logoGarmentIndex } from '@/components/garments';
 import { CONCEPTS, selectConcepts } from '@/lib/concepts';
-import { type Concept, LABELS, asSavedKit, conceptPrice, conceptPriceAt, gradeName, gradesFor, sameKit } from '@/lib/spec';
+import {
+  type Concept, type GarmentCut, type SizePlan, LABELS, allocatedSizeCount,
+  asSavedKit, conceptPrice, conceptPriceAt, gradeName, gradesFor, sameKit,
+} from '@/lib/spec';
 import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
 import { type Order, STAGES, STAGE_KEYS, placeOrder, progress, revive, shortDate, stageDate, status } from '@/lib/order';
 import { ManagerNote } from '@/components/manager';
+import { useConfirm } from '@/components/confirm';
 import { Check } from '@/components/check';
 
 const USER = 'Ahmed Osama';
@@ -101,6 +105,9 @@ export default function Page() {
   // One grade per garment, into that garment's own family list.
   const [grades, setGrades] = useState<number[]>([]);
   const [spare, setSpare] = useState(0.05);
+  const [sizePlan, setSizePlan] = useState<SizePlan>({
+    mode: 'collect_later', allocation: {},
+  });
   const [logoText, setLogoText] = useState('BW');
   const [concepts, setConcepts] = useState<Concept[] | null>(null);
   const [sel, setSel] = useState(0);
@@ -146,6 +153,7 @@ export default function Page() {
   // one destructive path in the app: asking for new kits replaces these.
   const [edited, setEdited] = useState(false);
   const [toast, setToast] = useState('');
+  const { confirm, dialog } = useConfirm();
 
   const scroller = useRef<HTMLDivElement>(null);
   // A new page starts at the top. Carrying the previous scroll position over
@@ -158,7 +166,10 @@ export default function Page() {
   // Grades are positional, so carrying them across a kit change would put a
   // different garment on an upgrade nobody picked -- and move the price on a
   // screen the user never touched.
-  useEffect(() => { setGrades([]); }, [active?.id]);
+  useEffect(() => {
+    setGrades([]);
+    setSizePlan({ mode: 'collect_later', allocation: {} });
+  }, [active?.id]);
   const sets = Math.ceil(staff * (1 + spare));
 
   function flash(msg: string) {
@@ -166,10 +177,14 @@ export default function Page() {
     setTimeout(() => setToast(''), 2600);
   }
 
-  function generate(text = brief) {
+  async function generate(text = brief) {
     if (!text.trim()) return;
-    if (edited && !confirm(
-      t(locale, 'design.replaceWarning'))) return;
+    if (edited && !(await confirm({
+      title: t(locale, 'design.replaceTitle'),
+      message: t(locale, 'design.replaceWarning'),
+      confirmLabel: t(locale, 'common.confirm'),
+      cancelLabel: t(locale, 'common.cancel'),
+    }))) return;
     setEdited(false);
     setBusy(true);
     setPage('design');
@@ -338,6 +353,8 @@ export default function Page() {
                   onSpareChange={(v) => { setEdited(true); setSpare(v); }}
                   perPerson={perPerson}
                   sets={sets}
+                  sizePlan={sizePlan}
+                  onSizePlanChange={(plan) => { setEdited(true); setSizePlan(plan); }}
                   brief={brief}
               locale={locale}
                   onSave={() => saveKit(active)}
@@ -438,11 +455,17 @@ export default function Page() {
           perPerson={perPerson}
           sets={sets}
           grades={grades}
+          sizePlan={sizePlan}
           locale={locale}
           money={money}
           onClose={() => setQuoting(false)}
           onConfirm={() => {
-            const next = [placeOrder(active, staff, sets, grades, perPerson), ...orders];
+            const cuts = active.cuts?.length ? active.cuts : ['men', 'women'] as GarmentCut[];
+            const sizesComplete = sizePlan.mode === 'allocate_now'
+              && allocatedSizeCount(sizePlan.allocation, cuts) === sets;
+            const next = [placeOrder(
+              active, staff, sets, grades, perPerson, new Date(), sizesComplete ? 2 : 1, sizePlan,
+            ), ...orders];
             setOrders(next);
             try { localStorage.setItem('orders', JSON.stringify(next)); } catch { /* private mode */ }
             setQuoting(false);
@@ -453,6 +476,7 @@ export default function Page() {
       )}
 
       {toast && <div className={s.toast} role="status">{toast}</div>}
+      {dialog}
     </div>
   );
 }
@@ -878,7 +902,7 @@ function Settings({ profile, onSave, locale, onLocale }: {
 }
 
 function Quote({
-  concept, staff, perPerson, sets, grades, onClose, onConfirm, locale, money,
+  concept, staff, perPerson, sets, grades, sizePlan, onClose, onConfirm, locale, money,
 }: {
   concept: Concept;
   staff: number;
@@ -888,6 +912,7 @@ function Quote({
   perPerson: number;
   sets: number;
   grades: number[];
+  sizePlan: SizePlan;
   onClose: () => void;
   onConfirm: () => void;
 }) {
@@ -909,6 +934,9 @@ function Quote({
   const garments = concept.garments.reduce((a, g) => a + g.unitPrice, 0);
   const branding = concept.logo.position === 'none' ? 0 : conceptPrice(concept) - garments;
   const spareSets = sets - staff;
+  const cuts = concept.cuts?.length ? concept.cuts : ['men', 'women'] as GarmentCut[];
+  const cutKey = cuts.includes('men') && cuts.includes('women') ? 'mixed' : cuts[0];
+  const assigned = allocatedSizeCount(sizePlan.allocation, cuts);
   return (
     <div className={s.overlay} role="dialog" aria-modal="true" aria-labelledby="qt"
       onClick={(e) => e.target === e.currentTarget && onClose()}>
@@ -936,6 +964,27 @@ function Quote({
             );
           })}
           <div className={s.quoteLine}>
+            <span>{t(locale, 'quote.cutRange')}<div className={s.sub}>
+              {t(locale, `cuts.${cutKey}`)}
+            </div></span>
+            <b>—</b>
+          </div>
+          <div className={s.quoteLine}>
+            <span>{t(locale, 'quote.fitProfile')}<div className={s.sub}>
+              {concept.garments.map((g) => `${t(locale, `garments.${g.type}`)}: ${
+                t(locale, `fits.${g.fit ?? 'regular'}`)}`).join(' · ')}
+            </div></span>
+            <b>—</b>
+          </div>
+          <div className={s.quoteLine}>
+            <span>{t(locale, 'quote.sizing')}<div className={s.sub}>
+              {sizePlan.mode === 'collect_later'
+                ? t(locale, 'sizing.collectQuote')
+                : t(locale, 'sizing.allocatedQuote', { count: assigned })}
+            </div></span>
+            <b>{sizePlan.mode === 'allocate_now' ? `${assigned}/${sets}` : '—'}</b>
+          </div>
+          <div className={s.quoteLine}>
             <span>{t(locale, 'quote.branding')}<div className={s.sub}>
               {concept.logo.position === 'none'
                 ? t(locale, 'common.none')
@@ -955,7 +1004,10 @@ function Quote({
             <span>{t(locale, 'quote.total')}</span>
             <b>{money(per * sets)}</b>
           </div>
-          <ManagerNote locale={locale} note={quoteNote(locale, concept, staff, sets)} />
+          <ManagerNote locale={locale} note={quoteNote(
+            locale, concept, staff, sets,
+            sizePlan.mode === 'allocate_now' && assigned === sets,
+          )} />
         </div>
         <div className={s.modalFoot}>
           <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onClose} ref={first}>{t(locale, 'quote.keepEditing')}</button>

@@ -60,6 +60,7 @@ assert.match(orderNote('en', { ...sewing, stage: 5 }), /Delivered/);
 // 8. The quote note states the real spare count, not a hardcoded one.
 assert.match(quoteNote('en', c, 40, 44), /40 people plus 4 spare/);
 assert.match(quoteNote('en', c, 40, 40), /Covers 40 people\./);
+assert.match(quoteNote('en', c, 40, 44, true), /every size assigned/);
 
 // 8b. The note quotes the word the customer actually wrote. "Summer" is a
 // fair reason to reach for a breathable weave, but reporting it as "you

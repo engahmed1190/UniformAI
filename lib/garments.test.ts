@@ -6,53 +6,68 @@ import { readFileSync } from 'node:fs';
 
 const src = readFileSync(new URL('../components/garments.tsx', import.meta.url), 'utf8');
 
-// The flats are drawn front-on with the garment centred at x=100.
-const CENTRE = 100;
-const xOf = (key: string) => {
-  const m = src.match(new RegExp(`${key}:\\s*\\{\\s*x:\\s*(\\d+)`));
-  if (!m) throw new Error(`no coordinate for ${key}`);
-  return Number(m[1]);
-};
+import { ANATOMY, CENTRE, type TopType, placementFor } from './placement';
 
-// 1. On a front view the wearer's left chest faces the viewer's right-hand
-// side of the screen -- i.e. a LOWER x. Getting this backwards put the badge
-// on the wrong breast.
-assert.ok(xOf('left_chest') < CENTRE,
-  `left chest must render left of centre on a front view, got ${xOf('left_chest')}`);
-assert.ok(xOf('right_chest') > CENTRE,
-  `right chest must render right of centre, got ${xOf('right_chest')}`);
+const TOPS: TopType[] = ['polo', 'shirt', 'blazer'];
 
-// 2. The two chest positions must be mirror images, not arbitrary points.
-assert.equal(
-  CENTRE - xOf('left_chest'),
-  xOf('right_chest') - CENTRE,
-  'chest positions must be symmetric about the centre line',
-);
+// 1. On a front view the wearer's left chest faces the viewer's left-hand
+// side of the drawing -- a LOWER x -- and the right chest mirrors it. Getting
+// this backwards put the badge on the wrong breast.
+for (const top of TOPS) {
+  const left = placementFor(top, 'left_chest')!;
+  const right = placementFor(top, 'right_chest')!;
+  assert.ok(left.x < CENTRE, `${top}: left chest must sit left of centre, got ${left.x}`);
+  assert.ok(right.x > CENTRE, `${top}: right chest must sit right of centre, got ${right.x}`);
+  assert.equal(CENTRE - left.x, right.x - CENTRE,
+    `${top}: chest positions must be symmetric about the centre line`);
+}
 
-// 3. A back logo sits on the centre line.
-assert.equal(xOf('back'), CENTRE, 'a back logo belongs on the centre seam');
+// 2. A back print sits on the centre seam.
+for (const top of TOPS) {
+  assert.equal(placementFor(top, 'back')!.x, CENTRE,
+    `${top}: a back logo belongs on the centre seam`);
+}
 
-// 4. The sleeve badge must sit clear of the cuff band -- a badge sitting on
-// a white cuff was the "square on the sleeve" report. The left cuff is the
-// quad (36,60)(48,82)(59,71)(47,49); its upper-right edge runs (47,49) to
-// (59,71), so at the badge's own baseline the cuff ends well left of 59.
-const sleeveX = xOf('sleeve');
-const num = (key: string, field: string) =>
-  Number(src.match(new RegExp(`${key}:\\s*\\{[^}]*${field}:\\s*([\\d.]+)`))![1]);
-const sleeveW = num('sleeve', 'w');
-const sleeveY = num('sleeve', 'y');
-// Where the cuff's slanted edge sits at that height.
-const cuffEdgeAtY = 47 + (59 - 47) * (sleeveY - 49) / (71 - 49);
-assert.ok(sleeveX - sleeveW / 2 >= cuffEdgeAtY,
-  `sleeve badge starts at ${sleeveX - sleeveW / 2}, but the cuff reaches ` +
-  `x=${cuffEdgeAtY.toFixed(1)} at y=${sleeveY}`);
+// 3. Every badge fits inside the gap it is placed in, on every top. This is
+// the assertion a single shared coordinate could not satisfy: the blazer's
+// chest panel is half the shirt's and sits further out, because the lapel
+// crosses exactly where a shirt's placket-to-armhole panel is.
+for (const top of TOPS) {
+  const a = ANATOMY[top];
 
-// 5. Every placement carries a width and size, so a long company name is
-// scaled to its placement instead of running off the garment.
-for (const key of ['left_chest', 'right_chest', 'sleeve', 'back']) {
-  const entry = src.match(new RegExp(`${key}:\\s*\\{([^}]*)\\}`))![1];
-  assert.match(entry, /w:\s*[\d.]+\s*(,|$)/, `${key} needs a width to scale text into`);
-  assert.match(entry, /size:\s*[\d.]+\s*(,|$)/, `${key} needs a font size`);
+  const chest = placementFor(top, 'left_chest')!;
+  assert.ok(chest.x - chest.w / 2 >= a.chestOuterX,
+    `${top}: chest badge starts at ${chest.x - chest.w / 2}, outboard of the armhole at ${a.chestOuterX}`);
+  assert.ok(chest.x + chest.w / 2 <= a.chestInnerX,
+    `${top}: chest badge ends at ${chest.x + chest.w / 2}, over the placket/lapel at ${a.chestInnerX}`);
+
+  const sleeve = placementFor(top, 'sleeve')!;
+  assert.ok(sleeve.x - sleeve.w / 2 >= a.sleeveOuterX,
+    `${top}: sleeve badge starts at ${sleeve.x - sleeve.w / 2}, outside the sleeve edge at ${a.sleeveOuterX}`);
+  assert.ok(sleeve.x + sleeve.w / 2 <= a.armholeX,
+    `${top}: sleeve badge ends at ${sleeve.x + sleeve.w / 2}, past the armhole seam at ${a.armholeX}`);
+}
+
+// 4. The blazer is the case that proves the placement is per-garment: its
+// chest badge must sit outboard of where a shirt's does, because the lapel
+// takes the inboard half of the panel.
+assert.ok(placementFor('blazer', 'left_chest')!.x < placementFor('shirt', 'left_chest')!.x,
+  'a blazer chest badge sits further out than a shirt one, clear of the lapel');
+assert.ok(placementFor('blazer', 'sleeve')!.x < placementFor('shirt', 'sleeve')!.x,
+  'a blazer sleeve badge sits further out, matching its narrower armhole');
+
+// A garment that carries no logo has no placement at all.
+assert.equal(placementFor('chino', 'left_chest'), undefined, 'a trouser has no chest');
+
+// 5. Every placement carries a usable width and a legible size, so a long
+// company name is scaled into its placement instead of running off the
+// garment -- and is never scaled into nothing.
+for (const top of TOPS) {
+  for (const key of ['left_chest', 'right_chest', 'sleeve', 'back'] as const) {
+    const p = placementFor(top, key)!;
+    assert.ok(p.w > 8, `${top}/${key}: ${p.w} is too narrow to set a name in`);
+    assert.ok(p.size >= 4.5, `${top}/${key}: ${p.size}px is below legible`);
+  }
 }
 // Long names are squeezed into the placement; short ones are left alone,
 // since textLength stretches as readily as it shrinks.
@@ -68,6 +83,13 @@ assert.match(src, /text\.length > spot\.w/,
 assert.match(src, /fill=\{logo\?\.colour \?\? readableOn\(/,
   'logo colour must come from the spec, falling back to something readable');
 assert.match(src, /function readableOn/, 'the fallback has to be defined');
+
+// Fit is the only one of these options that changes the silhouette. Sizes
+// stay in the order table and gender selects a production block.
+assert.match(src, /const FIT_WIDTH = \{ slim: 0\.92, regular: 1, relaxed: 1\.08 \}/,
+  'fit needs three distinct width multipliers');
+assert.match(src, /scale\(\$\{width\} 1\)/,
+  'the renderer must apply fit horizontally without changing garment height');
 
 // 7. Only a back placement flips the view. Anything else stays front-on,
 // otherwise the garment reads as transparent.

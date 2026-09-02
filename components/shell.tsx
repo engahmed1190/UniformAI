@@ -103,7 +103,6 @@ export function Sidebar({
 
       {/* The full rail: every destination, shown from tablet width up. */}
       <nav className={s.nav} aria-label={t(locale, 'nav.sections')}>
-        <div className={s.navLabel}>{t(locale, 'nav.workspace')}</div>
         {NAV.map(([id, key]) => (
           <NavButton key={id} id={id} label={t(locale, key)} current={page === id}
             count={counts[id]} onNavigate={onNavigate} />

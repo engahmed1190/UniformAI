@@ -3,7 +3,9 @@
 // the number on the order.
 // ponytail: one order, kept in localStorage. A list when the demo needs two.
 
-import { type Concept, type GarmentType, type LogoMethod, type LogoPosition, gradeName } from './spec';
+import {
+  type Concept, type GarmentType, type LogoMethod, type LogoPosition, type SizePlan, gradeName,
+} from './spec';
 
 /** A line stores what it IS, never a rendered sentence: an order placed in
  *  Arabic and reopened in English has to read in the language on screen, and
@@ -34,6 +36,7 @@ export type Order = {
   due: Date;
   /** Index into STAGES: where the order is right now. */
   stage: number;
+  sizePlan?: SizePlan;
   lines: OrderLine[];
 };
 
@@ -85,6 +88,7 @@ export function placeOrder(
   perPerson: number,
   now = new Date(),
   stage = 1,
+  sizePlan?: SizePlan,
 ): Order {
   const lines: OrderLine[] = concept.garments.map((g, i) => ({
     qty: sets,
@@ -105,7 +109,7 @@ export function placeOrder(
     id: `SO-${now.getFullYear()}-${seq(now)}`,
     name: concept.name,
     concept, staff, sets, perPerson,
-    total: perPerson * sets,
+    total: perPerson * sets, sizePlan,
     placed: now, due, stage, lines,
   };
 }

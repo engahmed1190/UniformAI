@@ -106,6 +106,24 @@ const en = {
     setsLine: '{price} per person · {sets} sets (incl. {spare} spare)',
     setsLineNoSpare: '{price} per person · {sets} sets',
   },
+  /* The designer's own proposals. Each `ask*` is fed verbatim to refine(),
+     so these are not labels: they are working sentences, and changing one
+     changes what the button does. Keep them in the parser's vocabulary. */
+  suggest: {
+    title: 'I would change this',
+    open: 'Talk to your designer',
+    askPerformance: 'Use the performance knit',
+    askTwill: 'Use the brushed twill',
+    askWorsted: 'Use the fine worsted cloth',
+    askStandard: 'Use the standard cloth',
+    askLogoWhite: 'Make the logo white',
+    askLogoNavy: 'Make the logo navy',
+    whyHeat: 'Your brief mentions heat, and this is quoted on cloth that holds it. Wicking knit adds {delta} a person — {total} across {sets} sets.',
+    whyDurable: 'Standard weave goes at the knees on site work. The brushed twill adds {delta} a person — {total} across {sets} sets.',
+    whyFormal: 'Front of house reads the cloth before the cut. Fine worsted adds {delta} a person — {total} across {sets} sets.',
+    whyBudget: 'You mentioned budget and this is quoted above the standard grade. Dropping back saves {delta} a person — {total} across {sets} sets.',
+    whyLogo: 'A {logo} logo on a {body} body is there but unreadable from a few paces.',
+  },
   quote: {
     title: 'Your quote', validFor: 'Held for 30 days.',
     branding: 'Branding', upgrade: 'upgrade', sets: 'Sets',
@@ -433,6 +451,27 @@ const ar: Dict<typeof en> = {
     setsLineNoSpare: '{price} للفرد · {sets} طقم',
   },
 
+  suggest: {
+    title: 'اقتراح المصمم',
+    open: 'تحدّث إلى المصمم',
+
+    askPerformance: 'اختيار الخامة عالية الأداء',
+    askTwill: 'اختيار خامة أكثر متانة',
+    askWorsted: 'اختيار الخامة الرسمية',
+    askStandard: 'اختيار الخامة القياسية',
+    askLogoWhite: 'تغيير الشعار إلى الأبيض',
+    askLogoNavy: 'تغيير الشعار إلى الكحلي',
+
+    whyHeat: 'بناءً على طبيعة العمل في أجواء حارة، نوصي بخامة عالية الأداء لراحة وتهوية أفضل. تزيد التكلفة بمقدار {delta} للفرد، بإجمالي {total} لـ {sets} طقم.',
+
+    whyDurable: 'للاستخدام الميداني المتكرر، نوصي بخامة التويل لمتانتها وتحملها الأفضل. تزيد التكلفة بمقدار {delta} للفرد، بإجمالي {total} لـ {sets} طقم.',
+
+    whyFormal: 'للأدوار التي تتطلب مظهرًا أكثر رسمية أمام العملاء، نوصي بالخامة الرسمية لمظهر أكثر أناقة واحترافية. تزيد التكلفة بمقدار {delta} للفرد، بإجمالي {total} لـ {sets} طقم.',
+
+    whyBudget: 'للحفاظ على الميزانية، يمكنك اختيار الخامة القياسية دون التأثير على الشكل الأساسي للزي. سيوفر ذلك {delta} للفرد، بإجمالي {total} لـ {sets} طقم.',
+
+    whyLogo: 'لون شعار {logo} لا يوفر تباينًا كافيًا مع لون القماش {body}، مما يقلل من وضوح الشعار. نوصي بتغيير لونه لتحسين ظهوره.',
+  },
   quote: {
     title: 'عرض السعر',
     validFor: 'عرض السعر صالح لمدة 30 يومًا من تاريخ الإصدار.',

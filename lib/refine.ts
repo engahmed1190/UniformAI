@@ -25,7 +25,7 @@ export const SWATCHES: [hex: string, name: string][] = [
 
 /** The colour word in the buyer's language. colourName() answers in English
  *  because the parser matches on English; this is what gets read back. */
-function swatchWord(locale: Locale, hex: string): string {
+export function swatchWord(locale: Locale, hex: string): string {
   const name = colourName(hex);
   const near = /^Close to (.+)$/.exec(name);
   return near
@@ -147,6 +147,9 @@ const AR_WORDS: [RegExp, string][] = [
   [/ميداني|ميدانية|المواقع/g, ' performance '],
   [/ممشط/g, ' combed '],
   [/تويل|مبروش/g, ' twill '],
+  // "a more hard-wearing cloth" is how a buyer asks for the twill; naming the
+  // weave is our vocabulary, not theirs.
+  [/متانة|أمتن|متين|متينة/g, ' twill '],
   [/رسمي|رسمية|أنيق/g, ' worsted '],
   [/قياسية|عادية|أساسية|أرخص/g, ' standard '],
   [/ترقية|أنعم|أفخم/g, ' upgrade '],

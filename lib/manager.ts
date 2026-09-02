@@ -41,7 +41,7 @@ export function readBrief(text: string): BriefRead {
   return {
     heat: HEAT.test(s),
     outdoor: /\b(site|field|outdoor|warehouse|yard|driver)\b/.test(s)
-      || /موقع|ميدان|مستودع|مخزن|ساحة|سائق|خارجي/.test(s),
+      || /موقع|مواقع|ميدان|مستودع|مخزن|ساحة|سائق|خارجي/.test(s),
     formal: /\b(formal|smart|front desk|reception|client|corporate|office)\b/.test(s)
       || /رسمي|رسمية|استقبال|عملاء|مؤسسي|مكتب|أنيق/.test(s),
     budget: /\b(budget|cheap|affordable|cost|tight)\b/.test(s)
@@ -218,12 +218,26 @@ function heatWord(locale: Locale, brief: string): string {
 const capFor = (locale: Locale, s: string) =>
   (locale === 'ar' ? s : s.charAt(0).toUpperCase() + s.slice(1));
 
-function isLight(hex: string): boolean {
-  if (!/^#[0-9a-f]{6}$/i.test(hex)) return false;
+/** WCAG relative luminance. An unparseable hex reads as black rather than
+ *  throwing: a colour we cannot measure should not take down the advice. */
+function lum(hex: string): number {
+  if (!/^#[0-9a-f]{6}$/i.test(hex)) return 0;
   const n = parseInt(hex.slice(1), 16);
   const [r, g, b] = [n >> 16 & 255, n >> 8 & 255, n & 255].map((c) => c / 255);
   const f = (c: number) => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4);
-  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b) > 0.5;
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+
+export function isLight(hex: string): boolean {
+  return lum(hex) > 0.5;
+}
+
+/** WCAG contrast ratio: 1 is two identical colours, 21 is black on white.
+ *  A logo under about 2 against its own garment is printed and still
+ *  unreadable from across a room, which no swatch picker will tell you. */
+export function contrast(a: string, b: string): number {
+  const [hi, lo] = [lum(a), lum(b)].sort((p, q) => q - p);
+  return (hi + 0.05) / (lo + 0.05);
 }
 
 /** Kept for the kit list: what this kit is for, not what is in it. */

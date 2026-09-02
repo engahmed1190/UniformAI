@@ -1355,6 +1355,12 @@
   position: sticky;
   bottom: 0;
   z-index: 20;
+  /* How much room the panel may take. A percentage is no use here: the dock
+     is sticky inside the scroller but its containing block is the page
+     content, which is far taller than the window. Measured instead -- the
+     scroller runs from under the top bar to above the price bar, and on a
+     phone that bar wraps to two rows. */
+  --dock-room: calc(100dvh - 150px);
   display: flex;
   justify-content: flex-end;
   /* Only the panel itself catches clicks; the empty track beside it does not. */
@@ -1365,6 +1371,12 @@
 .dockPanel {
   pointer-events: auto;
   width: min(420px, 100%);
+  /* Header and composer are fixed; the transcript takes what is left. Left
+     to its content height the panel outgrew the space on a phone and pushed
+     its own header -- and the close button -- off the top of the screen. */
+  display: flex;
+  flex-direction: column;
+  max-height: var(--dock-room);
   background: var(--accent-soft);
   border: 1px solid rgba(15, 107, 98, 0.22);
   border-radius: var(--r-lg);
@@ -1413,6 +1425,7 @@
 }
 
 .dockHead {
+  flex: none;
   display: flex;
   align-items: center;
   gap: var(--s2);
@@ -1445,6 +1458,10 @@
 /* Pinned under the transcript. A composer you have to scroll to find is a
    form at the bottom of a page, not a chat. */
 .dockFoot {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
   padding: var(--s3);
   border-top: 1px solid rgba(15, 107, 98, 0.22);
   background: var(--accent-soft);
@@ -1461,8 +1478,29 @@
   flex-direction: column;
   gap: var(--s3);
   padding: var(--s3);
-  max-height: min(58dvh, 480px);
+  /* Always room for a couple of lines of conversation. Pinned
+     recommendations are worth their space, but not all of it. */
+  flex: 1 1 auto;
+  min-height: 88px;
+  max-height: 480px;
   overflow-y: auto;
+  /* A classic scrollbar with stepper arrows is most of a centimetre of chrome
+     inside a 341px panel. Thin and quiet, in both engines. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(15, 107, 98, 0.3) transparent;
+}
+
+.ask::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ask::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ask::-webkit-scrollbar-thumb {
+  background: rgba(15, 107, 98, 0.3);
+  border-radius: 3px;
 }
 
 /* The note already sits inside the card, so it drops its own separator. */
@@ -1472,44 +1510,11 @@
   padding-top: 0;
 }
 
-/* A proposal is a button, not a bullet: the sentence is the ask that gets
-   submitted, and the line under it is why, with the number attached. */
-.tips {
-  display: flex;
-  flex-direction: column;
-  gap: var(--s2);
-}
-
-.tip {
-  display: block;
-  width: 100%;
-  text-align: start;
-  background: var(--surface);
-  border: 1px solid rgba(15, 107, 98, 0.24);
-  border-radius: var(--r);
-  padding: var(--s2) var(--s3);
-  cursor: pointer;
-  transition: border-color 0.12s, box-shadow 0.12s;
-}
-
-.tip:hover {
-  border-color: var(--accent);
-  box-shadow: 0 1px 6px rgba(15, 107, 98, 0.14);
-}
-
-.tipAsk {
-  display: block;
-  font-size: var(--t-sm);
+/* A recommendation still reads as one: same chip, marked. The reason with
+   its number rides along as the title, since the row has no room for it. */
+.chipTip {
+  border-color: var(--accent) !important;
   font-weight: 600;
-  color: var(--accent);
-}
-
-.tipWhy {
-  display: block;
-  font-size: var(--t-xs);
-  color: var(--text-2);
-  line-height: 1.5;
-  margin-top: 2px;
 }
 
 .askHead {
@@ -1627,7 +1632,6 @@
 .askChips {
   display: flex;
   gap: var(--s2);
-  margin-top: var(--s2);
   overflow-x: auto;
   scrollbar-width: none;
   /* Both ends, so it holds in Arabic too: a chip cut off at a hard edge reads
@@ -2076,6 +2080,9 @@
 @media (max-width: 760px) {
   .dock {
     padding-bottom: var(--s3);
+    /* The price bar wraps to two rows at this width, and the tab bar sits
+       below it. */
+    --dock-room: calc(100dvh - 270px);
   }
   .dockPanel {
     width: 100%;

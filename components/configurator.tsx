@@ -1,7 +1,7 @@
 'use client';
 
 import { Check } from './check';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import s from '@/app/ui.module.css';
 import { GarmentSvg, isTop, logoGarmentIndex } from './garments';
 import { SWATCHES, colourName, refine } from '@/lib/refine';
@@ -91,7 +91,7 @@ export function Configurator({
   // Closed by default: the bar still carries the advice and the count, so the
   // designer is present at every step without covering the thing being made.
   const [open, setOpen] = useState(false);
-  const logEnd = useRef<HTMLDivElement>(null);
+  const body = useRef<HTMLDivElement>(null);
 
   const topIdx = logoGarmentIndex(concept.garments);
   const per = perPerson;
@@ -125,6 +125,24 @@ export function Configurator({
     () => quickAsks(locale, concept, grades, spare, step, tips.map((x) => x.ask)),
     [locale, concept, grades, spare, step, tips],
   );
+
+  // One row for the composer: what the designer recommends, then the rest of
+  // the useful asks for this step. A recommendation carries its reason.
+  const chips = useMemo(
+    () => [
+      ...tips.map((x) => ({ ask: x.ask, why: x.why })),
+      ...quick.map((ask) => ({ ask, why: '' })),
+    ],
+    [tips, quick],
+  );
+
+  // The newest turn is always at the end, so the bottom is always what to
+  // show. scrollIntoView({block:'nearest'}) moved the minimum distance and
+  // left the last message a few pixels under the fold.
+  useEffect(() => {
+    const el = body.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [log, open]);
 
   function toggleGarment(type: GarmentType) {
     const at = concept.garments.findIndex((g) => g.type === type);
@@ -164,7 +182,6 @@ export function Configurator({
       });
     }
     setLog((l) => [...l, ...next]);
-    requestAnimationFrame(() => logEnd.current?.scrollIntoView({ block: 'nearest' }));
   }
 
   return (
@@ -631,41 +648,40 @@ export function Configurator({
               </button>
             </div>
 
-            <div className={s.ask}>
-              {/* The advice opens the conversation, so it reads as the first
-                  thing said rather than a banner bolted above a chat. */}
+            {/* A transcript, and nothing else in it: the designer opens with
+                what it makes of this step, then it is your words and its
+                replies. */}
+            <div className={s.ask} ref={body}>
               {advice && <div className={`${s.msg} ${s.msgApp}`}>{advice}</div>}
+              {log.map((m, i) => (
+                <div key={i} className={`${s.msg} ${m.who === 'you' ? s.msgYou : s.msgApp}`}>
+                  {m.text}
+                  {m.patch && <span className={s.patch}>{m.patch}</span>}
+                </div>
+              ))}
+            </div>
 
-              {tips.length > 0 && (
-                <div className={s.tips}>
-                  {tips.map((tip) => (
+            <div className={s.dockFoot}>
+              {/* Quick replies above the input, the way a chat does it. What
+                  the designer would actually recommend comes first and is
+                  marked; the rest are the useful asks from this step. All of
+                  them are gated the same way, so none is ever a no-op. */}
+              {chips.length > 0 && (
+                <div className={s.askChips}>
+                  {chips.map((c) => (
                     <button
-                      key={tip.ask}
+                      key={c.ask}
                       type="button"
-                      className={s.tip}
-                      onClick={() => submitAsk(tip.ask, false)}
+                      className={c.why ? s.chipTip : undefined}
+                      title={c.why || undefined}
+                      onClick={() => submitAsk(c.ask, false)}
                     >
-                      <span className={s.tipAsk}>{tip.ask}</span>
-                      <span className={s.tipWhy}>{tip.why}</span>
+                      {c.ask}
                     </button>
                   ))}
                 </div>
               )}
 
-              {log.length > 0 && (
-                <div className={s.askLog}>
-                  {log.map((m, i) => (
-                    <div key={i} className={`${s.msg} ${m.who === 'you' ? s.msgYou : s.msgApp}`}>
-                      {m.text}
-                      {m.patch && <span className={s.patch}>{m.patch}</span>}
-                    </div>
-                  ))}
-                  <div ref={logEnd} />
-                </div>
-              )}
-            </div>
-
-            <div className={s.dockFoot}>
               <form
                 className={s.askForm}
                 onSubmit={(e) => {
@@ -693,15 +709,6 @@ export function Configurator({
                   </svg>
                 </button>
               </form>
-              {/* Quick replies, in the sense a chat means it: the things worth
-                  asking for from here, not a fixed list of four. */}
-              {quick.length > 0 && (
-                <div className={s.askChips}>
-                  {quick.map((q) => (
-                    <button key={q} type="button" onClick={() => submitAsk(q, false)}>{q}</button>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         ) : (

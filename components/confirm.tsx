@@ -66,16 +66,16 @@ function ConfirmDialog({
   return (
     <dialog
       ref={ref}
-      className={s.modal}
+      className={s.confirmCard}
       aria-labelledby="confirmTitle"
       // Escape closes the dialog natively; that is an answer of "no".
       onCancel={() => onSettle(false)}
     >
-      <h2 className={s.modalTitle} id="confirmTitle">{ask.title}</h2>
-      <div className={s.modalBody}>
+      <h2 className={s.confirmTitle} id="confirmTitle">{ask.title}</h2>
+      <div className={s.confirmBody}>
         {ask.message.split('\n\n').map((para, i) => <p key={i}>{para}</p>)}
       </div>
-      <div className={s.modalActions}>
+      <div className={s.confirmActions}>
         {/* Cancel takes focus: the safe answer should be the one a stray
             Enter picks, since these questions guard work you cannot undo. */}
         <button type="button" autoFocus className={`${s.btn} ${s.btnSecondary}`}

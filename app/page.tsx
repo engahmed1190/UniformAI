@@ -990,56 +990,73 @@ function Quote({
           <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onClose}>{t(locale, 'common.close')}</button>
         </div>
         <div className={s.modalBody}>
-          {/* Each garment carries its own cloth and its own upgrade, so the
-              row a buyer queries is the row that explains itself. */}
+          {/* Items first, then what the kit is made to. Both lists are priced
+              per set -- the sets row below is what turns that into the total. */}
+          <p className={s.quoteHead}>{t(locale, 'quote.itemsHead')}</p>
           {concept.garments.map((g, i) => {
             const grade = grades[i] ?? 0;
             const delta = gradesFor(g.type)[grade]?.delta ?? 0;
             return (
               <div className={s.quoteLine} key={i}>
-                <span>{t(locale, `garments.${g.type}`)}<div className={s.sub}>
+                <span>{t(locale, `garments.${g.type}`)}<span className={s.sub}>
                   {gradeName(g, grade)}{delta > 0 && ` · ${t(locale, 'quote.upgrade')} +${delta}`}
-                </div></span>
+                </span></span>
                 <b>{money(g.unitPrice + delta)}</b>
               </div>
             );
           })}
-          <div className={s.quoteLine}>
-            <span>{t(locale, 'quote.cutRange')}<div className={s.sub}>
-              {t(locale, `cuts.${cutKey}`)}
-            </div></span>
-            <b>—</b>
+          {/* Only a charge belongs in the priced list. Unbranded, this row
+              moves to the specification below rather than showing a dash. */}
+          {branding > 0 && (
+            <div className={s.quoteLine}>
+              <span>{t(locale, 'quote.branding')}<span className={s.sub}>
+                {`${t(locale, `branding.${concept.logo.method}`)}, ${t(locale, `branding.${concept.logo.position}`)}`}
+              </span></span>
+              <b>{money(branding)}</b>
+            </div>
+          )}
+          <div className={`${s.quoteLine} ${s.quoteSubtotal}`}>
+            <span>{t(locale, 'quote.perSet')}</span>
+            <b>{money(per)}</b>
           </div>
-          <div className={s.quoteLine}>
-            <span>{t(locale, 'quote.fitProfile')}<div className={s.sub}>
+
+          {/* No price column here: these rows describe the kit, they do not
+              add to it, and a column of em dashes read as missing numbers. */}
+          <p className={s.quoteHead}>{t(locale, 'quote.specHead')}</p>
+          {branding === 0 && (
+            <div className={s.quoteSpec}>
+              <span>{t(locale, 'quote.branding')}</span>
+              <span className={s.sub}>{t(locale, 'common.none')}</span>
+            </div>
+          )}
+          <div className={s.quoteSpec}>
+            <span>{t(locale, 'quote.cutRange')}</span>
+            <span className={s.sub}>{t(locale, `cuts.${cutKey}`)}</span>
+          </div>
+          <div className={s.quoteSpec}>
+            <span>{t(locale, 'quote.fitProfile')}</span>
+            <span className={s.sub}>
               {concept.garments.map((g) => `${t(locale, `garments.${g.type}`)}: ${
                 t(locale, `fits.${g.fit ?? 'regular'}`)}`).join(' · ')}
-            </div></span>
-            <b>—</b>
+            </span>
           </div>
-          <div className={s.quoteLine}>
-            <span>{t(locale, 'quote.sizing')}<div className={s.sub}>
+          <div className={s.quoteSpec}>
+            <span>{t(locale, 'quote.sizing')}</span>
+            <span className={s.sub}>
               {sizePlan.mode === 'collect_later'
                 ? t(locale, 'sizing.collectQuote')
                 : t(locale, 'sizing.allocatedQuote', { count: assigned })}
-            </div></span>
-            <b>{sizePlan.mode === 'allocate_now' ? `${assigned}/${sets}` : '—'}</b>
+              {sizePlan.mode === 'allocate_now' && ` · ${assigned}/${sets}`}
+            </span>
           </div>
-          <div className={s.quoteLine}>
-            <span>{t(locale, 'quote.branding')}<div className={s.sub}>
-              {concept.logo.position === 'none'
-                ? t(locale, 'common.none')
-                : `${t(locale, `branding.${concept.logo.method}`)}, ${t(locale, `branding.${concept.logo.position}`)}`}
-            </div></span>
-            <b>{branding ? money(branding) : '—'}</b>
-          </div>
-          <div className={s.quoteLine}>
-            <span>{t(locale, 'quote.sets')}<div className={s.sub}>
+
+          <div className={`${s.quoteLine} ${s.quoteSets}`}>
+            <span>{t(locale, 'quote.sets')}<span className={s.sub}>
               {spareSets > 0
                 ? t(locale, 'quote.coversPeople', { people: staff, spare: spareSets })
                 : t(locale, 'quote.coversNoSpare', { people: staff })}
-            </div></span>
-            <b>{sets}</b>
+            </span></span>
+            <b>{`\u00d7 ${sets}`}</b>
           </div>
           <div className={s.quoteTotal}>
             <span>{t(locale, 'quote.total')}</span>

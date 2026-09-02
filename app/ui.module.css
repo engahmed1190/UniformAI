@@ -3102,15 +3102,17 @@
   font-size: var(--t-base);
 }
 
-/* On a phone the bar is tight: the name goes, the code stays. A two-letter
-   tab is still unambiguous, and it keeps a 44px target. */
+/* On a phone the top bar is tight: the language name goes, the two-letter
+   code stays, and that is still unambiguous. Scoped to the bar -- unscoped,
+   it also blanked the settings dropdowns, where there is no code to fall
+   back on and the industry field showed an empty box with a chevron. */
 @media (max-width: 719px) {
-  .selTrigger {
+  .topRight .selTrigger {
     height: 36px;
     padding: 0 var(--s2);
   }
 
-  .selValue {
+  .topRight .selValue {
     display: none;
   }
 }

@@ -759,7 +759,10 @@ const ar: Dict<typeof en> = {
     logoColour: 'تم تغيير لون الشعار إلى {colour}.',
     logoMethod: 'تم تغيير طريقة تنفيذ الشعار إلى {method}.',
     logoPlace: 'تم نقل الشعار إلى {place}.',
-    and: ' و',
+    // A space after the waw. Arabic attaches it to the next word, but these
+    // join catalogue cloth names, which are Latin: "GSM وCotton Twill" runs
+    // the conjunction into the name.
+    and: ' و ',
     or: ' أو ',
     updatedBranding: 'تم تحديث إعدادات الشعار.',
     bothFollow: 'تم تحديث المعاينة والسعر وفقًا للتعديلات.',
@@ -793,7 +796,21 @@ export function t(
   }
   if (!values) return found;
   return found.replace(/\{(\w+)\}/g, (m, name) =>
-    (name in values ? String(values[name]) : m));
+    (name in values ? isolate(locale, String(values[name])) : m));
+}
+
+/** Latin dropped into an Arabic sentence -- a cloth name like "Wool Blend 260
+ *  GSM" -- is reordered by the bidi algorithm against the run around it, and
+ *  comes out scrambled: "Wool Blend 260g Cotton Twill 240 GSMg GSM" on screen
+ *  from three perfectly ordered names. U+2068/U+2069 isolate the run so it is
+ *  laid out on its own and placed as a unit.
+ *
+ *  Only where it can matter: an Arabic sentence, and a value that actually
+ *  carries Latin. English needs none of this, and the characters are
+ *  invisible but still characters -- a value quoted back inside guillemets
+ *  should stay something a reader, or a test, can match on. */
+export function isolate(locale: Locale, value: string): string {
+  return locale === 'ar' && /[A-Za-z]/.test(value) ? `\u2068${value}\u2069` : value;
 }
 
 /** Egyptian business software shows 28,896 and EGP -- not ٢٨٬٨٩٦ -- so both

@@ -24,7 +24,10 @@ import {
   gradesFor, gradeName,
 } from '@/lib/spec';
 
-type Msg = { who: 'you' | 'app'; text: string; patch?: string };
+// No patch line. The drawing and the price change in front of you, which is
+// the proof that matters; "shirt.fabric = Cotton Poplin 130 GSM" is the
+// program talking about itself in the middle of a conversation.
+type Msg = { who: 'you' | 'app'; text: string };
 
 
 const STEPS = ['outfit', 'fit', 'colours', 'branding', 'sizes'] as const;
@@ -174,7 +177,7 @@ export function Configurator({
       if (applied.concept !== concept) onChange(applied.concept);
       if (applied.grades) { onGradesChange(applied.grades); if (jump) setStep(1); }
       if (applied.spare !== undefined) { onSpareChange(applied.spare); if (jump) setStep(4); }
-      next.push({ who: 'app', text: applied.note, patch: applied.patch });
+      next.push({ who: 'app', text: applied.note });
     } else {
       next.push({
         who: 'app',
@@ -656,7 +659,6 @@ export function Configurator({
               {log.map((m, i) => (
                 <div key={i} className={`${s.msg} ${m.who === 'you' ? s.msgYou : s.msgApp}`}>
                   {m.text}
-                  {m.patch && <span className={s.patch}>{m.patch}</span>}
                 </div>
               ))}
             </div>

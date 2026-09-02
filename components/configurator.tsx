@@ -6,6 +6,7 @@ import s from '@/app/ui.module.css';
 import { GarmentSvg, isTop, logoGarmentIndex } from './garments';
 import { SWATCHES, colourName, refine } from '@/lib/refine';
 import { stepAdvice } from '@/lib/manager';
+import { suggestions } from '@/lib/suggest';
 import { type Locale, formatCurrency, kitName, t } from '@/lib/i18n';
 
 /** colourName() answers in English -- it is shared with the parser. Turn its
@@ -15,7 +16,6 @@ function swatchLabel(locale: Locale, name: string): string {
   if (near) return t(locale, 'colours.closeTo', { name: t(locale, `colours.${near[1]}`) });
   return t(locale, `colours.${name}`);
 }
-import { ManagerNote } from './manager';
 import {
   type Concept, type GarmentCut, type GarmentFit, type GarmentType,
   type LogoMethod, type LogoPosition, type SizePlan,
@@ -88,6 +88,9 @@ export function Configurator({
   const [focus, setFocus] = useState(0); // garment being configured
   const [log, setLog] = useState<Msg[]>([]);
   const [draft, setDraft] = useState('');
+  // Closed by default: the bar still carries the advice and the count, so the
+  // designer is present at every step without covering the thing being made.
+  const [open, setOpen] = useState(false);
   const logEnd = useRef<HTMLDivElement>(null);
 
   const topIdx = logoGarmentIndex(concept.garments);
@@ -100,6 +103,19 @@ export function Configurator({
   const parts = useMemo(
     () => PARTS[focusedGarment?.type] ?? [],
     [concept, focus],
+  );
+
+  // What the designer would change about the kit as it stands. Each one is a
+  // sentence the ask box already understands, so tapping it is indistinguish-
+  // able from typing it -- and one that would change nothing never appears.
+  const advice = stepAdvice(
+    locale, step, concept, Math.max(0, ...grades, 0),
+    brief, staff, spare, sizePlan.mode,
+  );
+
+  const tips = useMemo(
+    () => suggestions(locale, concept, grades, brief, sets),
+    [locale, concept, grades, brief, sets],
   );
 
   function toggleGarment(type: GarmentType) {
@@ -118,7 +134,11 @@ export function Configurator({
     setFocus(next.garments.length - 1);
   }
 
-  function submitAsk(text: string) {
+  /** `jump` follows a typed ask to the control it changed -- proof that the
+   *  words landed. A tapped suggestion prints the same patch line without
+   *  moving anyone: the card is beside the preview, and being thrown back to
+   *  step 2 mid-way through branding is a punishment for taking advice. */
+  function submitAsk(text: string, jump = true) {
     const q = text.trim();
     if (!q) return;
     setDraft('');
@@ -126,8 +146,8 @@ export function Configurator({
     const next: Msg[] = [{ who: 'you', text: q }];
     if (applied) {
       if (applied.concept !== concept) onChange(applied.concept);
-      if (applied.grades) { onGradesChange(applied.grades); setStep(1); }
-      if (applied.spare !== undefined) { onSpareChange(applied.spare); setStep(4); }
+      if (applied.grades) { onGradesChange(applied.grades); if (jump) setStep(1); }
+      if (applied.spare !== undefined) { onSpareChange(applied.spare); if (jump) setStep(4); }
       next.push({ who: 'app', text: applied.note, patch: applied.patch });
     } else {
       next.push({
@@ -140,6 +160,7 @@ export function Configurator({
   }
 
   return (
+    <>
     <div className={s.config}>
         {/* Preview stays put while the steps change beside it. */}
         <div className={s.stage}>
@@ -543,54 +564,6 @@ export function Configurator({
               </>
             )}
 
-            {/* One block, not two: the voice that just gave the advice is the
-                same one taking the request, so the reply field sits under it
-                rather than reading as one more form control. */}
-            <div className={s.ask}>
-              <ManagerNote locale={locale} note={stepAdvice(
-                locale, step, concept, Math.max(0, ...grades, 0),
-                brief, staff, spare, sizePlan.mode,
-              )} />
-
-              {/* Available at every step: describe the change instead of hunting for it. */}
-              <div className={s.askHead}>{t(locale, 'configure.askTitle')}</div>
-              {log.length === 0 && (
-                <p className={s.askHint}>
-                  {t(locale, 'configure.askNote')}
-                </p>
-              )}
-              {log.length > 0 && (
-                <div className={s.askLog}>
-                  {log.map((m, i) => (
-                    <div key={i} className={`${s.msg} ${m.who === 'you' ? s.msgYou : s.msgApp}`}>
-                      {m.text}
-                      {m.patch && <span className={s.patch}>{m.patch}</span>}
-                    </div>
-                  ))}
-                  <div ref={logEnd} />
-                </div>
-              )}
-              <form
-                className={s.askForm}
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  submitAsk(draft);
-                }}
-              >
-                <input
-                  value={draft}
-                  onChange={(e) => setDraft(e.target.value)}
-                  placeholder={t(locale, 'configure.examples').split('|')[0]}
-                  aria-label={t(locale, 'configure.describeChange')}
-                />
-                <button type="submit" className={`${s.btn} ${s.btnSecondary}`}>{t(locale, 'configure.apply')}</button>
-              </form>
-              <div className={s.askChips}>
-                {t(locale, 'configure.examples').split('|').slice(1).map((q) => (
-                  <button key={q} type="button" onClick={() => submitAsk(q)}>{q}</button>
-                ))}
-              </div>
-            </div>
           </div>
 
           <div className={s.stepNav}>
@@ -623,6 +596,121 @@ export function Configurator({
           </div>
         </div>
     </div>
+
+      {/* The designer, as a chat bubble. The preview column is for the
+          clothes; this rides the bottom corner of every step, closed until
+          it is wanted and carrying the count of what it would change. */}
+      <div className={s.dock}>
+        {open ? (
+          <div className={s.dockPanel}>
+            <div className={s.dockHead}>
+              <span className={s.mgrMark} aria-hidden="true">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M5 2.6 8 4.2l3-1.6 2.4 1.2v3.6l-1.7.4V14H4.3V7.8l-1.7-.4V3.8z" />
+                </svg>
+              </span>
+              <span className={s.dockWho}>{t(locale, 'manager.who')}</span>
+              <button
+                type="button"
+                className={s.dockClose}
+                onClick={() => setOpen(false)}
+                aria-label={t(locale, 'common.close')}
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
+                  stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                  <path d="M4 4l8 8M12 4l-8 8" />
+                </svg>
+              </button>
+            </div>
+
+            <div className={s.ask}>
+              {/* The advice opens the conversation, so it reads as the first
+                  thing said rather than a banner bolted above a chat. */}
+              {advice && <div className={`${s.msg} ${s.msgApp}`}>{advice}</div>}
+
+              {tips.length > 0 && (
+                <div className={s.tips}>
+                  {tips.map((tip) => (
+                    <button
+                      key={tip.ask}
+                      type="button"
+                      className={s.tip}
+                      onClick={() => submitAsk(tip.ask, false)}
+                    >
+                      <span className={s.tipAsk}>{tip.ask}</span>
+                      <span className={s.tipWhy}>{tip.why}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {log.length > 0 && (
+                <div className={s.askLog}>
+                  {log.map((m, i) => (
+                    <div key={i} className={`${s.msg} ${m.who === 'you' ? s.msgYou : s.msgApp}`}>
+                      {m.text}
+                      {m.patch && <span className={s.patch}>{m.patch}</span>}
+                    </div>
+                  ))}
+                  <div ref={logEnd} />
+                </div>
+              )}
+            </div>
+
+            <div className={s.dockFoot}>
+              <form
+                className={s.askForm}
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  submitAsk(draft);
+                }}
+              >
+                <input
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder={t(locale, 'configure.examples').split('|')[0]}
+                  aria-label={t(locale, 'configure.describeChange')}
+                />
+                <button
+                  type="submit"
+                  className={s.askSend}
+                  disabled={!draft.trim()}
+                  aria-label={t(locale, 'configure.apply')}
+                >
+                  {/* Up, not sideways: a horizontal arrow reads as send in
+                      English and as back in Arabic, and this icon is shared. */}
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"
+                    stroke="currentColor" strokeWidth="2" aria-hidden="true">
+                    <path d="M8 13V4M4.5 7.5 8 4l3.5 3.5" />
+                  </svg>
+                </button>
+              </form>
+              {/* The canned examples teach the vocabulary. Once the designer has
+                  something specific to say, they are just noise above it. */}
+              {tips.length === 0 && (
+                <div className={s.askChips}>
+                  {t(locale, 'configure.examples').split('|').slice(1).map((q) => (
+                    <button key={q} type="button" onClick={() => submitAsk(q)}>{q}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className={s.bubble}
+            onClick={() => setOpen(true)}
+            aria-label={t(locale, 'suggest.open')}
+          >
+            <svg width="22" height="22" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M5 2.6 8 4.2l3-1.6 2.4 1.2v3.6l-1.7.4V14H4.3V7.8l-1.7-.4V3.8z" />
+            </svg>
+            {tips.length > 0 && <span className={s.bubbleCount}>{tips.length}</span>}
+          </button>
+        )}
+      </div>
+    </>
   );
 }
 

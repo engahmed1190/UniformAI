@@ -565,7 +565,10 @@
   flex-direction: column;
   position: sticky;
   top: 0;
-  /* Fits the frame, so the garments are always fully in view. */
+  /* Definite, not flexed. .stageArea and the SVGs inside it size themselves
+     in percentages, so an auto height leaves them resolving against nothing:
+     the garment falls back to its intrinsic size and a tall cargo trouser
+     bursts the frame. */
   height: min(620px, calc(100dvh - 200px));
 }
 
@@ -1343,15 +1346,123 @@
   align-items: center;
 }
 
+/* ---------- The designer's dock ---------- */
+/* Anchored to the bottom of the scroller, so it is on screen at every step
+   without taking a column off the layout. Sticky rather than fixed: the
+   price bar lives outside this scroller, so the dock stops above it instead
+   of having to know how tall it is. */
+.dock {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  justify-content: flex-end;
+  /* Only the panel itself catches clicks; the empty track beside it does not. */
+  pointer-events: none;
+  padding-bottom: var(--s3);
+}
+
+.dockPanel {
+  pointer-events: auto;
+  width: min(420px, 100%);
+  background: var(--accent-soft);
+  border: 1px solid rgba(15, 107, 98, 0.22);
+  border-radius: var(--r-lg);
+  box-shadow: 0 6px 24px rgba(18, 22, 31, 0.14);
+  overflow: hidden;
+}
+
+/* Closed: a bubble in the corner, with the number of changes it would make.
+   Open: the same conversation, anchored to the same corner. */
+.bubble {
+  /* The dock's track is click-through; the bubble itself must not be. */
+  pointer-events: auto;
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(15, 107, 98, 0.34);
+  transition: transform 0.14s;
+}
+
+.bubble:hover {
+  transform: scale(1.06);
+}
+
+.bubbleCount {
+  position: absolute;
+  top: -2px;
+  inset-inline-end: -2px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  font-size: var(--t-xs);
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.dockHead {
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s3);
+  border-bottom: 1px solid rgba(15, 107, 98, 0.22);
+}
+
+.dockWho {
+  flex: 1;
+  min-width: 0;
+  font-size: var(--t-sm);
+  font-weight: 600;
+}
+
+.dockClose {
+  flex: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  padding: var(--s1);
+  border-radius: var(--r-sm);
+}
+
+.dockClose:hover {
+  background: rgba(15, 107, 98, 0.1);
+  color: var(--text);
+}
+
+/* Pinned under the transcript. A composer you have to scroll to find is a
+   form at the bottom of a page, not a chat. */
+.dockFoot {
+  padding: var(--s3);
+  border-top: 1px solid rgba(15, 107, 98, 0.22);
+  background: var(--accent-soft);
+}
+
 /* ---------- Ask panel ---------- */
 /* The advice and the reply field are one object, on the manager's own ground:
    the person who just spoke is visibly the one listening. As a hairline-ruled
    footnote under the option lists, nobody read this as somewhere to talk. */
+/* The conversation itself: one scrolling column, evenly spaced, so the
+   advice, the proposals and the reply field read as one exchange. */
 .ask {
-  background: var(--accent-soft);
-  border: 1px solid rgba(15, 107, 98, 0.16);
-  border-radius: var(--r-lg);
-  padding: var(--s4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  padding: var(--s3);
+  max-height: min(58dvh, 480px);
+  overflow-y: auto;
 }
 
 /* The note already sits inside the card, so it drops its own separator. */
@@ -1361,53 +1472,94 @@
   padding-top: 0;
 }
 
+/* A proposal is a button, not a bullet: the sentence is the ask that gets
+   submitted, and the line under it is why, with the number attached. */
+.tips {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s2);
+}
+
+.tip {
+  display: block;
+  width: 100%;
+  text-align: start;
+  background: var(--surface);
+  border: 1px solid rgba(15, 107, 98, 0.24);
+  border-radius: var(--r);
+  padding: var(--s2) var(--s3);
+  cursor: pointer;
+  transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+.tip:hover {
+  border-color: var(--accent);
+  box-shadow: 0 1px 6px rgba(15, 107, 98, 0.14);
+}
+
+.tipAsk {
+  display: block;
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.tipWhy {
+  display: block;
+  font-size: var(--t-xs);
+  color: var(--text-2);
+  line-height: 1.5;
+  margin-top: 2px;
+}
+
 .askHead {
   font-size: var(--t-sm);
   font-weight: 600;
-  margin-bottom: var(--s1);
-  margin-top: var(--s3);
   padding-top: var(--s3);
-  border-top: 1px solid rgba(15, 107, 98, 0.16);
+  border-top: 1px solid rgba(15, 107, 98, 0.22);
 }
 
 /* --text-3 clears 4.5:1 on white but not on the tinted ground. */
 .askHint {
   font-size: var(--t-xs);
   color: var(--text-2);
-  margin: 0 0 var(--s3);
+  margin: 0;
   line-height: 1.5;
 }
 
+/* No scroller of its own: the panel body already scrolls, and a box that
+   scrolled inside it hid the start of the conversation. */
 .askLog {
   display: flex;
   flex-direction: column;
   gap: var(--s2);
-  max-height: 168px;
-  overflow-y: auto;
-  margin-top: var(--s3);
-  margin-bottom: var(--s3);
 }
 
 .msg {
   font-size: var(--t-sm);
   line-height: 1.45;
   padding: var(--s2) var(--s3);
-  border-radius: var(--r);
-  max-width: 94%;
+  border-radius: var(--r-lg);
+  max-width: 88%;
+  width: fit-content;
 }
 
+/* The buyer's own words sit opposite the designer's, which is what makes a
+   list of messages read as a conversation rather than a log. The flattened
+   corner is logical, not physical: in Arabic the tail belongs on the other
+   side, and border-bottom-right-radius put it on the wrong one. */
 .msgYou {
   background: var(--accent);
   color: #fff;
   align-self: flex-end;
-  border-bottom-right-radius: 3px;
+  border-end-end-radius: 3px;
 }
 
 .msgApp {
   background: var(--surface);
   border: 1px solid rgba(15, 107, 98, 0.16);
   align-self: flex-start;
-  border-bottom-left-radius: 3px;
+  border-end-start-radius: 3px;
 }
 
 /* Shows exactly which field the request changed. */
@@ -1429,16 +1581,43 @@
 .askForm {
   display: flex;
   gap: var(--s2);
+  align-items: center;
 }
 
 .askForm input {
   flex: 1;
   min-width: 0;
-  padding: var(--s2) var(--s3);
   border: 1px solid rgba(15, 107, 98, 0.22);
-  border-radius: var(--r-sm);
   background: var(--surface);
+  border-radius: 999px;
+  padding: var(--s2) var(--s4);
+  font: inherit;
   font-size: var(--t-sm);
+}
+
+.askForm input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+/* Round, accent, and disabled until there is something to send: the same
+   shape as the bubble that opened the conversation. */
+.askSend {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 0;
+  background: var(--accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.askSend:disabled {
+  background: var(--line-2);
+  cursor: default;
 }
 
 .askChips {
@@ -1878,6 +2057,13 @@
 
 /* ---- Phone: the rail becomes a bottom tab bar ---- */
 @media (max-width: 760px) {
+  .dock {
+    padding-bottom: calc(56px + max(var(--s3), env(safe-area-inset-bottom)));
+  }
+  .dockPanel {
+    width: 100%;
+  }
+
   .app {
     grid-template-columns: 1fr;
     grid-template-rows: 1fr;

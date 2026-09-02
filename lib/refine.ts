@@ -79,6 +79,96 @@ export type Applied = {
   spare?: number;
 };
 
+/** Arabic asks, rewritten into the tokens the English matchers below already
+ *  understand. Every matcher in this file is an English \b-anchored regex, so
+ *  an Arabic request matched nothing and came back "I did not understand" --
+ *  including all four of the example chips the Arabic UI offers.
+ *
+ *  Translating into the parser beats teaching the parser a second language:
+ *  one set of rules stays authoritative, and Arabic cannot drift away from
+ *  English as the vocabulary grows. \b works at an Arabic/Latin junction
+ *  (Arabic letters are not \w), so a token dropped into Arabic still matches.
+ *
+ *  Order matters. Longest first: "بدون شعار" has to be read as "no logo"
+ *  before "شعار" becomes "logo", and "بشعار" has to become " with logo " so
+ *  the clause splitter sees the join that the Arabic writes as a prefix. */
+const AR_WORDS: [RegExp, string][] = [
+  // Negations and joins, before the words they contain.
+  [/بدون شعار|بلا شعار|إزالة الشعار|احذف الشعار/g, ' no logo '],
+  [/بدون احتياطي|بلا احتياطي|دون احتياطي/g, ' no spare '],
+  [/بشعار/g, ' with logo '],
+  [/وشعار/g, ' and logo '],
+  [/،/g, ', '],
+  [/\s+و\s+/g, ' and '],
+
+  // Branding.
+  [/يمين الصدر|الصدر الأيمن/g, ' right chest '],
+  [/شعار|لوجو|العلامة/g, ' logo '],
+  [/تطريز|مطرز/g, ' embroider '],
+  [/طباعة|مطبوع/g, ' print '],
+  [/الأكمام|الكم|كُم/g, ' sleeve '],
+  [/الصدر/g, ' chest '],
+  [/الظهر/g, ' back '],
+
+  // Colours.
+  [/كحلي|أزرق داكن|ازرق|أزرق/g, ' navy '],
+  [/أسود|اسود/g, ' black '],
+  [/فحمي/g, ' charcoal '],
+  [/رملي|بيج/g, ' sand '],
+  [/كريمي/g, ' cream '],
+  [/رمادي/g, ' grey '],
+  [/أبيض|ابيض/g, ' white '],
+  [/زيتي/g, ' olive '],
+  [/أخضر|اخضر/g, ' green '],
+  [/نبيتي|عنابي|خمري/g, ' burgundy '],
+  [/ذهبي|دهبي/g, ' gold '],
+  [/نحاسي/g, ' brass '],
+  [/داكن|غامق/g, ' dark '],
+  [/فاتح/g, ' light '],
+  [/محايد/g, ' neutral '],
+
+  // Garments and their parts.
+  [/قميص/g, ' shirt '],
+  [/بولو/g, ' polo '],
+  [/بليزر|سترة|جاكيت/g, ' blazer '],
+  [/بنطلون|بنطال|سروال/g, ' trouser '],
+  [/تشينو/g, ' chino '],
+  [/كارجو/g, ' cargo '],
+  [/الياقة|ياقة/g, ' collar '],
+  [/الأزرار|أزرار/g, ' buttons '],
+  [/الجيوب|جيوب/g, ' pockets '],
+  [/الأساور|أساور/g, ' cuffs '],
+
+  // Cloth. The Arabic chip asks for a fabric "suitable for hot weather"
+  // rather than naming the grade, which is how a buyer actually says it.
+  [/خامة|قماش|نسيج/g, ' fabric '],
+  [/الحارة|الحار|حارة|حار|الحرارة|صيفية|صيفي/g, ' performance '],
+  [/عالية الأداء|الأداء|أداء/g, ' performance '],
+  [/ميداني|ميدانية|المواقع/g, ' performance '],
+  [/ممشط/g, ' combed '],
+  [/تويل|مبروش/g, ' twill '],
+  [/رسمي|رسمية|أنيق/g, ' worsted '],
+  [/قياسية|عادية|أساسية|أرخص/g, ' standard '],
+  [/ترقية|أنعم|أفخم/g, ' upgrade '],
+
+  // Spare stock.
+  [/احتياطية|احتياطي|إضافية/g, ' spare '],
+  [/بالضبط|تحديدًا|تحديدا/g, ' exactly '],
+];
+
+/** Arabic-Indic digits and the Arabic percent sign, so "١٠٪" counts as "10%". */
+const AR_DIGITS = /[\u0660-\u0669]/g;
+
+/** One request, in the vocabulary the matchers below read. A no-op on English:
+ *  every pattern is Arabic script, so it cannot touch a Latin request. */
+function toParserWords(text: string): string {
+  let out = text
+    .replace(AR_DIGITS, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/٪/g, '%');
+  for (const [re, word] of AR_WORDS) out = out.replace(re, word);
+  return out.replace(/\s+/g, ' ').trim();
+}
+
 const TOP_WORDS = /\b(shirt|polo|top|blazer|jacket|body)\b/;
 const LEG_WORDS = /\b(trouser|trousers|chino|chinos|pant|pants|cargo|leg|legs|bottom)\b/;
 
@@ -274,7 +364,7 @@ export function briefWishes(text: string): {
   said: string | null;
   logo: LogoPosition | null;
 } {
-  const t = text.toLowerCase();
+  const t = toParserWords(text.toLowerCase());
   const said = Object.keys(WORDS).find((w) => new RegExp(`\\b${w}\\b`).test(t)) ?? null;
   const logo: LogoPosition | null =
     /\bno logo|without a logo|unbranded\b/.test(t) ? 'none'
@@ -325,10 +415,13 @@ export function refine(
   currentGrades: number[] = [],
   locale: Locale = 'en',
 ): Applied | null {
-  const parts = clauses(request);
+  // Into the parser's vocabulary first: the splitter reads an Arabic "،" and
+  // a prefixed "بشعار" as the joins they are, not as one long clause.
+  const ask = toParserWords(request);
+  const parts = clauses(ask);
   // One clause is the overwhelming case; keep it on the original path so a
   // simple ask cannot regress behind the splitter.
-  if (parts.length <= 1) return refineOne(concept, request, currentGrades, locale);
+  if (parts.length <= 1) return refineOne(concept, ask, currentGrades, locale);
 
   let next = concept;
   let grades: number[] | undefined;

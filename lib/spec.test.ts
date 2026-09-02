@@ -199,6 +199,32 @@ assert.equal(nonSpec!.spare, 0.1);
 assert.equal(refine(CONCEPTS[1], 'make the trouser navy')!.patch, 'cargo.parts.leg = #1b2a4a');
 console.log('refine: multi-part assertions passed');
 
+// Every matcher in refine.ts is an English \b-anchored regex, so Arabic used
+// to match nothing and every ask came back "I did not understand" -- the four
+// example chips the Arabic UI offers included. A chip the product prints as
+// "try this" has to work, so each one is pinned against its English twin.
+import { translations } from './i18n';
+const enAsks = translations.en.configure.examples.split('|');
+const arAsks = translations.ar.configure.examples.split('|');
+assert.equal(enAsks.length, arAsks.length, 'both languages offer the same examples');
+for (const [i, ask] of arAsks.entries()) {
+  const ar = refine(CONCEPTS[1], ask, [0, 0], 'ar');
+  const en = refine(CONCEPTS[1], enAsks[i], [0, 0], 'en');
+  assert.ok(ar, `the Arabic example "${ask}" is not understood`);
+  assert.equal(ar!.patch, en!.patch, `"${ask}" must edit what its English twin edits`);
+}
+
+// The sentence the Arabic fallback tells people to try must itself parse,
+// and Arabic-Indic digits count as digits.
+assert.ok(refine(CONCEPTS[1], 'غيّر لون البنطلون إلى الكحلي', [0, 0], 'ar'),
+  'the fallback message must suggest something that works');
+assert.equal(refine(CONCEPTS[1], 'أضف ٥٪ أطقم احتياطية', [0, 0], 'ar')!.spare, 0.05,
+  'Arabic-Indic digits are digits');
+// An Arabic comma joins clauses the way "and" does in English.
+assert.match(refine(CONCEPTS[1], 'اجعل البنطلون كحلي، والشعار إلى الكم', [0, 0], 'ar')!.patch,
+  /logo\.position = sleeve/, 'an Arabic comma has to split clauses');
+console.log('refine: Arabic assertions passed');
+
 // "right chest" must not be swallowed by the plain "chest" rule -- in either
 // parser. The refine table matched \bchest\b first; the brief only knew one
 // chest at all.

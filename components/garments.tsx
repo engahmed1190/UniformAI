@@ -1,10 +1,18 @@
 import type { Garment, LogoPosition } from '@/lib/spec';
+import { type Position, placementFor } from '@/lib/placement';
 
 // Hand-authored flat-vector garments on a shared 200x260 canvas. Every
 // colourable region reads its fill from garment.parts, so a spec edit is the
 // only thing that can change a colour.
 
 const STROKE = '#00000022';
+const SEAM = '#00000038';
+
+/** Construction detail stays stroke-only, so it survives every cloth colour
+ * without becoming another editable region in the garment spec. */
+function Seam({ d, w = 1.2 }: { d: string; w?: number }) {
+  return <path d={d} fill="none" stroke={SEAM} strokeWidth={w} strokeLinecap="round" />;
+}
 
 type P = { g: Garment; back?: boolean };
 
@@ -12,15 +20,23 @@ function Polo({ g, back }: P) {
   const { body, collar, placket } = g.parts;
   return (
     <g>
-      <path d="M60 40 L80 32 L100 46 L120 32 L140 40 L162 58 L150 78 L138 70 L138 168 L62 168 L62 70 L50 78 L38 58 Z"
+      <path d="M86 32 L60 40 L40 56 L34 90 L58 98 L62 88 L62 180 L138 180 L138 88 L142 98 L166 90 L160 56 L140 40 L114 32 Z"
         fill={body} stroke={STROKE} />
+      <Seam d="M36 80 L57 88" />
+      <Seam d="M164 80 L143 88" />
+      <Seam d="M60 40 Q54 62 62 88" />
+      <Seam d="M140 40 Q146 62 138 88" />
+      <Seam d="M62 172 L138 172" />
       {back ? (
         // A back yoke, not an open collar -- there is no neck opening to show.
-        <path d="M80 32 L100 42 L120 32 L120 38 L100 47 L80 38 Z" fill={collar} stroke={STROKE} />
+        <path d="M86 32 L100 42 L114 32 L114 38 L100 48 L86 38 Z" fill={collar} stroke={STROKE} />
       ) : (
         <>
-          <path d="M80 32 L100 46 L120 32 L112 28 L100 34 L88 28 Z" fill={collar} stroke={STROKE} />
-          <rect x="96" y="46" width="8" height="34" fill={placket} stroke={STROKE} />
+          <path d="M85 32 L100 50 L115 32 L113 26 L100 29 L87 26 Z" fill={collar} stroke={STROKE} />
+          <Seam d="M100 50 L100 28" />
+          <rect x="95" y="48" width="10" height="38" fill={placket} stroke={STROKE} />
+          <circle cx="100" cy="58" r="2.2" fill={SEAM} />
+          <circle cx="100" cy="74" r="2.2" fill={SEAM} />
         </>
       )}
     </g>
@@ -31,24 +47,32 @@ function Shirt({ g, back }: P) {
   const { body, collar, cuffs } = g.parts;
   return (
     <g>
-      <path d="M60 40 L80 30 L100 44 L120 30 L140 40 L164 60 L152 82 L138 72 L138 172 L62 172 L62 72 L48 82 L36 60 Z"
+      <path d="M88 34 L62 42 L42 56 L34 148 L57 152 L62 82 L64 186 L136 186 L138 82 L143 152 L166 148 L158 56 L138 42 L112 34 Z"
         fill={body} stroke={STROKE} />
+      <Seam d="M62 42 Q55 62 62 82" />
+      <Seam d="M138 42 Q145 62 138 82" />
       {back ? (
         <>
-          <path d="M80 30 L100 40 L120 30 L120 37 L100 46 L80 37 Z" fill={collar} stroke={STROKE} />
-          {/* Back yoke seam, the one detail a shirt back actually has. */}
-          <path d="M62 76 L138 76" stroke="#00000018" strokeWidth="1.5" fill="none" />
+          <path d="M88 34 L100 43 L112 34 L112 40 L100 49 L88 40 Z" fill={collar} stroke={STROKE} />
+          <Seam d="M63 62 L100 56 L137 62" />
+          <Seam d="M94 56 L94 66" />
+          <Seam d="M106 56 L106 66" />
         </>
       ) : (
         <>
-          <path d="M80 30 L100 44 L120 30 L110 24 L100 32 L90 24 Z" fill={collar} stroke={STROKE} />
-          <rect x="97" y="44" width="6" height="128" fill="#00000010" />
+          <path d="M84 33 L100 54 L116 33 L114 27 L100 30 L86 27 Z" fill={collar} stroke={STROKE} />
+          <Seam d="M100 54 L100 29" />
+          <Seam d="M95 54 L95 186" />
+          <Seam d="M105 54 L105 186" />
+          {[70, 92, 114, 136, 158].map((y) => (
+            <circle key={y} cx="100" cy={y} r="2.2" fill={SEAM} />
+          ))}
         </>
       )}
-      {/* Cuff bands, drawn on the sleeve ends so they share the body outline's
-          edge rather than floating over it. */}
-      <path d="M164 60 L152 82 L141 71 L153 49 Z" fill={cuffs} stroke={STROKE} />
-      <path d="M36 60 L48 82 L59 71 L47 49 Z" fill={cuffs} stroke={STROKE} />
+      <path d="M35 134 L58 139 L57 152 L34 148 Z" fill={cuffs} stroke={STROKE} />
+      <path d="M165 134 L142 139 L143 152 L166 148 Z" fill={cuffs} stroke={STROKE} />
+      <circle cx="46" cy="145" r="2" fill={SEAM} />
+      <circle cx="154" cy="145" r="2" fill={SEAM} />
     </g>
   );
 }
@@ -57,21 +81,29 @@ function Blazer({ g, back }: P) {
   const { body, lapel, buttons } = g.parts;
   return (
     <g>
-      <path d="M58 38 L82 28 L100 50 L118 28 L142 38 L168 62 L154 88 L140 76 L140 180 L60 180 L60 76 L46 88 L32 62 Z"
+      <path d="M86 30 L58 38 L34 56 L26 152 L50 157 L58 84 L60 194 L140 194 L142 84 L150 157 L174 152 L166 56 L142 38 L114 30 Z"
         fill={body} stroke={STROKE} />
+      <Seam d="M58 38 Q51 60 58 84" />
+      <Seam d="M142 38 Q149 60 142 84" />
+      <Seam d="M28 140 L51 145" />
+      <Seam d="M172 140 L149 145" />
       {back ? (
         <>
-          <path d="M82 28 L100 40 L118 28 L118 36 L100 47 L82 36 Z" fill={lapel} stroke={STROKE} />
-          {/* Centre back seam and vent. */}
-          <path d="M100 47 L100 180" stroke="#00000018" strokeWidth="1.5" fill="none" />
-          <path d="M100 150 L100 180" stroke="#00000028" strokeWidth="2" fill="none" />
+          <path d="M86 30 L100 41 L114 30 L114 38 L100 49 L86 38 Z" fill={lapel} stroke={STROKE} />
+          <Seam d="M100 49 L100 194" />
+          <Seam d="M100 160 L100 194" w={2.2} />
+          <Seam d="M62 60 Q100 54 138 60" />
         </>
       ) : (
         <>
-          <path d="M82 28 L100 50 L84 92 L74 40 Z" fill={lapel} stroke={STROKE} />
-          <path d="M118 28 L100 50 L116 92 L126 40 Z" fill={lapel} stroke={STROKE} />
-          <circle cx="100" cy="112" r="4" fill={buttons} />
-          <circle cx="100" cy="132" r="4" fill={buttons} />
+          <path d="M86 36 L82 27 L100 23 L118 27 L114 36 L100 31 Z" fill={lapel} stroke={STROKE} />
+          <path d="M86 36 L70 52 L96 126 L100 122 Z" fill={lapel} stroke={STROKE} />
+          <path d="M114 36 L130 52 L104 126 L100 122 Z" fill={lapel} stroke={STROKE} />
+          <Seam d="M100 126 L100 194" />
+          <circle cx="100" cy="132" r="4" fill={buttons} stroke={STROKE} />
+          <circle cx="100" cy="152" r="4" fill={buttons} stroke={STROKE} />
+          <Seam d="M62 164 L90 164 L90 177 L62 177" />
+          <Seam d="M110 164 L138 164 L138 177 L110 177" />
         </>
       )}
     </g>
@@ -82,9 +114,15 @@ function Chino({ g }: P) {
   const { leg } = g.parts;
   return (
     <g>
-      <path d="M64 30 L136 30 L134 60 L128 220 L106 220 L100 96 L94 220 L72 220 L66 60 Z"
+      <path d="M64 30 L136 30 L134 62 L128 222 L106 222 L100 96 L94 222 L72 222 L66 60 Z"
         fill={leg} stroke={STROKE} />
-      <rect x="64" y="30" width="72" height="10" fill="#00000018" />
+      <Seam d="M65 44 L135 44" />
+      {[70, 98, 126].map((x) => <Seam key={x} d={`M${x} 30 L${x} 44`} />)}
+      <Seam d="M100 44 Q107 62 105 80" />
+      <Seam d="M68 47 L84 64" />
+      <Seam d="M132 47 L116 64" />
+      <Seam d="M83 72 L79 218" w={1} />
+      <Seam d="M117 72 L121 218" w={1} />
     </g>
   );
 }
@@ -95,14 +133,15 @@ function Cargo({ g }: P) {
     <g>
       <path d="M62 30 L138 30 L136 62 L130 222 L106 222 L100 98 L94 222 L70 222 L64 62 Z"
         fill={leg} stroke={STROKE} />
-      <rect x="62" y="30" width="76" height="10" fill="#00000018" />
-      {/* Patch pockets with flaps. The flap is what makes a recoloured
-          rectangle read as a pocket instead of a floating block. */}
-      <rect x="66" y="104" width="24" height="30" rx="2" fill={pockets} stroke={STROKE} />
-      <rect x="110" y="104" width="24" height="30" rx="2" fill={pockets} stroke={STROKE} />
-      <path d="M64 104 L92 104 L92 113 L64 113 Z" fill={pockets} stroke={STROKE} />
-      <path d="M108 104 L136 104 L136 113 L108 113 Z" fill={pockets} stroke={STROKE} />
-      <path d="M64 113 L92 113 M108 113 L136 113" stroke="#00000028" strokeWidth="1.2" fill="none" />
+      <Seam d="M63 44 L137 44" />
+      {[70, 100, 130].map((x) => <Seam key={x} d={`M${x} 30 L${x} 44`} />)}
+      <Seam d="M100 44 Q107 62 105 78" />
+      <rect x="66" y="104" width="26" height="32" rx="2" fill={pockets} stroke={STROKE} />
+      <rect x="108" y="104" width="26" height="32" rx="2" fill={pockets} stroke={STROKE} />
+      <Seam d="M66 114 L92 114" />
+      <Seam d="M108 114 L134 114" />
+      <Seam d="M72 158 L94 158" />
+      <Seam d="M106 158 L128 158" />
     </g>
   );
 }
@@ -112,30 +151,18 @@ function Cargo({ g }: P) {
  *  preview empty; these are the actual drawn extents plus a small margin.
  *  Heights stay proportional so a shirt and a trouser sit at the same scale. */
 const VIEW_BOX: Record<Garment['type'], string> = {
-  polo: '28 22 144 158',
-  shirt: '26 20 148 164',
-  blazer: '22 20 156 172',
+  polo: '28 14 144 174',
+  shirt: '28 14 144 180',
+  blazer: '20 11 160 190',
   chino: '56 22 88 208',
   cargo: '54 22 92 210',
 };
 
 const RENDERERS = { polo: Polo, shirt: Shirt, chino: Chino, blazer: Blazer, cargo: Cargo };
 
-/** Where the logo sits on the drawing. These are flats viewed from the
- *  front, so the wearer's LEFT chest appears on the viewer's RIGHT -- the
- *  x values are mirrored accordingly. 'back' is drawn on a back view
- *  instead, so it needs no front coordinate. The sleeve spot sits on the
- *  upper arm, clear of the cuff band, for all three tops. */
-const LOGO_XY: Partial<Record<LogoPosition,
-  { x: number; y: number; w: number; size: number; rotate?: number }>> = {
-  left_chest: { x: 78, y: 72, w: 34, size: 7 },
-  right_chest: { x: 122, y: 72, w: 34, size: 7 },
-  // The sleeve is the narrowest placement: a small flat badge on the upper
-  // arm, inboard of the cuff band. Rotating it to the sleeve angle was worse
-  // -- at this size it just reads as tilted text.
-  sleeve: { x: 62, y: 58, w: 18, size: 5.5 },
-  back: { x: 100, y: 96, w: 56, size: 10 },
-};
+/** Fit is construction ease, not a clothing size. The drawing changes width
+ * around its centre line without inventing separate size artwork. */
+const FIT_WIDTH = { slim: 0.92, regular: 1, relaxed: 1.08 } as const;
 
 /** A logo on the back can only be shown on a back view. Everything else is
  *  drawn from the front. */
@@ -162,21 +189,32 @@ export function GarmentSvg({
   showLogo?: boolean;
 }) {
   const Renderer = RENDERERS[garment.type];
-  const spot =
-    showLogo && logo && logo.position !== 'none' ? LOGO_XY[logo.position] : undefined;
+  // Computed from this garment's own landmarks, so a blazer's chest badge
+  // clears its lapel and its sleeve badge clears its armhole -- neither of
+  // which a single shared coordinate could do.
+  const rawSpot = showLogo && logo && logo.position !== 'none'
+    ? placementFor(garment.type, logo.position as Position)
+    : undefined;
+  const width = FIT_WIDTH[garment.fit ?? 'regular'];
+  const spot = rawSpot && {
+    ...rawSpot,
+    x: 100 + (rawSpot.x - 100) * width,
+    w: rawSpot.w * width,
+  };
   // A back logo is only visible on a back view, and only the garment that
   // carries it turns around.
   const back = showLogo && isTop(garment.type) && isBackView(logo?.position);
-  const label = `${garment.type}${back ? ', back view' : ''} in ${
+  const label = `${garment.fit ?? 'regular'} fit ${garment.type}${back ? ', back view' : ''} in ${
     garment.parts.body ?? garment.parts.leg}`;
   const text = (logoText || 'LOGO').slice(0, 12).toUpperCase();
   return (
     <svg viewBox={VIEW_BOX[garment.type]} width="100%" height="100%"
       preserveAspectRatio="xMidYMid meet" role="img" aria-label={label}>
-      <Renderer g={garment} back={back} />
+      <g transform={`translate(100 0) scale(${width} 1) translate(-100 0)`}>
+        <Renderer g={garment} back={back} />
+      </g>
       {spot && (
         <text x={spot.x} y={spot.y} fontSize={spot.size} fontWeight="700"
-          transform={spot.rotate ? `rotate(${spot.rotate} ${spot.x} ${spot.y})` : undefined}
           textAnchor="middle"
           {...(text.length > spot.w / (spot.size * 0.62)
             ? { textLength: spot.w, lengthAdjust: 'spacingAndGlyphs' as const }

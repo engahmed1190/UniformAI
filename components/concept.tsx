@@ -19,6 +19,10 @@ export function ConceptCard({
 }) {
   const per = conceptPrice(concept);
   const logoAt = logoGarmentIndex(concept.garments);
+  const cuts = concept.cuts?.length ? concept.cuts : ['men', 'women'];
+  const cutKey = cuts.includes('men') && cuts.includes('women') ? 'mixed' : cuts[0];
+  const fits = [...new Set(concept.garments.map((g) => g.fit ?? 'regular'))]
+    .map((fit) => t(locale, `fits.${fit}`)).join(' / ');
   return (
     <button type="button" onClick={onSelect} aria-pressed={selected} className={s.kit}>
       <span className={s.kitPreview}>
@@ -30,6 +34,9 @@ export function ConceptCard({
       <span className={s.kitBody}>
         <span className={s.kitName}>{kitName(locale, concept.id)}</span>
         <span className={s.kitMeta}>{concept.garments.map((g) => t(locale, `garments.${g.type}`)).join(' · ')}</span>
+        <span className={s.kitMeta}>{t(locale, 'kits.specLine', {
+          cuts: t(locale, `cuts.${cutKey}`), fit: fits,
+        })}</span>
         <span className={s.kitFoot}>
           <span className={s.kitPer}>{t(locale, 'kits.forPeople', { price: money(per * employees), count: employees })}</span>
           <span className={s.kitPrice}>{money(per)}</span>

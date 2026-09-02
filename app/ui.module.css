@@ -74,15 +74,6 @@
   gap: 1px;
 }
 
-.navLabel {
-  font-size: var(--t-xs);
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  padding: 0 var(--s2) var(--s2);
-}
-
 /* The phone bar. Hidden until the sidebar becomes a bottom bar at 760px. */
 .navPhone {
   display: none;
@@ -192,6 +183,9 @@
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Reserve the gutter always: without it the centred measure jumps sideways
+     by the scrollbar's width as you move between a short page and a long one. */
+  scrollbar-gutter: stable;
 }
 
 .body {
@@ -203,7 +197,8 @@
    these edges -- the earlier layout let each block pick its own width, so
    nothing lined up. */
 .stack {
-  max-width: 1160px;
+  max-width: var(--measure);
+  margin-inline: auto;
   display: flex;
   flex-direction: column;
   gap: var(--s5);
@@ -555,7 +550,7 @@
 /* Preview left, one decision right, price pinned to the bottom of the frame. */
 .config {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 384px;
+  grid-template-columns: minmax(0, 1fr) 412px;
   gap: var(--s4);
   align-items: start;
   margin-bottom: var(--s4);
@@ -664,48 +659,81 @@
 }
 
 .trail {
-  display: flex;
-  gap: var(--s2);
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(max-content, 1fr);
+  gap: 2px;
+  padding: var(--s1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.trail::-webkit-scrollbar {
+  display: none;
 }
 
 .trailStep {
-  flex: 1;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
   border: 0;
+  border-radius: calc(var(--r) - 3px);
   background: transparent;
-  padding: 0;
-  text-align: start;
+  padding: var(--s2) 6px;
+  color: var(--text-3);
+  text-align: center;
+  white-space: nowrap;
+  transition: color 0.14s, background 0.14s;
 }
 
 .trailBar {
-  height: 3px;
-  border-radius: 2px;
-  background: var(--line);
-  transition: background 0.15s;
-}
-
-.trailDone .trailBar,
-.trailCurrent .trailBar {
-  background: var(--accent);
+  display: none;
 }
 
 .trailName {
   display: block;
   font-size: var(--t-xs);
-  color: var(--text-3);
-  margin-top: var(--s2);
+  color: inherit;
 }
 
 .trailNum {
-  display: none;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line-2);
+  border-radius: 50%;
+  color: var(--text-3);
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
 }
 
-.trailCurrent .trailName {
+.trailCurrent {
+  background: var(--accent-soft);
   color: var(--accent);
   font-weight: 600;
 }
 
-.trailDone .trailName {
+.trailCurrent .trailNum {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.trailDone {
   color: var(--text-2);
+}
+
+.trailDone .trailNum {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .panel {
@@ -815,6 +843,340 @@
   font-size: var(--t-sm);
   color: var(--text-2);
   white-space: nowrap;
+}
+
+/* Outfit builder: a real catalogue, not a single preset selector. */
+.garmentCatalog {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--s2);
+}
+
+.catalogItem {
+  min-width: 0;
+  min-height: 64px;
+  display: grid;
+  /* The tick gets its own column. It used to be positioned absolutely over
+     the card, which collided with the label -- badly in Arabic, where both
+     strings are longer. */
+  grid-template-columns: 40px minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: var(--s2);
+  padding: var(--s2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  text-align: start;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.catalogItem:hover:not(:disabled) {
+  border-color: var(--line-2);
+  background: var(--sunken);
+}
+
+.catalogItem[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.catalogItem[aria-pressed='true'] .optMark {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+/* A piece the kit cannot drop reads as settled, not as a choice you made:
+   the tick stays, the accent does not. */
+.catalogItem:disabled {
+  border-color: var(--line);
+  background: var(--sunken);
+}
+
+.catalogItem:disabled .optMark {
+  border-color: var(--text-3);
+  background: var(--text-3);
+}
+
+.catalogItem:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
+.catalogPreview {
+  width: 40px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+}
+
+.catalogPreview svg {
+  width: 100%;
+  height: 100%;
+}
+
+.catalogCopy,
+.focusCard > span:last-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.catalogRequired {
+  margin-inline-start: var(--s1);
+  color: var(--text-3);
+  font-size: 10px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.catalogName {
+  margin-top: 2px;
+  font-size: var(--t-sm);
+  font-weight: 600;
+}
+
+.catalogNote {
+  margin-top: 2px;
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.3;
+}
+
+
+.choiceSection {
+  padding-top: var(--s4);
+  border-top: 1px solid var(--line);
+}
+
+.compactOptions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s2);
+}
+
+.compactOption {
+  min-width: 0;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s2);
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  text-align: start;
+}
+
+.compactOption[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.compactOption[aria-pressed='true'] .optMark {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+
+.compactOption > span:last-child {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.compactOption strong {
+  font-size: var(--t-sm);
+  font-weight: 600;
+}
+
+.compactOption small {
+  margin-top: 2px;
+  color: var(--text-3);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.focusCard {
+  display: flex;
+  align-items: center;
+  gap: var(--s3);
+  padding: var(--s2) var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--sunken);
+}
+
+.focusCard strong {
+  font-size: var(--t-base);
+}
+
+.focusCard small {
+  color: var(--text-3);
+  font-size: var(--t-xs);
+}
+
+.focusPreview {
+  width: 52px;
+  height: 64px;
+  flex: none;
+}
+
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--s2);
+}
+
+.segmented button {
+  min-width: 0;
+  padding: var(--s3) var(--s2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  text-align: start;
+}
+
+.segmented button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.segmented strong,
+.segmented span {
+  display: block;
+}
+
+.segmented strong {
+  font-size: var(--t-sm);
+}
+
+.segmented span {
+  margin-top: 2px;
+  color: var(--text-3);
+  font-size: 10px;
+  line-height: 1.3;
+}
+
+/* Sizes are order quantities by production cut. The flat stays untouched. */
+.sizePlanner {
+  display: grid;
+  gap: var(--s3);
+  padding: var(--s3);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--sunken);
+}
+
+.sizeSummary,
+.cutSizesHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+}
+
+.sizeSummary > span:first-child {
+  display: flex;
+  flex-direction: column;
+}
+
+.sizeSummary strong,
+.cutSizesHead strong {
+  font-size: var(--t-sm);
+}
+
+.sizeSummary small,
+.cutSizesHead span,
+.sizeFootnote {
+  color: var(--text-3);
+  font-size: var(--t-xs);
+}
+
+.sizeCount,
+.sizeReady {
+  flex: none;
+  padding: 3px var(--s2);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-2);
+  font-family: var(--font-mono), monospace;
+  font-size: var(--t-xs);
+}
+
+.sizeReady {
+  background: var(--good-soft);
+  color: var(--good);
+}
+
+.sizeTrack {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--line-2);
+}
+
+.sizeTrack span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+  transition: width 0.15s;
+}
+
+.cutSizes {
+  display: grid;
+  gap: var(--s2);
+  padding-top: var(--s2);
+  border-top: 1px solid var(--line);
+}
+
+/* A size run is written as one horizontal row in the trade -- XS through 3XL
+   left to right, one row per cut. Wrapping seven sizes into 4 + 3 left an
+   orphan row and broke the run people are used to reading across. */
+.sizeGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.sizeField {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+
+.sizeField span {
+  color: var(--text-2);
+  font-family: var(--font-mono), monospace;
+  font-size: 11px;
+  text-align: center;
+}
+
+.sizeField input {
+  width: 100%;
+  min-width: 0;
+  padding: var(--s2) 2px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--surface);
+  text-align: center;
+  /* Seven cells across a phone leaves ~33px each, and the native spinner
+     reserved enough of that to clip a two-digit count. These are typed, not
+     stepped -- the field is inputMode="numeric". */
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+.sizeField input::-webkit-outer-spin-button,
+.sizeField input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+.sizeFootnote {
+  margin: 0;
+  line-height: 1.45;
 }
 
 /* Colour step: named swatches, because "Navy" is what people say out loud. */
@@ -951,7 +1313,8 @@
   flex: none;
   background: var(--surface);
   border-top: 1px solid var(--line);
-  padding: var(--s3) var(--s6);
+  padding-block: var(--s3);
+  padding-inline: max(var(--s6), calc((100% - var(--measure)) / 2));
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1528,7 +1891,6 @@
 
   .brand,
   .account,
-  .navLabel,
   .nav {
     display: none;
   }
@@ -1909,6 +2271,25 @@
 }
 
 @media (max-width: 520px) {
+  .garmentCatalog {
+    grid-template-columns: 1fr;
+  }
+
+  .segmented {
+    grid-template-columns: 1fr;
+  }
+
+  .segmented button {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    align-items: baseline;
+    gap: var(--s2);
+  }
+
+  .segmented span {
+    margin-top: 0;
+  }
+
   /* Stats stay one per row here -- see the 760px block. Two-up looked
      tighter but wrapped "12 people still to confirm" onto four lines. */
   .stat {
@@ -2035,28 +2416,21 @@
     position: sticky;
     top: 0;
     z-index: 5;
-    background: var(--bg);
-    padding: var(--s2) 0;
-    gap: var(--s1);
+    background: var(--surface);
+    padding: var(--s1);
   }
 
   .trailStep {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
+    flex-direction: row;
+    min-height: 36px;
     gap: var(--s1);
+    padding: 6px 5px;
   }
 
   .trailNum {
-    display: grid;
-    place-items: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    border: 1.5px solid var(--line-2);
-    font-size: var(--t-xs);
-    color: var(--text-3);
-    font-family: var(--font-mono), monospace;
+    width: 18px;
+    height: 18px;
+    font-size: 10px;
   }
 
   .trailDone .trailNum {
@@ -2067,7 +2441,7 @@
 
   .trailCurrent .trailNum {
     border-color: var(--accent);
-    color: var(--accent);
+    color: #fff;
     font-weight: 600;
   }
 
@@ -2076,8 +2450,7 @@
   }
 
   .trailName {
-    margin-top: 0;
-    font-size: var(--t-xs);
+    font-size: 11px;
   }
 }
 
@@ -2157,7 +2530,8 @@
   flex-wrap: wrap;
   background: var(--surface);
   border-top: 1px solid var(--line);
-  padding: var(--s3) var(--s6);
+  padding-block: var(--s3);
+  padding-inline: max(var(--s6), calc((100% - var(--measure)) / 2));
 }
 
 .actionText {

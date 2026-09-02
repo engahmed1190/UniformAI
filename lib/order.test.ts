@@ -89,3 +89,10 @@ assert.equal(logoLine.logo, 'embroidery', 'the logo line stores the method');
 assert.equal(logoLine.position, 'left_chest', 'and the placement');
 assert.equal(line.garment, c.garments[0].type, 'a garment line stores its type');
 assert.ok(line.colour?.startsWith('#'), 'and its colour as the stored hex');
+
+// A completed measurement breakdown follows the accepted quote into the
+// order. It is order data, not part of the reusable saved kit.
+const plan = { mode: 'allocate_now' as const, allocation: { women: { M: 22 }, men: { L: 20 } } };
+const sized = placeOrder(c, 40, 42, grades, per, new Date('2026-09-02T10:00:00Z'), 2, plan);
+assert.deepEqual(sized.sizePlan, plan);
+assert.equal(sized.stage, 2, 'complete sizes can move straight to cutting');

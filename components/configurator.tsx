@@ -3,7 +3,7 @@
 import { Check } from './check';
 import { useMemo, useRef, useState } from 'react';
 import s from '@/app/ui.module.css';
-import { GarmentSvg, logoGarmentIndex } from './garments';
+import { GarmentSvg, isTop, logoGarmentIndex } from './garments';
 import { SWATCHES, colourName, refine } from '@/lib/refine';
 import { stepAdvice } from '@/lib/manager';
 import { type Locale, formatCurrency, kitName, t } from '@/lib/i18n';
@@ -17,14 +17,34 @@ function swatchLabel(locale: Locale, name: string): string {
 }
 import { ManagerNote } from './manager';
 import {
-  type Concept, type LogoMethod, type LogoPosition,
-  LABELS, PARTS, setLogo, setPart, gradesFor, gradeName,
+  type Concept, type GarmentCut, type GarmentFit, type GarmentType,
+  type LogoMethod, type LogoPosition, type SizePlan,
+  allocatedSizeCount, GARMENT_CATALOG, LABELS, PARTS, SIZES,
+  setCuts, setGarmentFit, setGarmentIncluded, setLogo, setPart, setSizeCount,
+  gradesFor, gradeName,
 } from '@/lib/spec';
 
 type Msg = { who: 'you' | 'app'; text: string; patch?: string };
 
 
-const STEPS = ['garments', 'colours', 'branding', 'quantity'] as const;
+const STEPS = ['outfit', 'fit', 'colours', 'branding', 'sizes'] as const;
+
+const GARMENT_OPTIONS: { type: GarmentType; group: 'top' | 'layer' | 'bottom' }[] = [
+  { type: 'polo', group: 'top' },
+  { type: 'shirt', group: 'top' },
+  { type: 'blazer', group: 'layer' },
+  { type: 'chino', group: 'bottom' },
+  { type: 'cargo', group: 'bottom' },
+];
+
+const FITS: GarmentFit[] = ['slim', 'regular', 'relaxed'];
+
+const CUT_PROFILES: { id: 'mixed' | GarmentCut; cuts: GarmentCut[] }[] = [
+  { id: 'mixed', cuts: ['men', 'women'] },
+  { id: 'unisex', cuts: ['unisex'] },
+  { id: 'men', cuts: ['men'] },
+  { id: 'women', cuts: ['women'] },
+];
 
 const SPARES = [0, 0.05, 0.1];
 
@@ -42,7 +62,7 @@ const PLACEMENTS: { id: LogoPosition }[] = [
 export function Configurator({
   concept, onChange, logoText, staff, onStaffChange,
   grades, onGradesChange, spare, onSpareChange, perPerson, sets,
-  brief, onSave, locale,
+  sizePlan, onSizePlanChange, brief, onSave, locale,
 }: {
   locale: Locale;
   concept: Concept;
@@ -58,12 +78,14 @@ export function Configurator({
   /** Computed by the page, so the price bar and the quote always agree. */
   perPerson: number;
   sets: number;
+  sizePlan: SizePlan;
+  onSizePlanChange: (plan: SizePlan) => void;
   /** The customer's own words, so advice can refer back to them. */
   brief: string;
   onSave: () => void;
 }) {
   const [step, setStep] = useState(0);
-  const [focus, setFocus] = useState(0); // garment being coloured
+  const [focus, setFocus] = useState(0); // garment being configured
   const [log, setLog] = useState<Msg[]>([]);
   const [draft, setDraft] = useState('');
   const logEnd = useRef<HTMLDivElement>(null);
@@ -71,13 +93,30 @@ export function Configurator({
   const topIdx = logoGarmentIndex(concept.garments);
   const per = perPerson;
 
-  // Only the colour step makes individual garments selectable.
-  const picking = step === 1;
+  // Outfit, fit and colour decisions all operate on one garment at a time.
+  const picking = step <= 2;
+  const focusedGarment = concept.garments[focus] ?? concept.garments[0];
 
   const parts = useMemo(
-    () => PARTS[concept.garments[focus]?.type] ?? [],
+    () => PARTS[focusedGarment?.type] ?? [],
     [concept, focus],
   );
+
+  function toggleGarment(type: GarmentType) {
+    const at = concept.garments.findIndex((g) => g.type === type);
+    if (at >= 0) {
+      const sameKind = concept.garments.filter((g) => isTop(g.type) === isTop(type));
+      if (sameKind.length === 1) return;
+      onChange(setGarmentIncluded(concept, type, false));
+      onGradesChange(grades.filter((_, i) => i !== at));
+      setFocus(Math.max(0, Math.min(at, concept.garments.length - 2)));
+      return;
+    }
+    const next = setGarmentIncluded(concept, type, true);
+    onChange(next);
+    onGradesChange([...concept.garments.map((_, i) => grades[i] ?? 0), 0]);
+    setFocus(next.garments.length - 1);
+  }
 
   function submitAsk(text: string) {
     const q = text.trim();
@@ -87,8 +126,8 @@ export function Configurator({
     const next: Msg[] = [{ who: 'you', text: q }];
     if (applied) {
       if (applied.concept !== concept) onChange(applied.concept);
-      if (applied.grades) { onGradesChange(applied.grades); setStep(0); }
-      if (applied.spare !== undefined) { onSpareChange(applied.spare); setStep(3); }
+      if (applied.grades) { onGradesChange(applied.grades); setStep(1); }
+      if (applied.spare !== undefined) { onSpareChange(applied.spare); setStep(4); }
       next.push({ who: 'app', text: applied.note, patch: applied.patch });
     } else {
       next.push({
@@ -130,7 +169,9 @@ export function Configurator({
                   type="button"
                   className={s.garmentBtn}
                   aria-pressed={i === focus}
-                  aria-label={t(locale, 'configure.colourThe', { garment: t(locale, `garments.${g.type}`) })}
+                  aria-label={t(locale, step === 2 ? 'configure.colourThe' : 'configure.editThe', {
+                    garment: t(locale, `garments.${g.type}`),
+                  })}
                   onClick={() => setFocus(i)}
                 >
                   <GarmentSvg garment={g} logo={concept.logo} logoText={logoText} showLogo={i === topIdx} />
@@ -148,7 +189,7 @@ export function Configurator({
               {concept.logo.position === 'back'
                 ? t(locale, 'configure.showingBack')
                 : picking
-                  ? t(locale, 'configure.selectGarment')
+                  ? t(locale, step === 2 ? 'configure.selectGarment' : 'configure.selectGarmentToEdit')
                   : t(locale, 'configure.previewUpdates')}
             </span>
             <span className={s.mono}>{t(locale, 'configure.perPersonPrice', { price: formatCurrency(locale, per) })}</span>
@@ -176,39 +217,147 @@ export function Configurator({
             {step === 0 && (
               <>
                 <div className={s.panelHead}>
-                  <h2>{t(locale, 'configure.fabric')}</h2>
-                  <p>{t(locale, 'configure.fabricNote')}</p>
+                  <h2>{t(locale, 'configure.buildOutfit')}</h2>
+                  <p>{t(locale, 'configure.buildOutfitNote')}</p>
                 </div>
-                {/* A blazer has no "moisture-wicking knit" grade, so the
-                    options come from the garment's own family. */}
-                {concept.garments.map((g, gi) => (
-                  <div className={s.partBlock} key={gi}>
-                    <div className={s.partName}>{t(locale, `garments.${g.type}`)}</div>
-                    <div className={s.optList}>
-                      {gradesFor(g.type).map((f, i) => (
-                        <button
-                          key={f.name}
-                          type="button"
-                          className={s.opt}
-                          aria-pressed={i === (grades[gi] ?? 0)}
-                          onClick={() => onGradesChange(
-                            concept.garments.map((_, j) => (j === gi ? i : grades[j] ?? 0)))}
-                        >
-                          <span className={s.optMark}>{i === (grades[gi] ?? 0) ? <Tick /> : null}</span>
-                          <span className={s.optText}>
-                            <span className={s.optName}>{gradeName(g, i)}</span>
-                            <span className={s.optNote}>{t(locale, f.note)}</span>
+
+                <div className={s.garmentCatalog}>
+                  {GARMENT_OPTIONS.map((option) => {
+                    const included = concept.garments.some((g) => g.type === option.type);
+                    const sameKind = concept.garments.filter(
+                      (g) => isTop(g.type) === isTop(option.type),
+                    ).length;
+                    const locked = included && sameKind === 1;
+                    return (
+                      <button
+                        key={option.type}
+                        type="button"
+                        className={s.catalogItem}
+                        aria-pressed={included}
+                        aria-label={t(locale, locked ? 'configure.requiredGarment' : included
+                          ? 'configure.removeGarment' : 'configure.addGarment', {
+                          garment: t(locale, `garments.${option.type}`),
+                        })}
+                        disabled={locked}
+                        onClick={() => toggleGarment(option.type)}
+                      >
+                        <span className={s.catalogPreview}>
+                          <GarmentSvg garment={GARMENT_CATALOG[option.type]} showLogo={false} />
+                        </span>
+                        <span className={s.catalogCopy}>
+                          <span className={s.catalogName}>
+                            {t(locale, `garments.${option.type}`)}
+                            {locked && (
+                              <span className={s.catalogRequired}>
+                                {t(locale, 'configure.required')}
+                              </span>
+                            )}
                           </span>
-                          <span className={s.optPrice}>{f.delta ? `+${f.delta}` : t(locale, 'common.included')}</span>
+                          <span className={s.catalogNote}>{t(locale, `garmentNotes.${option.type}`)}</span>
+                        </span>
+                        {/* The same tick the fabric and placement lists use: one
+                            control vocabulary, so "chosen" looks the same everywhere. */}
+                        <span className={s.optMark}>{included ? <Tick /> : null}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className={s.choiceSection}>
+                  <div className={s.partName}>{t(locale, 'configure.genderCut')}</div>
+                  <div className={s.partCurrent}>{t(locale, 'configure.genderCutNote')}</div>
+                  <div className={s.compactOptions}>
+                    {CUT_PROFILES.map((profile) => {
+                      const cuts = concept.cuts?.length ? concept.cuts : ['men', 'women'];
+                      const selected = profile.cuts.length === cuts.length
+                        && profile.cuts.every((cut) => cuts.includes(cut));
+                      return (
+                        <button
+                          key={profile.id}
+                          type="button"
+                          className={s.compactOption}
+                          aria-pressed={selected}
+                          onClick={() => onChange(setCuts(concept, profile.cuts))}
+                        >
+                          <span className={s.optMark}>{selected ? <Tick /> : null}</span>
+                          <span>
+                            <strong>{t(locale, `cuts.${profile.id}`)}</strong>
+                            <small>{t(locale, `cuts.${profile.id}Note`)}</small>
+                          </span>
                         </button>
-                      ))}
-                    </div>
+                      );
+                    })}
                   </div>
-                ))}
+                </div>
               </>
             )}
 
             {step === 1 && (
+              <>
+                <div className={s.panelHead}>
+                  <h2>{t(locale, 'configure.fitAndFabric')}</h2>
+                  <p>{t(locale, 'configure.fitAndFabricNote')}</p>
+                </div>
+
+                {focusedGarment && (
+                  <>
+                    <div className={s.focusCard}>
+                      <span className={s.focusPreview}>
+                        <GarmentSvg garment={focusedGarment} showLogo={false} />
+                      </span>
+                      <span>
+                        <strong>{t(locale, `garments.${focusedGarment.type}`)}</strong>
+                        <small>{t(locale, 'configure.selectPreviewToSwitch')}</small>
+                      </span>
+                    </div>
+
+                    <div className={s.choiceSection}>
+                      <div className={s.partName}>{t(locale, 'configure.fit')}</div>
+                      <div className={s.partCurrent}>{t(locale, 'configure.fitNote')}</div>
+                      <div className={s.segmented}>
+                        {FITS.map((fit) => (
+                          <button
+                            key={fit}
+                            type="button"
+                            aria-pressed={(focusedGarment.fit ?? 'regular') === fit}
+                            onClick={() => onChange(setGarmentFit(concept, focus, fit))}
+                          >
+                            <strong>{t(locale, `fits.${fit}`)}</strong>
+                            <span>{t(locale, `fits.${fit}Note`)}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className={s.choiceSection}>
+                      <div className={s.partName}>{t(locale, 'configure.fabric')}</div>
+                      <div className={s.optList}>
+                        {gradesFor(focusedGarment.type).map((fabric, i) => (
+                          <button
+                            key={fabric.name}
+                            type="button"
+                            className={s.opt}
+                            aria-pressed={i === (grades[focus] ?? 0)}
+                            onClick={() => onGradesChange(concept.garments.map(
+                              (_, j) => (j === focus ? i : grades[j] ?? 0)))}
+                          >
+                            <span className={s.optMark}>{i === (grades[focus] ?? 0) ? <Tick /> : null}</span>
+                            <span className={s.optText}>
+                              <span className={s.optName}>{gradeName(focusedGarment, i)}</span>
+                              <span className={s.optNote}>{t(locale, fabric.note)}</span>
+                            </span>
+                            <span className={s.optPrice}>{fabric.delta
+                              ? `+${fabric.delta}` : t(locale, 'common.included')}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+
+            {step === 2 && (
               <>
                 <div className={s.panelHead}>
                   <h2>{t(locale, 'configure.colours')}</h2>
@@ -239,7 +388,7 @@ export function Configurator({
               </>
             )}
 
-            {step === 2 && (
+            {step === 3 && (
               <>
                 <div className={s.panelHead}>
                   <h2>{t(locale, 'configure.branding')}</h2>
@@ -314,11 +463,11 @@ export function Configurator({
               </>
             )}
 
-            {step === 3 && (
+            {step === 4 && (
               <>
                 <div className={s.panelHead}>
-                  <h2>{t(locale, 'configure.quantity')}</h2>
-                  <p>{t(locale, 'configure.quantityNote')}</p>
+                  <h2>{t(locale, 'configure.quantitySizes')}</h2>
+                  <p>{t(locale, 'configure.quantitySizesNote')}</p>
                 </div>
                 <div className={s.field}>
                   <label htmlFor="staffCount">{t(locale, 'configure.peopleToKit')}</label>
@@ -360,15 +509,46 @@ export function Configurator({
                       </button>
                     ))}
                   </div>
-                  <div className={s.fieldHint}>
-                    {t(locale, 'configure.sizesNote')}
+                </div>
+
+                <div className={s.choiceSection}>
+                  <div className={s.partName}>{t(locale, 'configure.sizeCollection')}</div>
+                  <div className={s.optList}>
+                    {(['collect_later', 'allocate_now'] as const).map((mode) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        className={s.opt}
+                        aria-pressed={sizePlan.mode === mode}
+                        onClick={() => onSizePlanChange({ ...sizePlan, mode })}
+                      >
+                        <span className={s.optMark}>{sizePlan.mode === mode ? <Tick /> : null}</span>
+                        <span className={s.optText}>
+                          <span className={s.optName}>{t(locale, `sizing.${mode}`)}</span>
+                          <span className={s.optNote}>{t(locale, `sizing.${mode}Note`)}</span>
+                        </span>
+                      </button>
+                    ))}
                   </div>
                 </div>
+
+                {sizePlan.mode === 'allocate_now' && (
+                  <SizeAllocationEditor
+                    concept={concept}
+                    locale={locale}
+                    plan={sizePlan}
+                    sets={sets}
+                    onChange={onSizePlanChange}
+                  />
+                )}
               </>
             )}
 
-            {/* Advice reads the top grade actually chosen on any garment. */}
-            <ManagerNote locale={locale} note={stepAdvice(locale, step, concept, Math.max(0, ...grades, 0), brief, staff, spare)} />
+            {/* The existing advice maps to fit/fabric, colours, branding and
+                quantity. Outfit composition gets its own domain note. */}
+            <ManagerNote locale={locale} note={step === 0
+              ? t(locale, 'manager.outfitCuts')
+              : stepAdvice(locale, step - 1, concept, Math.max(0, ...grades, 0), brief, staff, spare)} />
 
             {/* Available at every step: describe the change instead of hunting for it. */}
             <div className={s.ask}>
@@ -441,6 +621,75 @@ export function Configurator({
             )}
           </div>
         </div>
+    </div>
+  );
+}
+
+function SizeAllocationEditor({ concept, locale, plan, sets, onChange }: {
+  concept: Concept;
+  locale: Locale;
+  plan: SizePlan;
+  sets: number;
+  onChange: (plan: SizePlan) => void;
+}) {
+  const cuts = concept.cuts?.length ? concept.cuts : ['men', 'women'] as GarmentCut[];
+  const allocated = allocatedSizeCount(plan.allocation, cuts);
+  const remaining = sets - allocated;
+  const progress = Math.min(100, sets > 0 ? (allocated / sets) * 100 : 0);
+
+  return (
+    <div className={s.sizePlanner}>
+      <div className={s.sizeSummary} aria-live="polite">
+        <span>
+          <strong>{t(locale, 'sizing.assigned', { assigned: allocated, sets })}</strong>
+          <small>{remaining === 0
+            ? t(locale, 'sizing.complete')
+            : remaining > 0
+              ? t(locale, 'sizing.remaining', { count: remaining })
+              : t(locale, 'sizing.over', { count: Math.abs(remaining) })}</small>
+        </span>
+        <span className={remaining === 0 ? s.sizeReady : s.sizeCount}>{allocated}/{sets}</span>
+      </div>
+      <div className={s.sizeTrack} aria-hidden="true">
+        <span style={{ width: `${progress}%` }} />
+      </div>
+
+      {cuts.map((cut) => {
+        const cutTotal = SIZES.reduce(
+          (sum, size) => sum + (plan.allocation[cut]?.[size] ?? 0), 0);
+        return (
+          <div className={s.cutSizes} key={cut}>
+            <div className={s.cutSizesHead}>
+              <strong>{t(locale, `cuts.${cut}Block`)}</strong>
+              <span>{t(locale, cutTotal === 1 ? 'sizing.cutCountOne' : 'sizing.cutCount', { count: cutTotal })}</span>
+            </div>
+            <div className={s.sizeGrid}>
+              {SIZES.map((size) => {
+                const id = `size-${cut}-${size}`;
+                return (
+                  <label className={s.sizeField} key={size} htmlFor={id}>
+                    <span>{size}</span>
+                    <input
+                      id={id}
+                      type="number"
+                      min={0}
+                      inputMode="numeric"
+                      value={plan.allocation[cut]?.[size] ?? 0}
+                      onChange={(event) => onChange({
+                        ...plan,
+                        allocation: setSizeCount(
+                          plan.allocation, cut, size, Number(event.target.value) || 0),
+                      })}
+                    />
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      <p className={s.sizeFootnote}>{t(locale, 'sizing.drawingNote')}</p>
     </div>
   );
 }

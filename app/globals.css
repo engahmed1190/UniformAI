@@ -43,6 +43,11 @@
   --t-xl: 20px;
   --t-2xl: 26px;
 
+  /* The page measure. The stack centres itself in it and the pinned action
+     bars pad to the same edges, so a centred column and a full-bleed bar
+     still line up. */
+  --measure: 1160px;
+
   --r-sm: 6px;
   --r: 10px;
   --r-lg: 14px;
@@ -151,9 +156,8 @@ html[dir='rtl'] body {
   line-height: 1.7;
 }
 
-/* Arabic has no upper case, so the tracked-out capitals used for eyebrow
-   labels in English just look like broken spacing. */
-html[dir='rtl'] .navLabel,
+/* Arabic has no upper case, so tracked-out capitals just look like broken
+   spacing there. */
 html[dir='rtl'] [class*='eyebrow'] {
   letter-spacing: 0;
 }

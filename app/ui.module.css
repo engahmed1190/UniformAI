@@ -1426,22 +1426,23 @@
   overflow: hidden;
 }
 
-/* Floating chat launcher. It is anchored to the persistent price bar rather
-   than the viewport, so it always clears that bar and the phone navigation.
-   inset-inline-end moves it to the opposite corner in RTL. */
+/* The chat launcher rides in the price bar rather than above it. Floating in
+   the band over the canvas, it covered the per-person price in the stage
+   footer on a phone and an option row on a desktop -- and being anchored to
+   the viewport, no amount of scrolling ever revealed what was under it. In
+   the bar it covers nothing and is still the round, accented thing your eye
+   goes to. */
 .chatLauncher {
-  position: absolute;
-  inset-inline-end: max(var(--s6), calc((100% - var(--measure)) / 2));
-  inset-block-start: -64px;
-  z-index: 25;
-  width: 52px;
-  height: 52px;
+  position: relative;
+  flex: none;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: 0;
   border-radius: 50%;
   background: var(--accent);
   color: #fff;
-  box-shadow: 0 8px 24px rgba(15, 107, 98, 0.28);
+  box-shadow: 0 2px 8px rgba(15, 107, 98, 0.22);
   display: grid;
   place-items: center;
   cursor: pointer;
@@ -1450,8 +1451,8 @@
 
 .chatLauncher:hover {
   background: var(--accent-hover);
-  box-shadow: 0 10px 28px rgba(15, 107, 98, 0.34);
-  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(15, 107, 98, 0.3);
+  transform: translateY(-1px);
 }
 
 .chatLauncherCount {

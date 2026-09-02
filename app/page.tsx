@@ -444,6 +444,21 @@ export default function Page() {
 
         {page === 'configure' && active && (
           <div className={s.priceBar}>
+            {!asking && (
+              <button
+                type="button"
+                className={s.chatLauncher}
+                onClick={() => setAsking(true)}
+                aria-label={t(locale, 'suggest.open')}
+                title={t(locale, 'suggest.open')}
+                aria-haspopup="dialog"
+              >
+                <svg width="23" height="23" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path d="M5 2.6 8 4.2l3-1.6 2.4 1.2v3.6l-1.7.4V14H4.3V7.8l-1.7-.4V3.8z" />
+                </svg>
+                {tips.length > 0 && <span className={s.chatLauncherCount}>{tips.length}</span>}
+              </button>
+            )}
             <div className={s.priceFigures}>
               <span className={s.priceTotal}>{money(perPerson * sets)}</span>
               <span className={s.priceBreak}>
@@ -453,22 +468,6 @@ export default function Page() {
               </span>
             </div>
             <div className={s.priceActions}>
-              {/* The third thing you can do with a kit, beside the two it
-                  changes. A circle floating over the garments covered the
-                  per-person price on a phone and an option row on a desktop;
-                  here it covers nothing and is on screen at every step. */}
-              <button
-                type="button"
-                className={`${s.btn} ${s.btnSecondary} ${s.askBtn}`}
-                onClick={() => setAsking((v) => !v)}
-                aria-expanded={asking}
-              >
-                <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                  <path d="M5 2.6 8 4.2l3-1.6 2.4 1.2v3.6l-1.7.4V14H4.3V7.8l-1.7-.4V3.8z" />
-                </svg>
-                {t(locale, 'suggest.open')}
-                {tips.length > 0 && <span className={s.askBtnCount}>{tips.length}</span>}
-              </button>
               <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => saveKit(active)}>
                 {t(locale, 'configure.saveKit')}
               </button>

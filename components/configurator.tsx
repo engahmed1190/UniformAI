@@ -623,11 +623,10 @@ export function Configurator({
         </div>
     </div>
 
-      {/* Only here once you have asked for it. Opened from the price bar --
-          nothing floats over the garments waiting to be needed. */}
+      {/* Only here once the floating chat launcher is opened. */}
       {asking && (
         <div className={s.dock}>
-          <div className={s.dockPanel}>
+          <div className={s.dockPanel} role="dialog" aria-label={t(locale, 'suggest.open')}>
             <div className={s.dockHead}>
               <span className={s.mgrMark} aria-hidden="true">
                 <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">

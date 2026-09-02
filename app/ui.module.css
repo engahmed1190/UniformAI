@@ -14,6 +14,25 @@
   background: var(--bg);
 }
 
+/* Placeholder direction must follow the interface, not the static direction
+   on <html> before the saved locale is restored. `plaintext` gives mixed
+   Arabic/Latin runs (such as names, order IDs and quantities) their own bidi
+   context, while `start` keeps alignment logical in both directions. Typed
+   values can still use dir="auto" independently of their placeholder. */
+.app[dir='rtl'] input::placeholder,
+.app[dir='rtl'] textarea::placeholder {
+  direction: rtl;
+  text-align: start;
+  unicode-bidi: plaintext;
+}
+
+.app[dir='ltr'] input::placeholder,
+.app[dir='ltr'] textarea::placeholder {
+  direction: ltr;
+  text-align: start;
+  unicode-bidi: plaintext;
+}
+
 /* Static inside a non-scrolling shell, so it can never drift up the page. */
 .sidebar {
   background: var(--surface);
@@ -1334,6 +1353,7 @@
 
 /* ---------- Price bar: always in view while configuring ---------- */
 .priceBar {
+  position: relative;
   flex: none;
   background: var(--surface);
   border-top: 1px solid var(--line);
@@ -1406,31 +1426,50 @@
   overflow: hidden;
 }
 
-/* The designer's button in the price bar, beside the two actions it feeds. */
-.askBtn {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--s2);
-}
-
-/* Reads as held-open while the panel is, so the bar shows the state rather
-   than only announcing it to a screen reader. */
-.askBtn[aria-expanded='true'] {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
-.askBtnCount {
-  min-width: 19px;
-  height: 19px;
-  padding: 0 5px;
-  border-radius: 10px;
+/* Floating chat launcher. It is anchored to the persistent price bar rather
+   than the viewport, so it always clears that bar and the phone navigation.
+   inset-inline-end moves it to the opposite corner in RTL. */
+.chatLauncher {
+  position: absolute;
+  inset-inline-end: max(var(--s6), calc((100% - var(--measure)) / 2));
+  inset-block-start: -64px;
+  z-index: 25;
+  width: 52px;
+  height: 52px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
   background: var(--accent);
   color: #fff;
-  font-size: var(--t-xs);
-  font-weight: 600;
+  box-shadow: 0 8px 24px rgba(15, 107, 98, 0.28);
   display: grid;
   place-items: center;
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s, box-shadow 0.15s;
+}
+
+.chatLauncher:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 10px 28px rgba(15, 107, 98, 0.34);
+  transform: translateY(-2px);
+}
+
+.chatLauncherCount {
+  position: absolute;
+  inset-block-start: -4px;
+  inset-inline-end: -4px;
+  min-width: 20px;
+  height: 20px;
+  padding-inline: 5px;
+  border: 2px solid var(--surface);
+  border-radius: 999px;
+  background: var(--warn);
+  color: #fff;
+  font-family: var(--font-mono), monospace;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
 }
 
 .dockHead {
@@ -2376,21 +2415,13 @@
     flex: 1 1 100%;
   }
 
-  /* Save kit and Get a quote share the row: two thumb-sized halves. The
-     designer takes the line above them -- three across a 390px phone left
-     "Get a quote" hanging off the edge, and it is a different kind of action
-     from the two that close the job. */
+  /* Save kit and Get a quote share one row. The designer now has a separate
+     floating launcher above the bar. */
   .priceBar .priceActions {
     display: flex;
     flex: 1 1 100%;
     flex-wrap: wrap;
     gap: var(--s2);
-  }
-
-  /* .priceBar .btn sets flex: 1 1 auto below and ties on specificity, so this
-     needs the extra class to win rather than relying on source order. */
-  .priceBar .btn.askBtn {
-    flex: 1 0 100%;
   }
 
   .actionBar .btn,

@@ -20,6 +20,12 @@ const why = whyTheseKits('en', hot, CONCEPTS.slice(0, 3));
 assert.match(why, /breathable/, 'a hot brief should mention breathability');
 assert.match(why, /EGP/, 'the rationale should quote a real price');
 
+// The parser normalises an Arabic colour to an English token internally.
+// The manager must translate it back before quoting the brief to the buyer.
+const arWhy = whyTheseKits('ar', 'زي صيفي كحلي لفريق الموقع', CONCEPTS.slice(0, 3));
+assert.match(arWhy, /كحلي/, 'the rationale should quote the colour in Arabic');
+assert.doesNotMatch(arWhy, /navy/i, 'an internal colour token must not leak into Arabic');
+
 // 3. Advice changes with the choice -- it is not one canned string.
 const c = CONCEPTS[0];
 const fabricAdviceLow = stepAdvice('en', 1, c, 0, hot, 40, 0.05);

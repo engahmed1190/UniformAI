@@ -206,7 +206,6 @@ export function Configurator({
                 onClick={() => setStep(i)}
                 aria-label={t(locale, 'configure.step', { n: i + 1, name: t(locale, `configure.${name}`) })}
               >
-                <span className={s.trailBar} />
                 <span className={s.trailNum}>{i < step ? <Check /> : i + 1}</span>
                 <span className={s.trailName}>{t(locale, `configure.${name}`)}</span>
               </button>

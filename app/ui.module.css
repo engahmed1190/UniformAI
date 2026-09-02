@@ -692,10 +692,6 @@
   transition: color 0.14s, background 0.14s;
 }
 
-.trailBar {
-  display: none;
-}
-
 .trailName {
   display: block;
   font-size: var(--t-xs);
@@ -2420,11 +2416,19 @@
     padding: var(--s1);
   }
 
+  /* Five names across a phone cannot sit beside their numbers -- they
+     overflowed into a sideways scroll. Stack each number over its name and
+     split the row into equal fifths: every step stays named and tappable,
+     and nothing shifts as the current step moves along. */
+  .trail {
+    grid-auto-columns: 1fr;
+  }
+
   .trailStep {
-    flex-direction: row;
+    flex-direction: column;
     min-height: 36px;
-    gap: var(--s1);
-    padding: 6px 5px;
+    gap: 3px;
+    padding: 6px 2px;
   }
 
   .trailNum {
@@ -2445,12 +2449,13 @@
     font-weight: 600;
   }
 
-  .trailBar {
-    display: none;
-  }
-
+  /* nowrap is inherited from the step. A label wider than its fifth would
+     spill out of the card rather than break, so let it wrap -- the grid keeps
+     every column the same height, and the trail grows as one. */
   .trailName {
     font-size: 11px;
+    white-space: normal;
+    line-height: 1.2;
   }
 }
 

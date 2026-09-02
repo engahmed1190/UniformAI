@@ -1588,24 +1588,63 @@
 .askForm {
   display: flex;
   gap: var(--s2);
-  align-items: center;
 }
 
 .askForm input {
   flex: 1;
   min-width: 0;
-  height: 44px;
+  padding: var(--s2) var(--s3);
   border: 1px solid rgba(15, 107, 98, 0.22);
+  border-radius: var(--r-sm);
   background: var(--surface);
+  font-size: var(--t-sm);
+}
+
+/* Scoped to the dock. The Home page shares .askForm and .askChips for its
+   own brief box, whose action is a wide text button and whose examples are
+   long sentences that need to wrap; styling the shared rules for a chat
+   composer put a squeezed input beside a full-width button on a phone. */
+.dockFoot .askForm {
+  /* Two class names, so this outranks the phone rule wherever that sits in
+     the file. */
+  flex-direction: row;
+  align-items: center;
+}
+
+.dockFoot .askForm input {
+  width: auto;
+  height: 44px;
   border-radius: 999px;
-  padding-inline: var(--s4);
+  padding: 0 var(--s4);
   font: inherit;
   font-size: var(--t-sm);
 }
 
-.askForm input:focus-visible {
+.dockFoot .askForm input:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: -1px;
+}
+
+/* Quick replies ride on one line, never wrapped: three of them at flex-wrap
+   became three rows and pushed the composer off the bottom of the panel.
+   Faded at both ends -- symmetric, because a gradient has no logical
+   direction keyword and Arabic scrolls the other way. */
+.dockFoot .askChips {
+  flex-wrap: nowrap;
+  margin-top: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, transparent 0, #000 10px,
+    #000 calc(100% - 22px), transparent 100%);
+}
+
+.dockFoot .askChips::-webkit-scrollbar {
+  display: none;
+}
+
+.dockFoot .askChips button {
+  flex: none;
+  white-space: nowrap;
 }
 
 /* Round, accent, and disabled until there is something to send: the same
@@ -1628,29 +1667,14 @@
   cursor: default;
 }
 
-/* One scrolling line, never wrapped: three chips at flex-wrap became three
-   rows on a phone and pushed the composer off the bottom of the panel. A
-   fixed 30px beats a variable 90. */
 .askChips {
   display: flex;
+  flex-wrap: wrap;
   gap: var(--s2);
-  overflow-x: auto;
-  scrollbar-width: none;
-  /* Both ends, so it holds in Arabic too: a chip cut off at a hard edge reads
-     as a clipping bug, and the same chip cut off under a fade reads as more
-     of them sideways. A gradient has no logical-direction keyword, so the
-     symmetry is what makes it direction-agnostic. */
-  mask-image: linear-gradient(90deg, transparent 0, #000 10px,
-    #000 calc(100% - 22px), transparent 100%);
-}
-
-.askChips::-webkit-scrollbar {
-  display: none;
+  margin-top: var(--s2);
 }
 
 .askChips button {
-  flex: none;
-  white-space: nowrap;
   border: 1px solid rgba(15, 107, 98, 0.2);
   background: var(--surface);
   border-radius: 999px;
@@ -2297,6 +2321,24 @@
 
   .stat .statNote {
     grid-column: 1;
+  }
+
+  /* The primary action on the primary screen: full width, under the field,
+     not squeezed beside a truncated input. The chat composer opts back out
+     below on specificity -- its action is a 44px circle that belongs beside
+     its field, not stacked under it. */
+  .askForm {
+    flex-direction: column;
+  }
+
+  .askForm input {
+    width: 100%;
+  }
+
+  .askForm .btn {
+    width: 100%;
+    justify-content: center;
+    min-height: 46px;
   }
 
   .kitGrid {

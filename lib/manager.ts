@@ -7,7 +7,7 @@
 // knit. Say why it suits this brief, or what it costs.
 
 import { type Concept, type LogoPosition, type SizingMode, conceptPrice } from './spec';
-import { briefWishes, colourName } from './refine';
+import { briefWishes, swatchWord } from './refine';
 import { type Order, STAGE_KEYS } from './order';
 import { type Locale, formatCurrency, formatDate, kitName, spareMessage, t } from './i18n';
 
@@ -66,10 +66,13 @@ export function whyTheseKits(locale: Locale, brief: string, concepts: Concept[])
         : r.formal ? t(locale, 'manager.reasonFormal')
           : t(locale, 'manager.reasonDefault');
 
-  // Only claim what was actually carried out. Their word, not our swatch
-  // name: someone who wrote "dark colours" did not ask for ink.
+  // Only claim what was actually carried out. Keep a requested colour family
+  // as a family: someone who wrote "dark colours" did not ask for ink. A
+  // specific colour uses its localized display name, never the parser token.
   const w = briefWishes(brief);
-  const colour = w.said ?? (w.colour ? colourName(w.colour).toLowerCase() : '');
+  const colour = w.said && FAMILY.has(w.said)
+    ? t(locale, `colours.${w.said}Family`)
+    : w.colour ? swatchWord(locale, w.colour).toLowerCase() : '';
   const done = [
     w.colour
       ? t(locale, FAMILY.has(w.said ?? '') ? 'manager.didColourKept' : 'manager.didColour', { colour })

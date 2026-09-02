@@ -99,3 +99,27 @@ for (const key of enKeys) {
   assert.deepEqual(marks(t('ar', key)), marks(t('en', key)),
     `${key}: en has {${marks(t('en', key))}}, ar has {${marks(t('ar', key))}}`);
 }
+
+// 14. Latin dropped into an Arabic sentence is isolated. Without U+2068/U+2069
+// the bidi algorithm reorders the run against the Arabic around it, and a
+// cloth name lands in the middle of the previous one on screen.
+{
+  const ar = t('ar', 'reply.movedFabric', { fabric: 'Wool Blend 260 GSM' });
+  assert.ok(ar.includes('⁨Wool Blend 260 GSM⁩'),
+    'a Latin value in an Arabic sentence must be bidi-isolated');
+
+  // English needs none of it, and the characters are not free: they show up
+  // in anything that measures or matches the string.
+  assert.ok(!t('en', 'reply.movedFabric', { fabric: 'Wool Blend 260 GSM' }).includes('⁨'),
+    'an English sentence must carry no isolate marks');
+
+  // Nor does an Arabic value: it is already going the right way, and wrapping
+  // it breaks quoting it back inside guillemets.
+  assert.ok(!t('ar', 'manager.reasonHeat', { word: 'صيفية' }).includes('⁨'),
+    'an Arabic value needs no isolate');
+}
+
+// 15. The conjunction that joins cloth names carries a space. Arabic attaches
+// the waw to the next word, which is right for Arabic and wrong here: these
+// join Latin catalogue names, and "GSM وCotton Twill" runs them together.
+assert.equal(t('ar', 'reply.and'), ' و ', 'the waw is spaced before a Latin name');

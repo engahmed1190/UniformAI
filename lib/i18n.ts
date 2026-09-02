@@ -124,6 +124,20 @@ const en = {
     whyBudget: 'You mentioned budget and this is quoted above the standard grade. Dropping back saves {delta} a person — {total} across {sets} sets.',
     whyLogo: 'A {logo} logo on a {body} body is there but unreadable from a few paces.',
   },
+  /* Quick asks. Like the suggest.ask* lines these are submitted verbatim, so
+     each one has to stay inside the parser's vocabulary. "Embroider the logo"
+     rather than "Use embroidery": the branch is gated on \bembroider\b, and
+     the trailing "y" defeats the boundary. */
+  chip: {
+    logoSleeve: 'Move the logo to the sleeve',
+    logoBack: 'Put the logo on the back',
+    logoChest: 'Move the logo to the chest',
+    embroider: 'Embroider the logo',
+    print: 'Print the logo',
+    noLogo: 'No logo',
+    spare10: '10% spare',
+    noSpare: 'No spare',
+  },
   quote: {
     title: 'Your quote', validFor: 'Held for 30 days.',
     branding: 'Branding', upgrade: 'upgrade', sets: 'Sets',
@@ -304,6 +318,11 @@ const en = {
     droppedSpare: 'Dropped the spare stock. A new starter waits for the next run.',
     setPart: 'Set the {garment} {part} to {colour}.',
     movedFabric: 'Moved to {fabric}. The price follows.',
+    // Asking for "the standard cloth" on a mixed kit resolves to a different
+    // cloth per garment. Listing all three answers a question nobody asked --
+    // you asked for a grade, so the reply is about the grade.
+    movedStandard: 'Every piece is back on its standard cloth. The price follows.',
+    movedUp: 'Every piece moved up a grade. The price follows.',
     noFabric: '{wanted} is not available for {these}. I can offer {offered}.',
     theseGarments: 'these garments', thisGarment: 'this garment',
     setSpare: 'Set spare stock to {pct}%. It covers new starters without sitting on stock.',
@@ -471,6 +490,16 @@ const ar: Dict<typeof en> = {
     whyBudget: 'للحفاظ على الميزانية، يمكنك اختيار الخامة القياسية دون التأثير على الشكل الأساسي للزي. سيوفر ذلك {delta} للفرد، بإجمالي {total} لـ {sets} طقم.',
 
     whyLogo: 'لون شعار {logo} لا يوفر تباينًا كافيًا مع لون القماش {body}، مما يقلل من وضوح الشعار. نوصي بتغيير لونه لتحسين ظهوره.',
+  },
+  chip: {
+    logoSleeve: 'انقل الشعار إلى الكم',
+    logoBack: 'ضع الشعار على الظهر',
+    logoChest: 'انقل الشعار إلى الصدر',
+    embroider: 'تطريز الشعار',
+    print: 'طباعة الشعار',
+    noLogo: 'بدون شعار',
+    spare10: 'أضف 10٪ أطقم احتياطية',
+    noSpare: 'بدون احتياطي',
   },
   quote: {
     title: 'عرض السعر',
@@ -667,8 +696,12 @@ const ar: Dict<typeof en> = {
     collar: 'الياقة',
     cuffs: 'أساور الأكمام',
     placket: 'شريط الأزرار',
-    leg: 'ساق البنطلون',
-    lapel: 'ياقة الجاكيت',
+    // No garment word inside a part name: every sentence that uses one names
+    // the garment already, so these read "لون ساق البنطلون في بنطلون تشينو".
+    // Nothing is lost -- a blazer has no separate collar, and the colour
+    // picker only ever shows one garment's parts at a time.
+    leg: 'الساق',
+    lapel: 'الياقة',
     buttons: 'الأزرار',
     pockets: 'الجيوب',
   },
@@ -724,22 +757,27 @@ const ar: Dict<typeof en> = {
   },
 
   reply: {
-    droppedLogo: 'تمت إزالة الشعار وتحديث السعر وفقًا لذلك.',
-    droppedSpare: 'تم إلغاء الأطقم الاحتياطية وتحديث الكمية المطلوبة.',
-    setPart: 'تم تغيير لون {part} في {garment} إلى {colour}.',
-    movedFabric: 'تم تغيير الخامة إلى {fabric} وتحديث السعر وفقًا للاختيار الجديد.',
+    droppedLogo: 'أزلت الشعار، وسقطت تكلفته من السعر.',
+    droppedSpare: 'لا أطقم احتياطية الآن، والموظف الجديد ينتظر دورة الإنتاج التالية.',
+    setPart: 'لون {part} في {garment} الآن {colour}.',
+    movedFabric: 'الخامة الآن {fabric}، والسعر يتبعها.',
+    movedStandard: 'كل قطعة عادت إلى خامتها القياسية، والسعر يتبعها.',
+    movedUp: 'ارتفعت خامة كل قطعة درجة واحدة، والسعر يتبعها.',
     noFabric: 'خامة {wanted} غير متاحة {these}. الخيارات المتاحة هي: {offered}.',
     theseGarments: 'لهذه القطع',
     thisGarment: 'لهذه القطعة',
-    setSpare: 'تم ضبط نسبة الأطقم الاحتياطية على {pct}٪ لتغطية الموظفين الجدد وحالات الاستبدال.',
-    logoColour: 'تم تغيير لون الشعار إلى {colour}.',
-    logoMethod: 'تم تغيير طريقة تنفيذ الشعار إلى {method}.',
-    logoPlace: 'تم نقل الشعار إلى {place}.',
-    and: ' و',
+    setSpare: 'الأطقم الاحتياطية {pct}٪، تكفي الموظفين الجدد دون تكديس مخزون.',
+    logoColour: 'لون الشعار الآن {colour}.',
+    logoMethod: 'تنفيذ الشعار الآن {method}.',
+    logoPlace: 'نقلت الشعار إلى {place}.',
+    // A space after the waw. Arabic attaches it to the next word, but these
+    // join catalogue cloth names, which are Latin: "GSM وCotton Twill" runs
+    // the conjunction into the name.
+    and: ' و ',
     or: ' أو ',
-    updatedBranding: 'تم تحديث إعدادات الشعار.',
-    bothFollow: 'تم تحديث المعاينة والسعر وفقًا للتعديلات.',
-    notFollowed: 'لم أتمكن من تطبيق «{part}». جرّب طلب هذا التعديل بشكل منفصل.',
+    updatedBranding: 'حدّثت الشعار.',
+    bothFollow: 'المعاينة والسعر يتبعان.',
+    notFollowed: 'لم أفهم «{part}» — اطلبها وحدها وسأنفذها.',
   },
 
   errors: {
@@ -769,7 +807,21 @@ export function t(
   }
   if (!values) return found;
   return found.replace(/\{(\w+)\}/g, (m, name) =>
-    (name in values ? String(values[name]) : m));
+    (name in values ? isolate(locale, String(values[name])) : m));
+}
+
+/** Latin dropped into an Arabic sentence -- a cloth name like "Wool Blend 260
+ *  GSM" -- is reordered by the bidi algorithm against the run around it, and
+ *  comes out scrambled: "Wool Blend 260g Cotton Twill 240 GSMg GSM" on screen
+ *  from three perfectly ordered names. U+2068/U+2069 isolate the run so it is
+ *  laid out on its own and placed as a unit.
+ *
+ *  Only where it can matter: an Arabic sentence, and a value that actually
+ *  carries Latin. English needs none of this, and the characters are
+ *  invisible but still characters -- a value quoted back inside guillemets
+ *  should stay something a reader, or a test, can match on. */
+export function isolate(locale: Locale, value: string): string {
+  return locale === 'ar' && /[A-Za-z]/.test(value) ? `\u2068${value}\u2069` : value;
 }
 
 /** Egyptian business software shows 28,896 and EGP -- not ٢٨٬٨٩٦ -- so both

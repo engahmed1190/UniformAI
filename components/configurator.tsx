@@ -1,12 +1,12 @@
 'use client';
 
 import { Check } from './check';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import s from '@/app/ui.module.css';
 import { GarmentSvg, isTop, logoGarmentIndex } from './garments';
 import { SWATCHES, colourName, refine } from '@/lib/refine';
 import { stepAdvice } from '@/lib/manager';
-import { suggestions } from '@/lib/suggest';
+import { type Suggestion, quickAsks } from '@/lib/suggest';
 import { type Locale, formatCurrency, kitName, t } from '@/lib/i18n';
 
 /** colourName() answers in English -- it is shared with the parser. Turn its
@@ -24,7 +24,10 @@ import {
   gradesFor, gradeName,
 } from '@/lib/spec';
 
-type Msg = { who: 'you' | 'app'; text: string; patch?: string };
+// No patch line. The drawing and the price change in front of you, which is
+// the proof that matters; "shirt.fabric = Cotton Poplin 130 GSM" is the
+// program talking about itself in the middle of a conversation.
+type Msg = { who: 'you' | 'app'; text: string };
 
 
 const STEPS = ['outfit', 'fit', 'colours', 'branding', 'sizes'] as const;
@@ -63,6 +66,7 @@ export function Configurator({
   concept, onChange, logoText, staff, onStaffChange,
   grades, onGradesChange, spare, onSpareChange, perPerson, sets,
   sizePlan, onSizePlanChange, brief, onSave, locale,
+  tips, asking, onAskingChange,
 }: {
   locale: Locale;
   concept: Concept;
@@ -83,15 +87,17 @@ export function Configurator({
   /** The customer's own words, so advice can refer back to them. */
   brief: string;
   onSave: () => void;
+  /** Computed by the page so the price bar's count and this panel agree. */
+  tips: Suggestion[];
+  /** Opened from the price bar, so the state belongs to the page. */
+  asking: boolean;
+  onAskingChange: (open: boolean) => void;
 }) {
   const [step, setStep] = useState(0);
   const [focus, setFocus] = useState(0); // garment being configured
   const [log, setLog] = useState<Msg[]>([]);
   const [draft, setDraft] = useState('');
-  // Closed by default: the bar still carries the advice and the count, so the
-  // designer is present at every step without covering the thing being made.
-  const [open, setOpen] = useState(false);
-  const logEnd = useRef<HTMLDivElement>(null);
+  const body = useRef<HTMLDivElement>(null);
 
   const topIdx = logoGarmentIndex(concept.garments);
   const per = perPerson;
@@ -113,10 +119,31 @@ export function Configurator({
     brief, staff, spare, sizePlan.mode,
   );
 
-  const tips = useMemo(
-    () => suggestions(locale, concept, grades, brief, sets),
-    [locale, concept, grades, brief, sets],
+  // The quick asks under the composer. Derived from the same state as the
+  // proposals and gated the same way, so the row changes as the kit does and
+  // never offers a tap that would land on nothing.
+  const quick = useMemo(
+    () => quickAsks(locale, concept, grades, spare, step, tips.map((x) => x.ask)),
+    [locale, concept, grades, spare, step, tips],
   );
+
+  // One row for the composer: what the designer recommends, then the rest of
+  // the useful asks for this step. A recommendation carries its reason.
+  const chips = useMemo(
+    () => [
+      ...tips.map((x) => ({ ask: x.ask, why: x.why })),
+      ...quick.map((ask) => ({ ask, why: '' })),
+    ],
+    [tips, quick],
+  );
+
+  // The newest turn is always at the end, so the bottom is always what to
+  // show. scrollIntoView({block:'nearest'}) moved the minimum distance and
+  // left the last message a few pixels under the fold.
+  useEffect(() => {
+    const el = body.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [log, asking]);
 
   function toggleGarment(type: GarmentType) {
     const at = concept.garments.findIndex((g) => g.type === type);
@@ -148,7 +175,7 @@ export function Configurator({
       if (applied.concept !== concept) onChange(applied.concept);
       if (applied.grades) { onGradesChange(applied.grades); if (jump) setStep(1); }
       if (applied.spare !== undefined) { onSpareChange(applied.spare); if (jump) setStep(4); }
-      next.push({ who: 'app', text: applied.note, patch: applied.patch });
+      next.push({ who: 'app', text: applied.note });
     } else {
       next.push({
         who: 'app',
@@ -156,7 +183,6 @@ export function Configurator({
       });
     }
     setLog((l) => [...l, ...next]);
-    requestAnimationFrame(() => logEnd.current?.scrollIntoView({ block: 'nearest' }));
   }
 
   return (
@@ -597,11 +623,10 @@ export function Configurator({
         </div>
     </div>
 
-      {/* The designer, as a chat bubble. The preview column is for the
-          clothes; this rides the bottom corner of every step, closed until
-          it is wanted and carrying the count of what it would change. */}
-      <div className={s.dock}>
-        {open ? (
+      {/* Only here once you have asked for it. Opened from the price bar --
+          nothing floats over the garments waiting to be needed. */}
+      {asking && (
+        <div className={s.dock}>
           <div className={s.dockPanel}>
             <div className={s.dockHead}>
               <span className={s.mgrMark} aria-hidden="true">
@@ -613,7 +638,7 @@ export function Configurator({
               <button
                 type="button"
                 className={s.dockClose}
-                onClick={() => setOpen(false)}
+                onClick={() => onAskingChange(false)}
                 aria-label={t(locale, 'common.close')}
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
@@ -623,41 +648,39 @@ export function Configurator({
               </button>
             </div>
 
-            <div className={s.ask}>
-              {/* The advice opens the conversation, so it reads as the first
-                  thing said rather than a banner bolted above a chat. */}
+            {/* A transcript, and nothing else in it: the designer opens with
+                what it makes of this step, then it is your words and its
+                replies. */}
+            <div className={s.ask} ref={body}>
               {advice && <div className={`${s.msg} ${s.msgApp}`}>{advice}</div>}
+              {log.map((m, i) => (
+                <div key={i} className={`${s.msg} ${m.who === 'you' ? s.msgYou : s.msgApp}`}>
+                  {m.text}
+                </div>
+              ))}
+            </div>
 
-              {tips.length > 0 && (
-                <div className={s.tips}>
-                  {tips.map((tip) => (
+            <div className={s.dockFoot}>
+              {/* Quick replies above the input, the way a chat does it. What
+                  the designer would actually recommend comes first and is
+                  marked; the rest are the useful asks from this step. All of
+                  them are gated the same way, so none is ever a no-op. */}
+              {chips.length > 0 && (
+                <div className={s.askChips}>
+                  {chips.map((c) => (
                     <button
-                      key={tip.ask}
+                      key={c.ask}
                       type="button"
-                      className={s.tip}
-                      onClick={() => submitAsk(tip.ask, false)}
+                      className={c.why ? s.chipTip : undefined}
+                      title={c.why || undefined}
+                      onClick={() => submitAsk(c.ask, false)}
                     >
-                      <span className={s.tipAsk}>{tip.ask}</span>
-                      <span className={s.tipWhy}>{tip.why}</span>
+                      {c.ask}
                     </button>
                   ))}
                 </div>
               )}
 
-              {log.length > 0 && (
-                <div className={s.askLog}>
-                  {log.map((m, i) => (
-                    <div key={i} className={`${s.msg} ${m.who === 'you' ? s.msgYou : s.msgApp}`}>
-                      {m.text}
-                      {m.patch && <span className={s.patch}>{m.patch}</span>}
-                    </div>
-                  ))}
-                  <div ref={logEnd} />
-                </div>
-              )}
-            </div>
-
-            <div className={s.dockFoot}>
               <form
                 className={s.askForm}
                 onSubmit={(e) => {
@@ -668,6 +691,9 @@ export function Configurator({
                 <input
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
+                  /* The parser takes either language, so the field has to
+                     lay out either language rather than the page's. */
+                  dir="auto"
                   placeholder={t(locale, 'configure.examples').split('|')[0]}
                   aria-label={t(locale, 'configure.describeChange')}
                 />
@@ -685,31 +711,10 @@ export function Configurator({
                   </svg>
                 </button>
               </form>
-              {/* The canned examples teach the vocabulary. Once the designer has
-                  something specific to say, they are just noise above it. */}
-              {tips.length === 0 && (
-                <div className={s.askChips}>
-                  {t(locale, 'configure.examples').split('|').slice(1).map((q) => (
-                    <button key={q} type="button" onClick={() => submitAsk(q)}>{q}</button>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
-        ) : (
-          <button
-            type="button"
-            className={s.bubble}
-            onClick={() => setOpen(true)}
-            aria-label={t(locale, 'suggest.open')}
-          >
-            <svg width="22" height="22" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <path d="M5 2.6 8 4.2l3-1.6 2.4 1.2v3.6l-1.7.4V14H4.3V7.8l-1.7-.4V3.8z" />
-            </svg>
-            {tips.length > 0 && <span className={s.bubbleCount}>{tips.length}</span>}
-          </button>
-        )}
-      </div>
+        </div>
+      )}
     </>
   );
 }

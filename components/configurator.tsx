@@ -543,14 +543,16 @@ export function Configurator({
               </>
             )}
 
-            {/* The existing advice maps to fit/fabric, colours, branding and
-                quantity. Outfit composition gets its own domain note. */}
-            <ManagerNote locale={locale} note={step === 0
-              ? t(locale, 'manager.outfitCuts')
-              : stepAdvice(locale, step - 1, concept, Math.max(0, ...grades, 0), brief, staff, spare)} />
-
-            {/* Available at every step: describe the change instead of hunting for it. */}
+            {/* One block, not two: the voice that just gave the advice is the
+                same one taking the request, so the reply field sits under it
+                rather than reading as one more form control. */}
             <div className={s.ask}>
+              <ManagerNote locale={locale} note={stepAdvice(
+                locale, step, concept, Math.max(0, ...grades, 0),
+                brief, staff, spare, sizePlan.mode,
+              )} />
+
+              {/* Available at every step: describe the change instead of hunting for it. */}
               <div className={s.askHead}>{t(locale, 'configure.askTitle')}</div>
               {log.length === 0 && (
                 <p className={s.askHint}>
@@ -584,7 +586,7 @@ export function Configurator({
                 <button type="submit" className={`${s.btn} ${s.btnSecondary}`}>{t(locale, 'configure.apply')}</button>
               </form>
               <div className={s.askChips}>
-                {t(locale, 'configure.examples').split('|').map((q) => (
+                {t(locale, 'configure.examples').split('|').slice(1).map((q) => (
                   <button key={q} type="button" onClick={() => submitAsk(q)}>{q}</button>
                 ))}
               </div>

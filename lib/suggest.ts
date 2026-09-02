@@ -42,14 +42,82 @@ const LOGO_MIN_CONTRAST = 2.2;
  *  is that it says the one thing worth saying. */
 const MAX = 2;
 
+/** Three quick asks. They sit on one scrolling line, so a fourth is off the
+ *  edge rather than on it. */
+const MAX_CHIPS = 3;
+
 /** Did this ask actually move anything? kitKey covers every colour, the logo,
  *  the fits and the cuts; grades and spare live in the page's own state
- *  rather than the spec, so they are compared separately. */
-function changesSomething(c: Concept, grades: number[], a: Applied | null): boolean {
+ *  rather than the spec, so they are compared against what is set now --
+ *  "10% spare" offered to a kit already carrying 10% is a button that lies. */
+/** kitKey reads an unset logo colour as "", but the renderer draws it white.
+ *  Compared raw, "Make the logo white" counts as a change on a kit whose logo
+ *  is already white -- a chip that promises something and delivers nothing. */
+const asDrawn = (c: Concept): Concept =>
+  (c.logo.colour ? c : { ...c, logo: { ...c.logo, colour: '#ffffff' } });
+
+function changesSomething(
+  c: Concept, grades: number[], spare: number, a: Applied | null,
+): boolean {
   if (!a) return false;
-  if (kitKey(a.concept) !== kitKey(c)) return true;
+  if (kitKey(asDrawn(a.concept)) !== kitKey(asDrawn(c))) return true;
   if (a.grades?.some((g, i) => g !== (grades[i] ?? 0))) return true;
-  return a.spare !== undefined;
+  return a.spare !== undefined && a.spare !== spare;
+}
+
+/** The quick asks, and the step each one belongs to. Every entry is a working
+ *  sentence in both languages, not a label: the chip submits this text.
+ *
+ *  The outfit step has no entries because refine() cannot add or drop a
+ *  garment -- that is the one decision the panel makes and the words cannot.
+ *  It falls through to the rest of the list rather than showing nothing. */
+const CHIPS: { key: string; step: number }[] = [
+  { key: 'suggest.askPerformance', step: 1 },
+  { key: 'suggest.askTwill', step: 1 },
+  { key: 'suggest.askWorsted', step: 1 },
+  { key: 'suggest.askStandard', step: 1 },
+  { key: 'suggest.askLogoWhite', step: 2 },
+  { key: 'suggest.askLogoNavy', step: 2 },
+  { key: 'chip.logoSleeve', step: 3 },
+  { key: 'chip.logoBack', step: 3 },
+  { key: 'chip.logoChest', step: 3 },
+  { key: 'chip.embroider', step: 3 },
+  { key: 'chip.print', step: 3 },
+  { key: 'chip.noLogo', step: 3 },
+  { key: 'chip.spare10', step: 4 },
+  { key: 'chip.noSpare', step: 4 },
+];
+
+/** The quick asks worth offering right now.
+ *
+ *  These used to be four sentences hardcoded in the dictionary, which meant
+ *  the box offered a performance knit to a kit of wovens that cannot be made
+ *  in one, and went on offering print to a kit already printed. Same gate as
+ *  a proposal: it has to parse, and it has to change something. What the step
+ *  does is order them -- the branding words first while you are branding. */
+export function quickAsks(
+  locale: Locale,
+  concept: Concept,
+  grades: number[],
+  spare: number,
+  step: number,
+  /** Asks already on screen as proposals, so a chip never echoes a card. */
+  exclude: string[] = [],
+): string[] {
+  const taken = new Set(exclude);
+  // Stable sort, so within the step and within the rest the listed order holds.
+  const ranked = [...CHIPS].sort(
+    (a, b) => Number(b.step === step) - Number(a.step === step));
+
+  const out: string[] = [];
+  for (const chip of ranked) {
+    if (out.length >= MAX_CHIPS) break;
+    const ask = t(locale, chip.key);
+    if (taken.has(ask)) continue;
+    if (!changesSomething(concept, grades, spare, refine(concept, ask, grades, locale))) continue;
+    out.push(ask);
+  }
+  return out;
 }
 
 export function suggestions(
@@ -59,6 +127,8 @@ export function suggestions(
   brief: string,
   /** Sets in the run, so a per-person delta can be quoted as real money. */
   sets: number,
+  /** Compared against, not proposed: no proposal here touches spare stock. */
+  spare = 0,
 ): Suggestion[] {
   const r = readBrief(brief);
   const out: Suggestion[] = [];
@@ -69,7 +139,7 @@ export function suggestions(
     if (out.length >= MAX) return;
     const ask = t(locale, key);
     const applied = refine(concept, ask, grades, locale);
-    if (!changesSomething(concept, grades, applied)) return;
+    if (!changesSomething(concept, grades, spare, applied)) return;
     out.push({ ask, why: why(applied!), patch: applied!.patch });
   };
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { suggestions } from './suggest';
+import { quickAsks, suggestions } from './suggest';
 import { CONCEPTS } from './concepts';
 import { conceptPriceAt, setLogo, setPart } from './spec';
 import { refine } from './refine';
@@ -98,6 +98,63 @@ assert.ok(
 for (const locale of ['en', 'ar'] as const) {
   const many = suggestions(locale, ops, [2, 2], 'Hot outdoor site work, formal, tight budget', 42);
   assert.ok(many.length <= 2, `${locale}: at most two proposals at a time`);
+}
+
+// 8. The quick asks are chips, not decoration: each is submitted verbatim, so
+// each has to parse in both languages and land the same patch. This is the
+// loop that caught a rewritten Arabic string doing nothing at all.
+for (const c of CONCEPTS) {
+  const grades = c.garments.map(() => 0);
+  for (const key of Object.keys(translations.en.chip)) {
+    const en = (translations.en.chip as Record<string, string>)[key];
+    const ar = (translations.ar.chip as Record<string, string>)[key];
+    assert.ok(refine(c, en, grades, 'en'), `${c.id}: the chip "${key}" does not parse`);
+    assert.equal(
+      refine(c, ar, grades, 'ar')?.patch ?? null,
+      refine(c, en, grades, 'en')?.patch ?? null,
+      `${c.id}: the Arabic chip "${key}" does not land the same patch as the English`,
+    );
+  }
+}
+
+// 9. A chip that would change nothing never appears. This is the whole
+// difference from the four hardcoded examples it replaces.
+{
+  const printed = setLogo(ops, { method: 'print', position: 'sleeve' });
+  const asks = quickAsks('en', printed, [2, 2], 0.1, 3);
+  assert.ok(!asks.includes('Print the logo'), 'print must not be offered to a printed kit');
+  assert.ok(!asks.includes('Move the logo to the sleeve'), 'the sleeve is where the logo already is');
+  assert.ok(asks.includes('Embroider the logo'), 'the method it is not on must still be offered');
+
+  assert.ok(!quickAsks('en', ops, [0, 0], 0.1, 4).includes('10% spare'),
+    '10% spare must not be offered to a kit already carrying 10%');
+  assert.ok(quickAsks('en', ops, [0, 0], 0, 4).includes('10% spare'),
+    'a kit with no spare must be offered some');
+
+  // An unset logo colour is drawn white, so offering white is offering nothing.
+  assert.ok(!quickAsks('en', ops, [0, 0], 0, 2).includes('Make the logo white'),
+    'a logo already drawn white must not be offered white');
+  assert.ok(quickAsks('en', setLogo(ops, { colour: '#c8a24a' }), [0, 0], 0, 2)
+    .includes('Make the logo white'), 'a gold logo may be offered white');
+}
+
+// 10. The step orders them: the words for the screen you are on come first.
+{
+  const branding = quickAsks('en', ops, [0, 0], 0, 3);
+  assert.match(branding[0], /logo/i, 'the branding step leads with the logo asks');
+  const fabric = quickAsks('en', ops, [0, 0], 0, 1);
+  assert.match(fabric[0], /knit|twill|worsted|cloth/i, 'the fabric step leads with cloth');
+  assert.ok(branding.length <= 3 && fabric.length <= 3, 'three chips at most');
+}
+
+// 11. A chip never echoes a proposal already on screen: the card and the row
+// would be two buttons doing one thing.
+{
+  const hot = suggestions('en', ops, [0, 0], HOT, 42);
+  const asks = quickAsks('en', ops, [0, 0], 0, 1, hot.map((x) => x.ask));
+  for (const tip of hot) {
+    assert.ok(!asks.includes(tip.ask), `"${tip.ask}" is proposed above; it must not repeat as a chip`);
+  }
 }
 
 console.log('suggest: all assertions passed');

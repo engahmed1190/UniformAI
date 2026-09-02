@@ -6,7 +6,7 @@ import s from '@/app/ui.module.css';
 import { GarmentSvg, isTop, logoGarmentIndex } from './garments';
 import { SWATCHES, colourName, refine } from '@/lib/refine';
 import { stepAdvice } from '@/lib/manager';
-import { suggestions } from '@/lib/suggest';
+import { quickAsks, suggestions } from '@/lib/suggest';
 import { type Locale, formatCurrency, kitName, t } from '@/lib/i18n';
 
 /** colourName() answers in English -- it is shared with the parser. Turn its
@@ -114,8 +114,16 @@ export function Configurator({
   );
 
   const tips = useMemo(
-    () => suggestions(locale, concept, grades, brief, sets),
-    [locale, concept, grades, brief, sets],
+    () => suggestions(locale, concept, grades, brief, sets, spare),
+    [locale, concept, grades, brief, sets, spare],
+  );
+
+  // The quick asks under the composer. Derived from the same state as the
+  // proposals and gated the same way, so the row changes as the kit does and
+  // never offers a tap that would land on nothing.
+  const quick = useMemo(
+    () => quickAsks(locale, concept, grades, spare, step, tips.map((x) => x.ask)),
+    [locale, concept, grades, spare, step, tips],
   );
 
   function toggleGarment(type: GarmentType) {
@@ -685,12 +693,12 @@ export function Configurator({
                   </svg>
                 </button>
               </form>
-              {/* The canned examples teach the vocabulary. Once the designer has
-                  something specific to say, they are just noise above it. */}
-              {tips.length === 0 && (
+              {/* Quick replies, in the sense a chat means it: the things worth
+                  asking for from here, not a fixed list of four. */}
+              {quick.length > 0 && (
                 <div className={s.askChips}>
-                  {t(locale, 'configure.examples').split('|').slice(1).map((q) => (
-                    <button key={q} type="button" onClick={() => submitAsk(q)}>{q}</button>
+                  {quick.map((q) => (
+                    <button key={q} type="button" onClick={() => submitAsk(q, false)}>{q}</button>
                   ))}
                 </div>
               )}

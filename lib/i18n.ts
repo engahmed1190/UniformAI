@@ -124,6 +124,20 @@ const en = {
     whyBudget: 'You mentioned budget and this is quoted above the standard grade. Dropping back saves {delta} a person — {total} across {sets} sets.',
     whyLogo: 'A {logo} logo on a {body} body is there but unreadable from a few paces.',
   },
+  /* Quick asks. Like the suggest.ask* lines these are submitted verbatim, so
+     each one has to stay inside the parser's vocabulary. "Embroider the logo"
+     rather than "Use embroidery": the branch is gated on \bembroider\b, and
+     the trailing "y" defeats the boundary. */
+  chip: {
+    logoSleeve: 'Move the logo to the sleeve',
+    logoBack: 'Put the logo on the back',
+    logoChest: 'Move the logo to the chest',
+    embroider: 'Embroider the logo',
+    print: 'Print the logo',
+    noLogo: 'No logo',
+    spare10: '10% spare',
+    noSpare: 'No spare',
+  },
   quote: {
     title: 'Your quote', validFor: 'Held for 30 days.',
     branding: 'Branding', upgrade: 'upgrade', sets: 'Sets',
@@ -471,6 +485,16 @@ const ar: Dict<typeof en> = {
     whyBudget: 'للحفاظ على الميزانية، يمكنك اختيار الخامة القياسية دون التأثير على الشكل الأساسي للزي. سيوفر ذلك {delta} للفرد، بإجمالي {total} لـ {sets} طقم.',
 
     whyLogo: 'لون شعار {logo} لا يوفر تباينًا كافيًا مع لون القماش {body}، مما يقلل من وضوح الشعار. نوصي بتغيير لونه لتحسين ظهوره.',
+  },
+  chip: {
+    logoSleeve: 'انقل الشعار إلى الكم',
+    logoBack: 'ضع الشعار على الظهر',
+    logoChest: 'انقل الشعار إلى الصدر',
+    embroider: 'تطريز الشعار',
+    print: 'طباعة الشعار',
+    noLogo: 'بدون شعار',
+    spare10: 'أضف 10٪ أطقم احتياطية',
+    noSpare: 'بدون احتياطي',
   },
   quote: {
     title: 'عرض السعر',

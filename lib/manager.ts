@@ -6,7 +6,7 @@
 // "You picked Performance knit" is noise next to a button reading Performance
 // knit. Say why it suits this brief, or what it costs.
 
-import { type Concept, type LogoPosition, conceptPrice } from './spec';
+import { type Concept, type LogoPosition, type SizingMode, conceptPrice } from './spec';
 import { briefWishes, colourName } from './refine';
 import { type Order, STAGE_KEYS } from './order';
 import { type Locale, formatCurrency, formatDate, kitName, spareMessage, t } from './i18n';
@@ -100,26 +100,48 @@ export function stepAdvice(
   brief: string,
   staff: number,
   spare: number,
+  /** Only the sizes step reads this. Left out, that step advises on spare
+   *  stock alone, which is what it did before sizes were a choice. */
+  sizeMode?: SizingMode,
 ): string {
   const r = readBrief(brief);
+  // One case per configure step, in the order the steps run. The outfit step
+  // used to have no case, so the caller passed step - 1 and special-cased it;
+  // that off-by-one was one new step away from advising on the wrong screen.
   switch (step) {
+    // Outfit. Which cuts a shared design is made in is the one thing the
+    // garment list on screen does not show.
     case 0:
+      return t(locale, 'manager.outfitCuts');
+
+    // Fit and fabric. Heat is the strongest read the brief offers, so the
+    // cloth speaks first; the cut only gets the line when the cloth has
+    // nothing pointed left to say. One reason per note, never both.
+    case 1: {
       if (r.heat && fabricIndex !== 2) return t(locale, 'manager.fabricPushKnit');
       if (fabricIndex === 2) return t(locale, 'manager.fabricGoodCall');
+      const fit = concept.garments.find((g) => g.parts.body)?.fit ?? 'regular';
+      if ((r.durable || r.outdoor) && fit !== 'relaxed') return t(locale, 'manager.fitRelaxed');
+      if (r.formal && fit !== 'slim') return t(locale, 'manager.fitSlim');
       return t(locale, 'manager.fabricStandard');
+    }
 
-    case 1: {
+    case 2: {
       const top = concept.garments.find((g) => g.parts.body);
       const light = top && isLight(top.parts.body);
       return t(locale, light ? 'manager.colourLight' : 'manager.colourDark');
     }
 
-    case 2:
+    case 3:
       if (concept.logo.position === 'none') return t(locale, 'manager.brandNone');
       if (concept.logo.method === 'print') return t(locale, 'manager.brandPrint');
       return t(locale, 'manager.brandEmbroidery');
 
-    case 3: {
+    // Quantity and sizes. Committing the size run now is the choice that
+    // carries a consequence worth stating; leave it to the staff and spare
+    // stock is what covers the guesswork instead.
+    case 4: {
+      if (sizeMode === 'allocate_now') return t(locale, 'manager.sizesAllocateNow');
       const sets = Math.ceil(staff * (1 + spare));
       if (spare === 0) return t(locale, 'manager.spareNone', { sets });
       // Arabic counts in five categories, so this sentence is written per

@@ -22,26 +22,48 @@ assert.match(why, /EGP/, 'the rationale should quote a real price');
 
 // 3. Advice changes with the choice -- it is not one canned string.
 const c = CONCEPTS[0];
-const fabricAdviceLow = stepAdvice('en', 0, c, 0, hot, 40, 0.05);
-const fabricAdviceHigh = stepAdvice('en', 0, c, 2, hot, 40, 0.05);
+const fabricAdviceLow = stepAdvice('en', 1, c, 0, hot, 40, 0.05);
+const fabricAdviceHigh = stepAdvice('en', 1, c, 2, hot, 40, 0.05);
 assert.notEqual(fabricAdviceLow, fabricAdviceHigh, 'fabric advice must react to the choice');
 assert.match(fabricAdviceLow, /performance knit/i, 'a hot brief should push the knit');
 
 // 4. Branding advice reflects the actual logo state.
 const noLogo = setLogo(c, { position: 'none' });
-assert.match(stepAdvice('en', 2, noLogo, 0, hot, 40, 0.05), /stop reading as a uniform/);
-assert.match(stepAdvice('en', 2, setLogo(c, { method: 'print' }), 0, hot, 40, 0.05), /Print/);
-assert.match(stepAdvice('en', 2, setLogo(c, { method: 'embroidery' }), 0, hot, 40, 0.05), /Embroidery/);
+assert.match(stepAdvice('en', 3, noLogo, 0, hot, 40, 0.05), /stop reading as a uniform/);
+assert.match(stepAdvice('en', 3, setLogo(c, { method: 'print' }), 0, hot, 40, 0.05), /Print/);
+assert.match(stepAdvice('en', 3, setLogo(c, { method: 'embroidery' }), 0, hot, 40, 0.05), /Embroidery/);
 
 // 5. Quantity advice states the real spare count.
-assert.match(stepAdvice('en', 3, c, 0, hot, 40, 0.1), /4 spare sets/);
-assert.match(stepAdvice('en', 3, c, 0, hot, 40, 0), /Exactly 40 sets/);
+assert.match(stepAdvice('en', 4, c, 0, hot, 40, 0.1), /4 spare sets/);
+assert.match(stepAdvice('en', 4, c, 0, hot, 40, 0), /Exactly 40 sets/);
+
+// 5b. The sizes step advises on the choice that carries a consequence:
+// committing the run now, or the spare stock that covers guessing later.
+assert.match(stepAdvice('en', 4, c, 0, hot, 40, 0.1, 'allocate_now'), /locks the run/);
+assert.match(stepAdvice('en', 4, c, 0, hot, 40, 0.1, 'collect_later'), /4 spare sets/);
+
+// 5c. Fit advice only speaks when the cloth has nothing pointed left to say,
+// so a hot brief still gets the knit rather than a note about the cut.
+// The yard brief is deliberately heat-free: `hot` reads durable AND outdoor,
+// so it can never prove the cut branch fires on its own.
+const yard = 'Hard-wearing warehouse workwear for 40 store staff, dark colours';
+assert.equal(readBrief(yard).heat, false, 'the yard brief must not read as heat');
+assert.match(stepAdvice('en', 1, c, 0, yard, 40, 0.05), /bend and reach/,
+  'a durable brief should push the relaxed cut');
+assert.match(stepAdvice('en', 1, c, 0, desk, 40, 0.05), /front of house/,
+  'a formal brief should push the slim cut');
+assert.match(stepAdvice('en', 1, c, 0, hot, 40, 0.05), /performance knit/i,
+  'heat outranks the cut -- one reason per note');
+// A cut already right for the brief has nothing to say; the cloth line returns.
+const relaxed = { ...c, garments: c.garments.map((g, i) => (i === 0 ? { ...g, fit: 'relaxed' as const } : g)) };
+assert.match(stepAdvice('en', 1, relaxed, 0, yard, 40, 0.05), /standard grade/,
+  'no advice to change a cut that is already relaxed');
 
 // 6. Colour advice flips on how light the body actually is.
 const lightTop = setPart(c, 0, 'body', '#ffffff');
 const darkTop = setPart(c, 0, 'body', '#12161f');
-assert.notEqual(stepAdvice('en', 1, lightTop, 0, hot, 40, 0.05), stepAdvice('en', 1, darkTop, 0, hot, 40, 0.05));
-assert.match(stepAdvice('en', 1, lightTop, 0, hot, 40, 0.05), /show marks/);
+assert.notEqual(stepAdvice('en', 2, lightTop, 0, hot, 40, 0.05), stepAdvice('en', 2, darkTop, 0, hot, 40, 0.05));
+assert.match(stepAdvice('en', 2, lightTop, 0, hot, 40, 0.05), /show marks/);
 
 // 7. The greeting and the order note say what the session's order actually
 // is -- and nothing about an order that does not exist.
@@ -110,7 +132,7 @@ for (const [locale, brief] of [['en', hot], ['ar', hotAr]] as [Locale, string][]
     else assert.doesNotMatch(out, ARABIC_TEXT, `${label} leaked Arabic into English`);
   };
   check('whyTheseKits', whyTheseKits(locale, brief, CONCEPTS.slice(0, 3)));
-  for (let step = 0; step < 4; step++) {
+  for (let step = 0; step < 5; step++) {
     check(`stepAdvice(${step})`, stepAdvice(locale, step, c, 0, brief, 40, 0.05));
   }
   check('quoteNote', quoteNote(locale, c, 40, 44));

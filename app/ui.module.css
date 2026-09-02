@@ -1344,21 +1344,36 @@
 }
 
 /* ---------- Ask panel ---------- */
+/* The advice and the reply field are one object, on the manager's own ground:
+   the person who just spoke is visibly the one listening. As a hairline-ruled
+   footnote under the option lists, nobody read this as somewhere to talk. */
 .ask {
-  border-top: 1px solid var(--line);
-  margin-top: var(--s4);
-  padding-top: var(--s4);
+  background: var(--accent-soft);
+  border: 1px solid rgba(15, 107, 98, 0.16);
+  border-radius: var(--r-lg);
+  padding: var(--s4);
+}
+
+/* The note already sits inside the card, so it drops its own separator. */
+.ask .mgrInline {
+  border-top: 0;
+  margin-top: 0;
+  padding-top: 0;
 }
 
 .askHead {
   font-size: var(--t-sm);
   font-weight: 600;
   margin-bottom: var(--s1);
+  margin-top: var(--s3);
+  padding-top: var(--s3);
+  border-top: 1px solid rgba(15, 107, 98, 0.16);
 }
 
+/* --text-3 clears 4.5:1 on white but not on the tinted ground. */
 .askHint {
   font-size: var(--t-xs);
-  color: var(--text-3);
+  color: var(--text-2);
   margin: 0 0 var(--s3);
   line-height: 1.5;
 }
@@ -1369,6 +1384,7 @@
   gap: var(--s2);
   max-height: 168px;
   overflow-y: auto;
+  margin-top: var(--s3);
   margin-bottom: var(--s3);
 }
 
@@ -1388,8 +1404,8 @@
 }
 
 .msgApp {
-  background: var(--sunken);
-  border: 1px solid var(--line);
+  background: var(--surface);
+  border: 1px solid rgba(15, 107, 98, 0.16);
   align-self: flex-start;
   border-bottom-left-radius: 3px;
 }
@@ -1402,7 +1418,7 @@
   border-top: 1px solid var(--line-2);
   font-family: var(--font-mono), monospace;
   font-size: var(--t-xs);
-  color: var(--text-3);
+  color: var(--text-2);
   /* One patch line per edit. These are the proof of what moved, so they wrap
      at the line breaks they were written with, and break between tokens
      rather than through the middle of a hex. */
@@ -1419,8 +1435,9 @@
   flex: 1;
   min-width: 0;
   padding: var(--s2) var(--s3);
-  border: 1px solid var(--line-2);
+  border: 1px solid rgba(15, 107, 98, 0.22);
   border-radius: var(--r-sm);
+  background: var(--surface);
   font-size: var(--t-sm);
 }
 
@@ -1432,17 +1449,19 @@
 }
 
 .askChips button {
-  border: 1px solid var(--line);
+  border: 1px solid rgba(15, 107, 98, 0.2);
   background: var(--surface);
   border-radius: 999px;
   padding: var(--s1) var(--s3);
   font-size: var(--t-xs);
-  color: var(--text-2);
+  color: var(--accent);
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
 }
 
 .askChips button:hover {
-  border-color: var(--line-2);
-  color: var(--text);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 
 /* ---------- Table ---------- */

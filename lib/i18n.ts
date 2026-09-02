@@ -142,6 +142,7 @@ const en = {
   quote: {
     title: 'Your quote', validFor: 'Held for 30 days.',
     branding: 'Branding', upgrade: 'upgrade', sets: 'Sets',
+    itemsHead: 'Items, priced per set', perSet: 'One set', specHead: 'Specification',
     coversPeople: '{people} people plus {spare} spare', coversNoSpare: '{people} people, no spare',
     cutRange: 'Production cuts', fitProfile: 'Fit profile', sizing: 'Size plan',
     total: 'Total', keepEditing: 'Keep editing', submit: 'Place order',
@@ -508,6 +509,9 @@ const ar: Dict<typeof en> = {
     validFor: 'السعر ثابت لمدة 30 يومًا.',
     branding: 'الشعار والتخصيص',
     upgrade: 'الإضافات',
+    itemsHead: 'البنود · السعر لكل طقم',
+    perSet: 'إجمالي الطقم الواحد',
+    specHead: 'المواصفات',
     sets: 'الأطقم',
     coversPeople: '{people} موظف + {spare} طقم احتياطي',
     coversNoSpare: '{people} موظف · بلا أطقم احتياطية',

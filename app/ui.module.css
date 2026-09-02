@@ -445,6 +445,31 @@
   gap: var(--s4);
 }
 
+/* The next slot on the shelf. Dashed and unfilled so it reads as space for a
+   kit rather than as a kit, and it keeps the row from trailing off into
+   nothing when the library is still small. */
+.kitNew {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--s2);
+  min-height: 200px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r-lg);
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--t-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.14s, color 0.14s, background 0.14s;
+}
+
+.kitNew:hover {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .kit {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -1363,13 +1388,10 @@
   --dock-room: calc(100dvh - 150px);
   display: flex;
   justify-content: flex-end;
-  /* Only the panel itself catches clicks; the empty track beside it does not. */
-  pointer-events: none;
   padding-bottom: var(--s3);
 }
 
 .dockPanel {
-  pointer-events: auto;
   width: min(420px, 100%);
   /* Header and composer are fixed; the transcript takes what is left. Left
      to its content height the panel outgrew the space on a phone and pushed
@@ -1384,42 +1406,29 @@
   overflow: hidden;
 }
 
-/* Closed: a bubble in the corner, with the number of changes it would make.
-   Open: the same conversation, anchored to the same corner. */
-.bubble {
-  /* The dock's track is click-through; the bubble itself must not be. */
-  pointer-events: auto;
-  position: relative;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  border: 0;
-  background: var(--accent);
-  color: #fff;
-  display: grid;
-  place-items: center;
-  cursor: pointer;
-  box-shadow: 0 4px 16px rgba(15, 107, 98, 0.34);
-  transition: transform 0.14s;
+/* The designer's button in the price bar, beside the two actions it feeds. */
+.askBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s2);
 }
 
-.bubble:hover {
-  transform: scale(1.06);
+/* Reads as held-open while the panel is, so the bar shows the state rather
+   than only announcing it to a screen reader. */
+.askBtn[aria-expanded='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
-.bubbleCount {
-  position: absolute;
-  top: -2px;
-  inset-inline-end: -2px;
-  min-width: 20px;
-  height: 20px;
+.askBtnCount {
+  min-width: 19px;
+  height: 19px;
   padding: 0 5px;
   border-radius: 10px;
-  background: var(--surface);
-  color: var(--accent);
-  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff;
   font-size: var(--t-xs);
-  font-weight: 700;
+  font-weight: 600;
   display: grid;
   place-items: center;
 }
@@ -2367,11 +2376,21 @@
     flex: 1 1 100%;
   }
 
-  /* Save kit and Get a quote share the row: two thumb-sized halves. */
+  /* Save kit and Get a quote share the row: two thumb-sized halves. The
+     designer takes the line above them -- three across a 390px phone left
+     "Get a quote" hanging off the edge, and it is a different kind of action
+     from the two that close the job. */
   .priceBar .priceActions {
     display: flex;
     flex: 1 1 100%;
+    flex-wrap: wrap;
     gap: var(--s2);
+  }
+
+  /* .priceBar .btn sets flex: 1 1 auto below and ties on specificity, so this
+     needs the extra class to win rather than relying on source order. */
+  .priceBar .btn.askBtn {
+    flex: 1 0 100%;
   }
 
   .actionBar .btn,

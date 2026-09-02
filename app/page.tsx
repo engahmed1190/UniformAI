@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import s from './ui.module.css';
 import { Sidebar, Topbar, type PageId } from '@/components/shell';
 import { type Locale, LOCALES, LOCALE_CODES, LOCALE_NAMES, dir, kitName, formatCurrency, formatDate, t } from '@/lib/i18n';
@@ -24,6 +24,7 @@ import {
   asSavedKit, conceptPrice, conceptPriceAt, gradeName, gradesFor, sameKit,
 } from '@/lib/spec';
 import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
+import { suggestions } from '@/lib/suggest';
 import { type Order, STAGES, STAGE_KEYS, placeOrder, progress, revive, shortDate, stageDate, status } from '@/lib/order';
 import { ManagerNote } from '@/components/manager';
 import { useConfirm } from '@/components/confirm';
@@ -125,6 +126,10 @@ export default function Page() {
     ]);
   }, []);
   const [quoting, setQuoting] = useState(false);
+  // The designer's panel is opened from the price bar, so its state lives
+  // beside the bar rather than inside the configurator.
+  const [asking, setAsking] = useState(false);
+
   // The quote, carried over. Everything Orders and Home show comes from here.
   // Newest first. Loaded after mount like the kits. With nothing stored,
   // three samples in three states stand in so Home does not open on zeros.
@@ -171,6 +176,13 @@ export default function Page() {
     setSizePlan({ mode: 'collect_later', allocation: {} });
   }, [active?.id]);
   const sets = Math.ceil(staff * (1 + spare));
+
+  /* Computed here, beside the price bar, because the button there carries the
+     count -- a badge that disagrees with the panel is worse than no badge. */
+  const tips = useMemo(
+    () => (active ? suggestions(locale, active, grades, brief, sets, spare) : []),
+    [locale, active, grades, brief, sets, spare],
+  );
 
   function flash(msg: string) {
     setToast(msg);
@@ -357,8 +369,11 @@ export default function Page() {
                   sizePlan={sizePlan}
                   onSizePlanChange={(plan) => { setEdited(true); setSizePlan(plan); }}
                   brief={brief}
-              locale={locale}
+                  locale={locale}
                   onSave={() => saveKit(active)}
+                  tips={tips}
+                  asking={asking}
+                  onAskingChange={setAsking}
                 />
               ) : (
                 <Empty
@@ -438,6 +453,22 @@ export default function Page() {
               </span>
             </div>
             <div className={s.priceActions}>
+              {/* The third thing you can do with a kit, beside the two it
+                  changes. A circle floating over the garments covered the
+                  per-person price on a phone and an option row on a desktop;
+                  here it covers nothing and is on screen at every step. */}
+              <button
+                type="button"
+                className={`${s.btn} ${s.btnSecondary} ${s.askBtn}`}
+                onClick={() => setAsking((v) => !v)}
+                aria-expanded={asking}
+              >
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <path d="M5 2.6 8 4.2l3-1.6 2.4 1.2v3.6l-1.7.4V14H4.3V7.8l-1.7-.4V3.8z" />
+                </svg>
+                {t(locale, 'suggest.open')}
+                {tips.length > 0 && <span className={s.askBtnCount}>{tips.length}</span>}
+              </button>
               <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={() => saveKit(active)}>
                 {t(locale, 'configure.saveKit')}
               </button>
@@ -637,7 +668,6 @@ function Kits({
           <h1>{t(locale, 'kits.title')}</h1>
           <p>{t(locale, 'kits.subtitle')}</p>
         </div>
-        <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onNew}>{t(locale, 'kits.newUniform')}</button>
       </div>
       {saved.length === 0 ? (
         <Empty
@@ -648,11 +678,22 @@ function Kits({
         />
       ) : (
         <div className={s.kitGrid}>
+          {/* The action is the last slot on the shelf rather than a button in
+              the header: two kits on a wide screen used to sit beside 500px
+              of nothing, and the place to say "another one" is at the end of
+              the ones you have. */}
           {saved.map((c) => (
             <ConceptCard key={c.id} concept={c} logoText={logoText} employees={staff}
               locale={locale} money={money}
               selected={false} onSelect={() => onOpen(c)} />
           ))}
+          <button type="button" className={s.kitNew} onClick={onNew}>
+            <svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+              strokeWidth="1.5" strokeLinecap="round" aria-hidden="true">
+              <path d="M8 3.5v9M3.5 8h9" />
+            </svg>
+            {t(locale, 'kits.newUniform')}
+          </button>
         </div>
       )}
     </>

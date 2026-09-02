@@ -6,7 +6,7 @@ import s from '@/app/ui.module.css';
 import { GarmentSvg, isTop, logoGarmentIndex } from './garments';
 import { SWATCHES, colourName, refine } from '@/lib/refine';
 import { stepAdvice } from '@/lib/manager';
-import { quickAsks, suggestions } from '@/lib/suggest';
+import { type Suggestion, quickAsks } from '@/lib/suggest';
 import { type Locale, formatCurrency, kitName, t } from '@/lib/i18n';
 
 /** colourName() answers in English -- it is shared with the parser. Turn its
@@ -66,6 +66,7 @@ export function Configurator({
   concept, onChange, logoText, staff, onStaffChange,
   grades, onGradesChange, spare, onSpareChange, perPerson, sets,
   sizePlan, onSizePlanChange, brief, onSave, locale,
+  tips, asking, onAskingChange,
 }: {
   locale: Locale;
   concept: Concept;
@@ -86,14 +87,16 @@ export function Configurator({
   /** The customer's own words, so advice can refer back to them. */
   brief: string;
   onSave: () => void;
+  /** Computed by the page so the price bar's count and this panel agree. */
+  tips: Suggestion[];
+  /** Opened from the price bar, so the state belongs to the page. */
+  asking: boolean;
+  onAskingChange: (open: boolean) => void;
 }) {
   const [step, setStep] = useState(0);
   const [focus, setFocus] = useState(0); // garment being configured
   const [log, setLog] = useState<Msg[]>([]);
   const [draft, setDraft] = useState('');
-  // Closed by default: the bar still carries the advice and the count, so the
-  // designer is present at every step without covering the thing being made.
-  const [open, setOpen] = useState(false);
   const body = useRef<HTMLDivElement>(null);
 
   const topIdx = logoGarmentIndex(concept.garments);
@@ -114,11 +117,6 @@ export function Configurator({
   const advice = stepAdvice(
     locale, step, concept, Math.max(0, ...grades, 0),
     brief, staff, spare, sizePlan.mode,
-  );
-
-  const tips = useMemo(
-    () => suggestions(locale, concept, grades, brief, sets, spare),
-    [locale, concept, grades, brief, sets, spare],
   );
 
   // The quick asks under the composer. Derived from the same state as the
@@ -145,7 +143,7 @@ export function Configurator({
   useEffect(() => {
     const el = body.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [log, open]);
+  }, [log, asking]);
 
   function toggleGarment(type: GarmentType) {
     const at = concept.garments.findIndex((g) => g.type === type);
@@ -625,11 +623,10 @@ export function Configurator({
         </div>
     </div>
 
-      {/* The designer, as a chat bubble. The preview column is for the
-          clothes; this rides the bottom corner of every step, closed until
-          it is wanted and carrying the count of what it would change. */}
-      <div className={s.dock}>
-        {open ? (
+      {/* Only here once you have asked for it. Opened from the price bar --
+          nothing floats over the garments waiting to be needed. */}
+      {asking && (
+        <div className={s.dock}>
           <div className={s.dockPanel}>
             <div className={s.dockHead}>
               <span className={s.mgrMark} aria-hidden="true">
@@ -641,7 +638,7 @@ export function Configurator({
               <button
                 type="button"
                 className={s.dockClose}
-                onClick={() => setOpen(false)}
+                onClick={() => onAskingChange(false)}
                 aria-label={t(locale, 'common.close')}
               >
                 <svg width="14" height="14" viewBox="0 0 16 16" fill="none"
@@ -716,20 +713,8 @@ export function Configurator({
               </form>
             </div>
           </div>
-        ) : (
-          <button
-            type="button"
-            className={s.bubble}
-            onClick={() => setOpen(true)}
-            aria-label={t(locale, 'suggest.open')}
-          >
-            <svg width="22" height="22" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-              <path d="M5 2.6 8 4.2l3-1.6 2.4 1.2v3.6l-1.7.4V14H4.3V7.8l-1.7-.4V3.8z" />
-            </svg>
-            {tips.length > 0 && <span className={s.bubbleCount}>{tips.length}</span>}
-          </button>
-        )}
-      </div>
+        </div>
+      )}
     </>
   );
 }

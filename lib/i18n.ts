@@ -318,6 +318,11 @@ const en = {
     droppedSpare: 'Dropped the spare stock. A new starter waits for the next run.',
     setPart: 'Set the {garment} {part} to {colour}.',
     movedFabric: 'Moved to {fabric}. The price follows.',
+    // Asking for "the standard cloth" on a mixed kit resolves to a different
+    // cloth per garment. Listing all three answers a question nobody asked --
+    // you asked for a grade, so the reply is about the grade.
+    movedStandard: 'Every piece is back on its standard cloth. The price follows.',
+    movedUp: 'Every piece moved up a grade. The price follows.',
     noFabric: '{wanted} is not available for {these}. I can offer {offered}.',
     theseGarments: 'these garments', thisGarment: 'this garment',
     setSpare: 'Set spare stock to {pct}%. It covers new starters without sitting on stock.',
@@ -691,8 +696,12 @@ const ar: Dict<typeof en> = {
     collar: 'الياقة',
     cuffs: 'أساور الأكمام',
     placket: 'شريط الأزرار',
-    leg: 'ساق البنطلون',
-    lapel: 'ياقة الجاكيت',
+    // No garment word inside a part name: every sentence that uses one names
+    // the garment already, so these read "لون ساق البنطلون في بنطلون تشينو".
+    // Nothing is lost -- a blazer has no separate collar, and the colour
+    // picker only ever shows one garment's parts at a time.
+    leg: 'الساق',
+    lapel: 'الياقة',
     buttons: 'الأزرار',
     pockets: 'الجيوب',
   },
@@ -748,25 +757,27 @@ const ar: Dict<typeof en> = {
   },
 
   reply: {
-    droppedLogo: 'تمت إزالة الشعار وتحديث السعر وفقًا لذلك.',
-    droppedSpare: 'تم إلغاء الأطقم الاحتياطية وتحديث الكمية المطلوبة.',
-    setPart: 'تم تغيير لون {part} في {garment} إلى {colour}.',
-    movedFabric: 'تم تغيير الخامة إلى {fabric} وتحديث السعر وفقًا للاختيار الجديد.',
+    droppedLogo: 'أزلت الشعار، وسقطت تكلفته من السعر.',
+    droppedSpare: 'لا أطقم احتياطية الآن، والموظف الجديد ينتظر دورة الإنتاج التالية.',
+    setPart: 'لون {part} في {garment} الآن {colour}.',
+    movedFabric: 'الخامة الآن {fabric}، والسعر يتبعها.',
+    movedStandard: 'كل قطعة عادت إلى خامتها القياسية، والسعر يتبعها.',
+    movedUp: 'ارتفعت خامة كل قطعة درجة واحدة، والسعر يتبعها.',
     noFabric: 'خامة {wanted} غير متاحة {these}. الخيارات المتاحة هي: {offered}.',
     theseGarments: 'لهذه القطع',
     thisGarment: 'لهذه القطعة',
-    setSpare: 'تم ضبط نسبة الأطقم الاحتياطية على {pct}٪ لتغطية الموظفين الجدد وحالات الاستبدال.',
-    logoColour: 'تم تغيير لون الشعار إلى {colour}.',
-    logoMethod: 'تم تغيير طريقة تنفيذ الشعار إلى {method}.',
-    logoPlace: 'تم نقل الشعار إلى {place}.',
+    setSpare: 'الأطقم الاحتياطية {pct}٪، تكفي الموظفين الجدد دون تكديس مخزون.',
+    logoColour: 'لون الشعار الآن {colour}.',
+    logoMethod: 'تنفيذ الشعار الآن {method}.',
+    logoPlace: 'نقلت الشعار إلى {place}.',
     // A space after the waw. Arabic attaches it to the next word, but these
     // join catalogue cloth names, which are Latin: "GSM وCotton Twill" runs
     // the conjunction into the name.
     and: ' و ',
     or: ' أو ',
-    updatedBranding: 'تم تحديث إعدادات الشعار.',
-    bothFollow: 'تم تحديث المعاينة والسعر وفقًا للتعديلات.',
-    notFollowed: 'لم أتمكن من تطبيق «{part}». جرّب طلب هذا التعديل بشكل منفصل.',
+    updatedBranding: 'حدّثت الشعار.',
+    bothFollow: 'المعاينة والسعر يتبعان.',
+    notFollowed: 'لم أفهم «{part}» — اطلبها وحدها وسأنفذها.',
   },
 
   errors: {

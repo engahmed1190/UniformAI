@@ -307,11 +307,18 @@ function refineOne(
     }
     const grades = concept.garments.map((g, i) =>
       usable.find((h) => h.i === i)?.at ?? currentGrades[i] ?? 0);
-    const named = usable.map((h) => gradeName(h.g, h.at));
+    // A named cloth lands the same name on every garment that can take it, so
+    // more than one distinct name means the ask was for a grade -- "standard",
+    // "a step up" -- which resolves to a different cloth per garment family.
+    // Reading three catalogue names back answers a question nobody asked, and
+    // in Arabic it drops three Latin runs into the middle of the sentence.
+    const named = [...new Set(usable.map((h) => gradeName(h.g, h.at)))];
     return {
       concept,
       grades,
-      note: t(locale, 'reply.movedFabric', { fabric: [...new Set(named)].join(t(locale, 'reply.and')) }),
+      note: named.length === 1
+        ? t(locale, 'reply.movedFabric', { fabric: named[0] })
+        : t(locale, wants === 'BASE' ? 'reply.movedStandard' : 'reply.movedUp'),
       patch: usable.map((h) => `${h.g.type}.fabric = ${gradeName(h.g, h.at)}`).join('\n'),
     };
   }

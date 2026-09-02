@@ -223,6 +223,26 @@ assert.equal(refine(CONCEPTS[1], 'أضف ٥٪ أطقم احتياطية', [0, 0]
 // An Arabic comma joins clauses the way "and" does in English.
 assert.match(refine(CONCEPTS[1], 'اجعل البنطلون كحلي، والشعار إلى الكم', [0, 0], 'ar')!.patch,
   /logo\.position = sleeve/, 'an Arabic comma has to split clauses');
+// A grade ask on a mixed kit resolves to a different cloth per garment
+// family. Reading all three back answers a question nobody asked -- and in
+// Arabic it drops three Latin runs into the middle of the sentence, which is
+// what this reply used to do.
+{
+  const office = CONCEPTS[0];   // shirt + chino + blazer, three different cloths
+  const en = refine(office, 'Use the standard cloth', [2, 2, 2], 'en');
+  assert.match(en!.note, /standard cloth/, 'a grade ask is answered with the grade');
+  assert.doesNotMatch(en!.note, /Cotton Poplin|Cotton Twill|Wool Blend/,
+    'the resolved cloth names are not what was asked about');
+
+  const ar = refine(office, 'استخدم الخامة القياسية', [2, 2, 2], 'ar');
+  assert.doesNotMatch(ar!.note, /[A-Za-z]/,
+    'an Arabic reply about a grade must carry no Latin at all');
+
+  // One cloth for the whole kit is still worth naming.
+  assert.match(refine(office, 'Use the fine worsted cloth', [0, 0, 0], 'en')!.note,
+    /Fine worsted/, 'a single named cloth is still named');
+}
+
 console.log('refine: Arabic assertions passed');
 
 // "right chest" must not be swallowed by the plain "chest" rule -- in either

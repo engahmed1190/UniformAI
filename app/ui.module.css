@@ -2852,3 +2852,53 @@
     display: none;
   }
 }
+
+/* ---------- Confirmation modal ---------- */
+/* <dialog> lives in the top layer, so this needs no z-index and cannot be
+   clipped by an ancestor's overflow -- which the app has, since the shell
+   owns the only scroller. The element is display:none until open, so the
+   layout has to go on [open] or the dialog renders while closed. */
+.modal {
+  width: min(420px, calc(100vw - var(--s8)));
+  padding: var(--s6);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-lg);
+}
+
+.modal[open] {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s4);
+}
+
+.modal::backdrop {
+  background: rgba(20, 24, 26, 0.44);
+}
+
+.modalTitle {
+  font-size: var(--t-lg);
+  font-weight: 600;
+}
+
+.modalBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+  color: var(--text-2);
+}
+
+.modalBody p {
+  margin: 0;
+}
+
+/* flex-end follows the writing direction, so the actions sit at the reading
+   end in both languages. Wrapping keeps a long translated label on-screen. */
+.modalActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: var(--s2);
+}

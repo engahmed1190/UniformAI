@@ -26,6 +26,7 @@ import {
 import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
 import { type Order, STAGES, STAGE_KEYS, placeOrder, progress, revive, shortDate, stageDate, status } from '@/lib/order';
 import { ManagerNote } from '@/components/manager';
+import { useConfirm } from '@/components/confirm';
 import { Check } from '@/components/check';
 
 const USER = 'Ahmed Osama';
@@ -152,6 +153,7 @@ export default function Page() {
   // one destructive path in the app: asking for new kits replaces these.
   const [edited, setEdited] = useState(false);
   const [toast, setToast] = useState('');
+  const { confirm, dialog } = useConfirm();
 
   const scroller = useRef<HTMLDivElement>(null);
   // A new page starts at the top. Carrying the previous scroll position over
@@ -175,10 +177,14 @@ export default function Page() {
     setTimeout(() => setToast(''), 2600);
   }
 
-  function generate(text = brief) {
+  async function generate(text = brief) {
     if (!text.trim()) return;
-    if (edited && !confirm(
-      t(locale, 'design.replaceWarning'))) return;
+    if (edited && !(await confirm({
+      title: t(locale, 'design.replaceTitle'),
+      message: t(locale, 'design.replaceWarning'),
+      confirmLabel: t(locale, 'common.confirm'),
+      cancelLabel: t(locale, 'common.cancel'),
+    }))) return;
     setEdited(false);
     setBusy(true);
     setPage('design');
@@ -470,6 +476,7 @@ export default function Page() {
       )}
 
       {toast && <div className={s.toast} role="status">{toast}</div>}
+      {dialog}
     </div>
   );
 }

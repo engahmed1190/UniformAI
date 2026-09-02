@@ -57,6 +57,7 @@ const en = {
     pickClosest: 'Pick the closest one and change anything you like.',
     chooseDifferent: 'Choose a different kit',
     configureThis: 'Configure this kit',
+    replaceTitle: 'Replace these kits?',
     replaceWarning: 'New kits will replace the ones you have changed.\n\nSave the kit first if you want to keep it.',
   },
   configure: {
@@ -357,6 +358,7 @@ const ar: Dict<typeof en> = {
     pickClosest: 'اختر الطقم الأنسب، ثم خصّص تفاصيله بما يتوافق مع احتياجاتك.',
     chooseDifferent: 'اختيار طقم آخر',
     configureThis: 'تخصيص هذا الطقم',
+    replaceTitle: 'استبدال هذه الأطقم؟',
     replaceWarning: 'سيؤدي إنشاء مقترحات جديدة إلى استبدال المقترحات الحالية وإلغاء أي تعديلات أجريتها عليها.\n\nاحفظ الطقم أولًا إذا كنت ترغب في الاحتفاظ به.',
   },
 

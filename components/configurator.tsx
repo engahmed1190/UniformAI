@@ -694,6 +694,9 @@ export function Configurator({
                 <input
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
+                  /* The parser takes either language, so the field has to
+                     lay out either language rather than the page's. */
+                  dir="auto"
                   placeholder={t(locale, 'configure.examples').split('|')[0]}
                   aria-label={t(locale, 'configure.describeChange')}
                 />

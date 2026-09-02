@@ -263,6 +263,7 @@ export default function Page() {
                     <label htmlFor="brief">{t(locale, 'design.needLabel')}</label>
                     <textarea
                       id="brief"
+                      dir="auto"
                       value={brief}
                       onChange={(e) => setBrief(e.target.value)}
                       placeholder={EXAMPLES[locale][0]}
@@ -286,7 +287,7 @@ export default function Page() {
                   </div>
                   <div className={s.field}>
                     <label htmlFor="logo">{t(locale, 'design.logoLabel')}</label>
-                    <input id="logo" value={logoText} onChange={(e) => setLogoText(e.target.value)} />
+                    <input id="logo" dir="auto" value={logoText} onChange={(e) => setLogoText(e.target.value)} />
                     <div className={s.fieldHint}>{t(locale, 'design.logoHint')}</div>
                   </div>
                   <button
@@ -837,7 +838,7 @@ function Settings({ profile, onSave, locale, onLocale }: {
           <div className={s.formGrid}>
             <div className={`${s.field} ${s.fieldWide}`}>
               <label htmlFor="sName">{t(locale, 'settings.companyName')}</label>
-              <input id="sName" value={d.company} onChange={set('company')}
+              <input id="sName" dir="auto" value={d.company} onChange={set('company')}
                 aria-invalid={!nameOk} aria-describedby={nameOk ? undefined : 'sNameErr'} />
               {!nameOk && <div className={s.fieldHint} id="sNameErr" role="alert">{t(locale, 'settings.nameNeeded')}</div>}
             </div>
@@ -885,7 +886,7 @@ function Settings({ profile, onSave, locale, onLocale }: {
           </div>
           <div className={s.field}>
             <label htmlFor="sRules">{t(locale, 'settings.rulesLabel')}</label>
-            <textarea id="sRules" value={d.rules} onChange={set('rules')} />
+            <textarea id="sRules" dir="auto" value={d.rules} onChange={set('rules')} />
           </div>
         </section>
 

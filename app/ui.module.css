@@ -2382,8 +2382,31 @@
     gap: var(--s4);
   }
 
-  .pageHead h1 {
-    font-size: var(--t-xl);
+  /* The bar above already names the page, so the h1 and its subtitle were
+     a second copy of it on every screen -- around 90px each time. The
+     heading stays in the accessibility tree; anything beside it, like
+     Configure's "choose a different kit", keeps its place in the stack. */
+  .pageHead {
+    display: contents;
+  }
+
+  .pageHead > div:first-child {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    border: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* The four tiles counted what the manager's line says above them and the
+     activity list repeats below, so a phone reads the same three orders
+     three times before it reaches anything new. */
+  .stats {
+    display: none;
   }
 
   /* One stat per row. Two narrow columns broke every note onto three lines
@@ -2782,6 +2805,20 @@
     color: var(--text-3);
     font-size: var(--t-sm);
     flex: none;
+  }
+
+  /* A dialog floating in the middle of a phone leaves the page showing
+     around its edges and scrolls inside a box inside a box. It sits on the
+     bottom edge instead, where the thumb and the actions are. */
+  .overlay {
+    padding: 0;
+    align-items: flex-end;
+  }
+
+  .modal {
+    max-height: 92vh;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   /* .right aligns text on a desktop grid; in a flex pair it fights the

@@ -163,7 +163,9 @@ html[dir='rtl'] [class*='eyebrow'] {
 }
 
 /* Figures and ids stay in the mono face in both languages, so a price reads
-   the same however the page is set. */
+   the same however the page is set. Cairo sits behind it because the mono
+   face has no Arabic: a date like "20 سبتمبر" was falling through to a
+   generic monospace, which draws the month letter by letter. */
 html[dir='rtl'] [class*='mono'] {
-  font-family: var(--font-mono), monospace;
+  font-family: var(--font-mono), var(--font-arabic), sans-serif;
 }

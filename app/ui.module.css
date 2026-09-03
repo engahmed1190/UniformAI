@@ -1786,8 +1786,10 @@
    quantity is a gap, not a layout. */
 .tableLines th:nth-child(1) { width: 46%; }
 .tableLines th:nth-child(2) { width: 12%; }
-.tableLines th:nth-child(3) { width: 28%; }
-.tableLines th:nth-child(4) { width: 14%; }
+/* Ready holds a date with an Arabic month in it -- "20 سبتمبر" broke over
+   two lines at 14%, and the progress bar had width to spare. */
+.tableLines th:nth-child(3) { width: 24%; }
+.tableLines th:nth-child(4) { width: 18%; }
 
 /* Order | Status | Value | Due. The open row is marked by weight and a rule
    down its left edge, so the list reads as a selector without a button
@@ -1865,13 +1867,17 @@
   gap: var(--s2);
 }
 
+/* The bar gives up width before the label beside it does: "Waiting on
+   sizes" broke over three lines in a narrow cell, which read as damage. */
 .progressTrack {
-  width: 84px;
+  width: auto;
+  flex: 1 1 84px;
+  max-width: 84px;
+  min-width: 20px;
   height: 5px;
   border-radius: 3px;
   background: var(--line);
   overflow: hidden;
-  flex: none;
 }
 
 .progressTrack i {
@@ -1882,9 +1888,12 @@
 }
 
 .progressPct {
-  font-family: var(--font-mono), monospace;
+  /* Holds a percentage or a short sentence, so Arabic needs a real face
+     behind the mono one rather than a generic monospace. */
+  font-family: var(--font-mono), var(--font-arabic), sans-serif;
   font-size: var(--t-xs);
   color: var(--text-3);
+  white-space: nowrap;
 }
 
 /* ---------- Order timeline ---------- */
@@ -1903,9 +1912,10 @@
   content: '';
   position: absolute;
   top: 13px;
-  /* Symmetric span between two dots: mirrors with the row on its own. */
-  left: -50%;
-  right: 50%;
+  /* Symmetric span back to the previous dot. Logical, not left/right: in
+     Arabic the row runs the other way, and physical insets drew every
+     connector one step off and the last one over the card edge. */
+  inset-inline: -50% 50%;
   height: 2px;
   background: var(--line);
 }
@@ -2657,13 +2667,40 @@
     grid-template-columns: 1fr;
   }
 
+  /* Three steps to a row put half the connectors on the wrong side in
+     Arabic, where the row reads right to left, and left the last one
+     running off the card edge. One step per row instead: the connector
+     drops straight down, which is the same line in both directions. */
   .timeline {
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--s5) 0;
+    grid-template-columns: 1fr;
+    gap: 0;
   }
 
-  .timeline .tStep:nth-child(4)::before {
-    display: none;
+  .tStep {
+    display: grid;
+    grid-template-columns: 28px 1fr auto;
+    align-items: center;
+    gap: 0 var(--s3);
+    text-align: start;
+    padding-bottom: var(--s4);
+  }
+
+  .tStep::before {
+    /* Up from this dot's centre to the one above: the steps are a fixed
+       height apart, so 100% of a step is exactly the span. */
+    top: auto;
+    inset-inline: 13px auto;
+    bottom: calc(100% - 14px);
+    width: 2px;
+    height: 100%;
+  }
+
+  .tDot {
+    margin: 0;
+  }
+
+  .tStep small {
+    margin-top: 0;
   }
 
   .splitRow {
@@ -2751,6 +2788,13 @@
      space-between that already puts the value on the right. */
   .tableCard td[data-label].right {
     text-align: start;
+  }
+
+  /* The bar and its label are the row's value, so they sit against the
+     same edge as every other value in the card. */
+  .tableCard td[data-label] .progress {
+    flex: 1;
+    justify-content: flex-end;
   }
 }
 

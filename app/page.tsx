@@ -305,8 +305,8 @@ export default function Page() {
                   <button
                     type="button"
                     className={`${s.btn} ${s.btnPrimary} ${s.briefGo}`}
-                    onClick={() => generate()}
-                    disabled={busy || !brief.trim()}
+                    onClick={() => { const b = brief.trim() || EXAMPLES[locale][0]; setBrief(b); generate(b); }}
+                    disabled={busy}
                   >
                     {t(locale, busy ? 'design.generating' : 'design.generate')}
                   </button>
@@ -551,7 +551,7 @@ function Home({
           className={s.askForm}
           onSubmit={(e) => {
             e.preventDefault();
-            onAsk(text);
+            onAsk(text.trim() || EXAMPLES[locale][0]);
           }}
         >
           <input
@@ -560,7 +560,10 @@ function Home({
             placeholder={EXAMPLES[locale][0]}
             aria-label={t(locale, 'home.describeTeam')}
           />
-          <button type="submit" className={`${s.btn} ${s.btnPrimary}`} disabled={!text.trim()}>
+          {/* Not disabled on an empty field: the placeholder is a real
+              example, so pressing the button uses the words on screen. A
+              grey button under text that looks typed reads as broken. */}
+          <button type="submit" className={`${s.btn} ${s.btnPrimary}`}>
             {t(locale, 'home.showKits')}
           </button>
         </form>

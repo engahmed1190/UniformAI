@@ -831,7 +831,9 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
                   <td data-label={t(locale, 'orders.colQty')} className={`${s.right} ${s.mono}`}>{l.qty}</td>
                   <td data-label={t(locale, 'orders.colProgress')}>
                     <div className={s.progress}>
-                      <div className={s.progressTrack}><i style={{ width: `${pct}%` }} /></div>
+                      {/* An empty track next to "waiting on sizes" is a grey
+                          stub that says nothing the words do not. */}
+                      {pct > 0 && <div className={s.progressTrack}><i style={{ width: `${pct}%` }} /></div>}
                       <span className={s.progressPct}>{pct === 0 ? t(locale, 'orders.waitingOnSizes') : `${pct}%`}</span>
                     </div>
                   </td>

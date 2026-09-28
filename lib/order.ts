@@ -1,7 +1,6 @@
 // The sales order a confirmed quote becomes. Built once from what the quote
 // screen showed and never recomputed, so the number the buyer approved is
 // the number on the order.
-// ponytail: one order, kept in localStorage. A list when the demo needs two.
 
 import {
   type Concept, type GarmentType, type LogoMethod, type LogoPosition, type SizePlan, gradeName,
@@ -23,73 +22,82 @@ export type OrderLine = {
   position?: LogoPosition;
 };
 
+/** Where an order is in ERPNext's sales workflow, read from its documents. */
+export type Workflow =
+  | 'quote_requested' | 'quote_ready' | 'quote_closed'
+  | 'awaiting' | 'collecting_sizes' | 'in_progress' | 'delivered';
+
+/** The five steps of the timeline. A step is reached when its document exists. */
+export const STEPS = ['requested', 'issued', 'approved', 'confirmed', 'delivered'] as const;
+
 export type Order = {
   id: string;
   name: string;
-  concept: Concept;
+  /** Absent when the documents carry no kit JSON (a hand-made ERPNext order). */
+  concept?: Concept;
   staff: number;
   sets: number;
   perPerson: number;
+  /** The price: the Sales Order's total, else the quotation's. */
   total: number;
+  /** What the app estimated from the kit, kept beside a differing quote. */
+  estimate: number;
   placed: Date;
-  /** Indicative. Real lead time is the ERP's to say. */
+  /** The Sales Order's delivery date, else placed + 21 days. */
   due: Date;
-  /** Index into STAGES: where the order is right now. */
-  stage: number;
+  state: Workflow;
+  /** Document names, for the timeline. */
+  quote?: string;
+  salesOrder?: string;
+  deliveryNote?: string;
+  /** The day each reached step happened. */
+  dates: Partial<Record<typeof STEPS[number], Date>>;
+  /** ERPNext's per_delivered, 0-100. */
+  perDelivered: number;
   sizePlan?: SizePlan;
-  lines: OrderLine[];
+  lines?: OrderLine[];
 };
 
-/** The production stages every order walks through, and the day each one
- *  falls on, counted from placing. One list, so the timeline, the status
- *  pill and the due date cannot disagree. */
-export const STAGES = ['Ordered', 'Sizes in', 'Fabric cut', 'Sewing', 'Checks', 'Delivery'];
+export const LEAD_DAYS = 21;
 
-/** The same six stages as translation keys, in the same order. Kept beside
- *  STAGES so a stage cannot be added to one list and missed in the other. */
-export const STAGE_KEYS = ['ordered', 'sizesIn', 'fabricCut', 'sewing', 'checks', 'delivery'] as const;
-const DAY = [0, 4, 10, 14, 18, 21];
-const LEAD_DAYS = DAY[DAY.length - 1];
+export const status = (o: Order): Workflow => o.state;
 
-export const stageDate = (o: Order, i: number): Date => {
-  const d = new Date(o.placed);
-  d.setDate(d.getDate() + DAY[i]);
-  return d;
+export type TimelineStep = {
+  key: typeof STEPS[number];
+  reached: boolean;
+  /** The step the order is on: the first not reached. None once it is over. */
+  now: boolean;
+  /** The document that made the step happen, once it has. */
+  doc?: string;
+  date?: Date;
+  /** Delivery started but is not complete: 1-99. */
+  partial?: number;
 };
 
-export type Status = 'Collecting sizes' | 'In production' | 'Delivered';
-export const status = (o: Order): Status =>
-  o.stage >= 5 ? 'Delivered' : o.stage >= 2 ? 'In production' : 'Collecting sizes';
-
-/** How far along the making is. Nothing moves until sizes are in. */
-export const progress = (o: Order): number => [0, 0, 30, 60, 85, 100][Math.min(o.stage, 5)];
+/** What the Orders timeline draws. Delivery is reached only at 100%; a
+ *  partial delivery is In progress and says how much has arrived. */
+export function timeline(o: Order): TimelineStep[] {
+  const done = o.state === 'delivered' || o.perDelivered >= 100;
+  const over = done || o.state === 'quote_closed';
+  const reached = STEPS.map((k) => (k === 'delivered' ? done : o.dates[k] !== undefined));
+  const nowAt = over ? -1 : reached.indexOf(false);
+  const docs = { requested: o.quote, issued: o.quote, confirmed: o.salesOrder, delivered: o.deliveryNote } as const;
+  return STEPS.map((key, i) => ({
+    key,
+    reached: reached[i],
+    now: i === nowAt,
+    doc: reached[i] ? (docs as Partial<Record<string, string>>)[key] : undefined,
+    date: reached[i] ? o.dates[key] : undefined,
+    partial: key === 'delivered' && !done && o.perDelivered > 0 ? Math.round(o.perDelivered) : undefined,
+  }));
+}
 
 /** "23 Sep". Hand-rolled: en-GB Intl gives "Sept" on newer ICU. */
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-/** Day-of-year (001-366) then the second within that day, so an id is short,
- *  readable, unique to the second and strictly increasing through the year.
- *  Everything is local-time to match the year in the prefix: mixing local
- *  getFullYear() with UTC arithmetic produced "SO-2027-000-1" on New Year's Eve. */
-function seq(d: Date): string {
-  const start = new Date(d.getFullYear(), 0, 1).getTime();
-  const ms = d.getTime() - start;
-  const day = Math.floor(ms / 864e5);
-  const secs = Math.floor(ms / 1000) % 86400;
-  return `${String(day + 1).padStart(3, '0')}${String(secs).padStart(5, '0')}`;
-}
-
 export const shortDate = (d: Date) => `${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]}`;
 
-export function placeOrder(
-  concept: Concept,
-  staff: number,
-  sets: number,
-  grades: number[],
-  perPerson: number,
-  now = new Date(),
-  stage = 1,
-  sizePlan?: SizePlan,
-): Order {
+/** One line per garment plus the branding line, as the Orders screen lists them. */
+export function orderLines(concept: Concept, sets: number, grades: number[]): OrderLine[] {
   const lines: OrderLine[] = concept.garments.map((g, i) => ({
     qty: sets,
     garment: g.type,
@@ -99,21 +107,16 @@ export function placeOrder(
   if (concept.logo.position !== 'none') {
     lines.push({ qty: sets, logo: concept.logo.method, position: concept.logo.position });
   }
-  const due = new Date(now);
-  due.setDate(due.getDate() + LEAD_DAYS);
-  return {
-    // Day of the year, then seconds into that day: an ERP-shaped 5-digit
-    // sequence that still increases all year. Plain seconds-mod-100000
-    // wrapped every ~27 hours and sorted a newer order behind an older one.
-    // ponytail: still a stand-in. The ERP hands out the real sequence.
-    id: `SO-${now.getFullYear()}-${seq(now)}`,
-    name: concept.name,
-    concept, staff, sets, perPerson,
-    total: perPerson * sets, sizePlan,
-    placed: now, due, stage, lines,
-  };
+  return lines;
 }
 
-/** Back from JSON with the two dates as Dates again. */
-export const revive = (json: string): Order[] =>
-  JSON.parse(json, (k, v) => (k === 'placed' || k === 'due' ? new Date(v) : v));
+/** An order as /api/orders sends it, with the dates as Dates again. */
+export function fromJson(o: Order): Order {
+  const day = (v: unknown) => new Date(v as string);
+  return {
+    ...o,
+    placed: day(o.placed),
+    due: day(o.due),
+    dates: Object.fromEntries(Object.entries(o.dates ?? {}).map(([k, v]) => [k, day(v)])),
+  };
+}

@@ -8,7 +8,7 @@
 
 import { type Concept, type LogoPosition, type SizingMode, conceptPrice } from './spec';
 import { briefWishes, swatchWord } from './refine';
-import { type Order, STAGE_KEYS } from './order';
+import { type Order } from './order';
 import { type Locale, formatCurrency, formatDate, kitName, spareMessage, t } from './i18n';
 
 /** Colour words that describe a family, not a specific cloth. */
@@ -179,31 +179,44 @@ export function quoteNote(
 /** Where the order actually is, and what happens next. */
 export function orderNote(locale: Locale, o: Order): string {
   const on = (d: Date) => formatDate(locale, d);
-  if (o.stage >= 5) return t(locale, 'manager.orderDelivered', { date: on(o.due) });
-  if (o.stage >= 2) {
-    return t(locale, 'manager.orderMaking', {
-      stage: t(locale, `orders.${STAGE_KEYS[o.stage]}`),
-      date: on(o.due),
-    });
+  switch (o.state) {
+    case 'delivered': return t(locale, 'manager.orderDelivered', { date: on(o.due) });
+    case 'in_progress':
+      return o.perDelivered > 0 && o.perDelivered < 100
+        ? t(locale, 'manager.orderPartial', { pct: Math.round(o.perDelivered), date: on(o.due) })
+        : t(locale, 'manager.orderMaking', { date: on(o.due) });
+    case 'quote_requested': return t(locale, 'manager.orderQuoteRequested');
+    case 'quote_ready': return t(locale, 'manager.orderQuoteReady', { total: formatCurrency(locale, o.total) });
+    case 'quote_closed': return t(locale, 'manager.orderQuoteClosed');
+    case 'awaiting': return t(locale, 'manager.orderAwaiting', { due: on(o.due) });
+    default:
+      return t(locale, 'manager.orderSizes', { placed: on(o.dates.confirmed ?? o.placed), due: on(o.due) });
   }
-  return t(locale, 'manager.orderSizes', { placed: on(o.placed), due: on(o.due) });
 }
 
-/** The greeting: what is open right now. Delivered orders need nobody. */
+/** The greeting: what is open right now. Delivered and closed orders need nobody. */
 export function greeting(locale: Locale, name: string, orders: Order[]): string {
   const hour = new Date().getHours();
   const part = t(locale, hour < 12 ? 'manager.morning' : hour < 18 ? 'manager.afternoon' : 'manager.evening');
-  const open = orders.filter((o) => o.stage < 5);
+  const open = orders.filter((o) => o.state !== 'delivered' && o.state !== 'quote_closed');
   if (open.length === 0) return t(locale, 'manager.greetNothing', { part, name });
   if (open.length === 1) {
     const o = open[0];
-    const kit = kitName(locale, o.concept.id);
-    return o.stage < 2
-      ? t(locale, 'manager.greetSizes', { part, name, kit, id: o.id })
-      : t(locale, 'manager.greetMaking', { part, name, kit, date: formatDate(locale, o.due) });
+    const kit = o.concept ? kitName(locale, o.concept.id) : o.name;
+    const key = {
+      quote_requested: 'greetQuoteRequested', quote_ready: 'greetQuoteReady', awaiting: 'greetAwaiting',
+      in_progress: 'greetMaking',
+    }[o.state as string] ?? 'greetSizes';
+    return t(locale, `manager.${key}`, { part, name, kit, id: o.id, date: formatDate(locale, o.due) });
   }
-  const sizes = open.filter((o) => o.stage < 2).length;
-  return t(locale, 'manager.greetMany', { part, name, sizes, making: open.length - sizes });
+  // Home's own groups, the one waiting on the buyer first.
+  const n = (...s: Order['state'][]) => open.filter((o) => s.includes(o.state)).length;
+  const list = ([
+    ['waitingYou', n('quote_ready')], ['withUs', n('quote_requested', 'awaiting')],
+    ['waitingSizes', n('collecting_sizes')], ['makingNow', n('in_progress')],
+  ] as const).filter(([, c]) => c > 0)
+    .map(([k, c]) => t(locale, `manager.${k}`, { n: c })).join(locale === 'ar' ? '، ' : ', ');
+  return t(locale, 'manager.greetMany', { part, name, list });
 }
 
 /** The word in the brief that triggered the heat read, so the note can quote

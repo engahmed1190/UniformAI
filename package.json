@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "seed:erp": "tsx scripts/seed-erp.ts",
     "test": "for f in lib/*.test.ts; do npx tsx \"$f\" || exit 1; done"
   },
   "dependencies": {
@@ -17,6 +18,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

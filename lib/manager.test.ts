@@ -73,17 +73,45 @@ assert.match(stepAdvice('en', 2, lightTop, 0, hot, 40, 0.05), /show marks/);
 
 // 7. The greeting and the order note say what the session's order actually
 // is -- and nothing about an order that does not exist.
-import { placeOrder } from './order';
+import { sampleOrder as placeOrder } from './order-fixture';
 import { orderNote } from './manager';
 assert.match(greeting('en', 'Ahmed', []), /Nothing needs you today/);
 assert.doesNotMatch(greeting('en', 'Ahmed', []), /polos|8th/, 'no order, no order news');
 const placed = placeOrder(c, 40, 42, [], 500, new Date('2026-09-02T10:00:00Z'));
-const sewing = placeOrder(c, 40, 42, [], 500, new Date('2026-08-20T10:00:00Z'), 3);
+const sewing = placeOrder(c, 40, 42, [], 500, new Date('2026-08-20T10:00:00Z'), 'in_progress');
 assert.match(greeting('en', 'Ahmed', [placed]), /Front Office/, 'the greeting names the real order');
 assert.match(greeting('en', 'Ahmed', [placed, sewing]), /1 in production/, 'the greeting counts states');
 assert.match(orderNote('en', placed), /23 Sep/, 'the note states the real due date');
-assert.match(orderNote('en', sewing), /Sewing/, 'the note says where a production order is');
-assert.match(orderNote('en', { ...sewing, stage: 5 }), /Delivered/);
+assert.match(orderNote('en', sewing), /In production/, 'the note says where a production order is');
+assert.match(orderNote('en', { ...sewing, state: 'delivered' as const }), /Delivered/);
+
+// 7b. Every workflow state has its own note; quote_closed and delivered are not open.
+const ready = { ...placed, state: 'quote_ready' as const, total: 21000 };
+assert.match(orderNote('en', ready), /21,000/, 'quote ready names the quoted total');
+assert.match(orderNote('en', ready), /approve/i, 'quote ready asks for approval');
+assert.match(orderNote('en', { ...placed, state: 'awaiting' as const }), /UniformAI is confirming/);
+assert.match(orderNote('en', { ...placed, state: 'quote_requested' as const }), /pricing/);
+assert.match(orderNote('en', { ...placed, state: 'quote_closed' as const }), /closed/);
+assert.match(orderNote('en', { ...sewing, perDelivered: 60 }), /60% delivered/);
+for (const st of ['quote_requested', 'quote_ready', 'quote_closed', 'awaiting'] as const) {
+  assert.doesNotMatch(orderNote('en', { ...placed, state: st }), /collecting sizes/i, `${st} is not the sizes note`);
+}
+assert.match(greeting('en', 'Ahmed', [ready]), /quote/i, 'a ready quote leads the greeting');
+assert.match(greeting('en', 'Ahmed', [ready]), /approv/i);
+assert.doesNotMatch(greeting('en', 'Ahmed', [ready]), /sizes/);
+const closed = { ...placed, state: 'quote_closed' as const };
+assert.match(greeting('en', 'Ahmed', [closed, { ...placed, state: 'delivered' as const }]), /Nothing needs you/,
+  'closed and delivered orders need nobody');
+assert.match(greeting('en', 'Ahmed', [ready, placed]), /1 waiting for your approval/);
+for (const locale of ['en', 'ar'] as const) {
+  for (const st of ['quote_requested', 'quote_ready', 'quote_closed', 'awaiting', 'collecting_sizes', 'in_progress', 'delivered'] as const) {
+    const o = { ...placed, state: st };
+    for (const out of [orderNote(locale, o), greeting(locale, 'Ahmed', [o])]) {
+      assert.doesNotMatch(out, /ERP|manager\.|orders\./, `${st}/${locale} leaked a key or ERP: ${out}`);
+      if (locale === 'ar') assert.match(out, /[\u0600-\u06FF]/);
+    }
+  }
+}
 
 // 8. The quote note states the real spare count, not a hardcoded one.
 assert.match(quoteNote('en', c, 40, 44), /40 people plus 4 spare/);
@@ -146,7 +174,7 @@ for (const [locale, brief] of [['en', hot], ['ar', hotAr]] as [Locale, string][]
   check('greeting(none)', greeting(locale, 'Ahmed', []));
   check('orderNote', orderNote(locale, placed));
   check('orderNote(sewing)', orderNote(locale, sewing));
-  check('orderNote(done)', orderNote(locale, { ...sewing, stage: 5 }));
+  check('orderNote(done)', orderNote(locale, { ...sewing, state: 'delivered' as const }));
 }
 
 // 11. The Arabic brief is read for the same signals as the English one --

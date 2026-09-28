@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import s from './ui.module.css';
 import { Sidebar, Topbar, type PageId } from '@/components/shell';
 import { type Locale, LOCALES, LOCALE_CODES, LOCALE_NAMES, dir, kitName, formatCurrency, formatDate, t } from '@/lib/i18n';
@@ -18,17 +18,18 @@ function swatch(locale: Locale, name: string): string {
 }
 import { Configurator } from '@/components/configurator';
 import { GarmentSvg, logoGarmentIndex } from '@/components/garments';
-import { CONCEPTS, selectConcepts } from '@/lib/concepts';
+import { selectConcepts } from '@/lib/concepts';
 import {
   type Concept, type GarmentCut, type SizePlan, LABELS, allocatedSizeCount,
   asSavedKit, conceptPrice, conceptPriceAt, gradeName, gradesFor, sameKit,
 } from '@/lib/spec';
 import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
 import { suggestions } from '@/lib/suggest';
-import { type Order, STAGES, STAGE_KEYS, placeOrder, progress, revive, shortDate, stageDate, status } from '@/lib/order';
+import { type Order, type Workflow, fromJson, status, timeline } from '@/lib/order';
 import { ManagerNote } from '@/components/manager';
 import { useConfirm } from '@/components/confirm';
 import { Check } from '@/components/check';
+import { AskErp, type AskRequest } from '@/components/ask-erp';
 
 const USER = 'Ahmed Osama';
 
@@ -126,34 +127,45 @@ export default function Page() {
     ]);
   }, []);
   const [quoting, setQuoting] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+  const [quoteError, setQuoteError] = useState('');
   // The designer's panel is opened from the price bar, so its state lives
   // beside the bar rather than inside the configurator.
   const [asking, setAsking] = useState(false);
+  // An order to open the assistant on, from outside it: the order card's button.
+  const [erpRequest, setErpRequest] = useState<AskRequest | null>(null);
+  // An order the assistant cited, to open on Orders. `n` makes a repeat
+  // click on the same order still count.
+  const [focusOrder, setFocusOrder] = useState<{ id: string; n: number } | null>(null);
 
-  // The quote, carried over. Everything Orders and Home show comes from here.
-  // Newest first. Loaded after mount like the kits. With nothing stored,
-  // three samples in three states stand in so Home does not open on zeros.
-  // ponytail: samples are real placeOrder() calls on real concepts, so every
-  // screen agrees with them. Delete the fallback for a blank-slate demo.
+  // Everything Orders and Home show comes from the sales workflow, newest
+  // first. A reload that fails while orders are on screen keeps them; only a
+  // first load that fails is an error screen.
   const [orders, setOrders] = useState<Order[]>([]);
-  useEffect(() => {
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const loadSeq = useRef(0);
+  const loadOrders = useCallback(async () => {
+    const mine = ++loadSeq.current;
+    setLoadState((cur) => (cur === 'failed' ? 'loading' : cur));
     try {
-      const stored = localStorage.getItem('orders');
-      if (stored) { setOrders(revive(stored)); return; }
-    } catch { /* fall through to the samples */ }
-    // Named seeds, not briefs: selectConcepts only ever reaches three of the
-    // four, so a brief could not give three visibly different kits.
-    const sample = (kit: string, daysAgo: number, stage: number, people: number) => {
-      const c = CONCEPTS.find((x) => x.id === kit) ?? CONCEPTS[0];
-      return placeOrder(c, people, Math.ceil(people * 1.05), [], conceptPriceAt(c, []),
-        new Date(Date.now() - daysAgo * 864e5), stage);
-    };
-    setOrders([
-      sample('technicians', 4, 1, PROFILE.staff),
-      sample('operations', 18, 3, 24),
-      sample('management', 45, 5, 12),
-    ]);
+      const res = await fetch('/api/orders');
+      if (!res.ok) throw new Error(String(res.status));
+      const list = ((await res.json()) as Order[]).map(fromJson);
+      if (mine === loadSeq.current) { setOrders(list); setLoadState('ready'); }
+      return true;
+    } catch {
+      if (mine === loadSeq.current) setLoadState((cur) => (cur === 'ready' ? 'ready' : 'failed'));
+      return false;
+    }
   }, []);
+  useEffect(() => {
+    if (page === 'orders' || page === 'home') void loadOrders();
+  }, [page, loadOrders]);
+  useEffect(() => {
+    const onFocus = () => void loadOrders();
+    addEventListener('focus', onFocus);
+    return () => removeEventListener('focus', onFocus);
+  }, [loadOrders]);
   // Set by any configurator edit, cleared by a fresh generate. Guards the
   // one destructive path in the app: asking for new kits replaces these.
   const [edited, setEdited] = useState(false);
@@ -233,7 +245,7 @@ export default function Page() {
         company={profile.company}
         staff={staff}
         kitCount={saved.length}
-        orderCount={orders.filter((o) => o.stage < 5).length}
+        orderCount={orders.filter((o) => status(o) !== 'delivered').length}
         locale={locale}
       />
 
@@ -251,6 +263,8 @@ export default function Page() {
               shortDay={shortDay}
               staff={staff}
               orders={orders}
+              loadState={loadState}
+              onReload={() => void loadOrders()}
               savedCount={saved.length}
               onAsk={(text) => { setBrief(text); generate(text); }}
               onKits={() => setPage('kits')}
@@ -410,8 +424,15 @@ export default function Page() {
           )}
 
           {page === 'orders' && (
-            <Orders orders={orders} onHome={() => setPage('home')}
-              locale={locale} money={money} shortDay={shortDay} />
+            <>
+              <Orders orders={orders} loadState={loadState} onReload={() => void loadOrders()}
+                onApproved={(id) => { setFocusOrder({ id, n: Date.now() }); return loadOrders(); }} onHome={() => setPage('home')}
+                locale={locale} money={money} shortDay={shortDay}
+                focus={focusOrder}
+                onAsk={(id) => setErpRequest({ orderId: id, id: Date.now() })} />
+              <AskErp locale={locale} request={erpRequest}
+                onOpenOrder={(id) => setFocusOrder({ id, n: Date.now() })} />
+            </>
           )}
           {page === 'settings' && (
             <Settings profile={{ ...profile, staff }} locale={locale} onLocale={changeLocale}
@@ -489,19 +510,31 @@ export default function Page() {
           sizePlan={sizePlan}
           locale={locale}
           money={money}
-          onClose={() => setQuoting(false)}
-          onConfirm={() => {
-            const cuts = active.cuts?.length ? active.cuts : ['men', 'women'] as GarmentCut[];
-            const sizesComplete = sizePlan.mode === 'allocate_now'
-              && allocatedSizeCount(sizePlan.allocation, cuts) === sets;
-            const next = [placeOrder(
-              active, staff, sets, grades, perPerson, new Date(), sizesComplete ? 2 : 1, sizePlan,
-            ), ...orders];
-            setOrders(next);
-            try { localStorage.setItem('orders', JSON.stringify(next)); } catch { /* private mode */ }
-            setQuoting(false);
-            flash(t(locale, 'kits.saved', { name: next[0].id }));
-            setTimeout(() => setPage('orders'), 800);
+          onClose={() => { setQuoting(false); setQuoteError(''); }}
+          pending={requesting}
+          error={quoteError}
+          onConfirm={async () => {
+            if (requesting) return;
+            setRequesting(true);
+            setQuoteError('');
+            try {
+              const res = await fetch('/api/quotes', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ concept: active, staff, sets, grades, sizePlan }),
+              });
+              if (!res.ok) { setQuoteError(t(locale, failureKey(res.status))); return; }
+              const placed = fromJson(await res.json() as Order);
+              setQuoting(false);
+              flash(t(locale, 'quote.requested', { name: placed.quote ?? placed.id }));
+              setFocusOrder({ id: placed.id, n: Date.now() });
+              setPage('orders');
+              void loadOrders();
+            } catch {
+              setQuoteError(t(locale, failureKey(502)));
+            } finally {
+              setRequesting(false);
+            }
           }}
         />
       )}
@@ -513,22 +546,26 @@ export default function Page() {
 }
 
 function Home({
-  staff, orders, savedCount, onAsk, onKits, onOrders, locale, money, shortDay,
+  staff, orders, loadState, onReload, savedCount, onAsk, onKits, onOrders, locale, money, shortDay,
 }: {
   staff: number;
   locale: Locale;
   money: (n: number) => string;
   shortDay: (d: Date) => string;
   orders: Order[];
+  loadState: 'loading' | 'ready' | 'failed';
+  onReload: () => void;
   savedCount: number;
   onAsk: (text: string) => void;
   onKits: () => void;
   onOrders: () => void;
 }) {
   const [text, setText] = useState('');
-  const sizing = orders.filter((o) => status(o) === 'Collecting sizes');
-  const making = orders.filter((o) => status(o) === 'In production');
-  const done = orders.filter((o) => status(o) === 'Delivered');
+  const inState = (...w: Workflow[]) => orders.filter((o) => w.includes(status(o)));
+  const waiting = inState('quote_ready');
+  const withUs = inState('quote_requested', 'awaiting');
+  const making = inState('collecting_sizes', 'in_progress');
+  const done = orders.filter((o) => status(o) === 'delivered');
   return (
     <>
       {/* Home was the one page with no h1: the heading order ran h3, h2 and
@@ -539,7 +576,18 @@ function Home({
           <p>{t(locale, 'home.subtitle')}</p>
         </div>
       </div>
-      <ManagerNote locale={locale} tone="panel" intro note={greeting(locale, 'Ahmed', orders)} />
+      {loadState !== 'ready' ? (
+        loadState === 'failed' ? (
+          <Empty
+            title={t(locale, 'orders.loadFailed')}
+            note={t(locale, 'orders.loadFailedNote')}
+            action={t(locale, 'orders.retry')}
+            onAct={onReload}
+          />
+        ) : <p className={s.muted}>{t(locale, 'common.loading')}</p>
+      ) : (
+        <ManagerNote locale={locale} tone="panel" intro note={greeting(locale, 'Ahmed', orders)} />
+      )}
 
       {/* The primary job, first thing on the page. */}
       <div className={s.panel}>
@@ -571,13 +619,18 @@ function Home({
         </div>
       </div>
 
+      {loadState === 'ready' && (<>
       <div className={s.stats}>
         <Stat label={t(locale, 'home.savedKits')} value={String(savedCount)} note={t(locale, 'home.savedKitsNote')} />
         {/* Every number here is counted from the orders, or an honest zero. */}
-        <Stat label={t(locale, 'home.collectingSizes')} value={String(sizing.length)}
-          note={sizing[0]
-            ? t(locale, 'home.orderLine', { id: sizing[0].id, sets: sizing[0].sets })
-            : t(locale, 'home.noneWaiting')} />
+        <Stat label={t(locale, 'home.waitingOnYou')} value={String(waiting.length)}
+          note={waiting[0]
+            ? t(locale, 'home.orderLine', { id: waiting[0].id, sets: waiting[0].sets })
+            : t(locale, 'home.noneOnYou')} />
+        <Stat label={t(locale, 'home.withUs')} value={String(withUs.length)}
+          note={withUs[0]
+            ? t(locale, 'home.orderLine', { id: withUs[0].id, sets: withUs[0].sets })
+            : t(locale, 'home.noneWithUs')} />
         <Stat label={t(locale, 'home.inProduction')} value={String(making.length)}
           note={making[0]
             ? t(locale, 'home.nextDue', { date: shortDay(making[0].due) })
@@ -602,10 +655,10 @@ function Home({
             <tbody>
               {orders.length ? orders.map((o) => (
                 <tr key={o.id}>
-                  <td><strong>{kitName(locale, o.concept.id)}</strong><div className={s.sub}>{t(locale, 'home.orderLine', { id: o.id, sets: o.sets })}</div></td>
+                  <td><strong>{orderKit(locale, o)}</strong><div className={s.sub}>{t(locale, 'home.orderLine', { id: o.id, sets: o.sets })}</div></td>
                   <td data-label={t(locale, 'home.colStatus')}><StatusPill order={o} locale={locale} /></td>
                   <td data-label={t(locale, 'home.colValue')} className={`${s.right} ${s.mono}`}>{money(o.total)}</td>
-                  <td data-label={t(locale, 'home.colUpdated')} className={`${s.right} ${s.muted}`}>{shortDay(stageDate(o, Math.min(o.stage, 5)))}</td>
+                  <td data-label={t(locale, 'home.colUpdated')} className={`${s.right} ${s.muted}`}>{shortDay(lastStep(o))}</td>
                 </tr>
               )) : (
                 <tr>
@@ -617,6 +670,7 @@ function Home({
         </div>
       </div>
       </div>
+      </>)}
       <div>
         <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onKits}>{t(locale, 'home.browseSavedKits')}</button>
       </div>
@@ -700,20 +754,37 @@ function Kits({
 }
 
 /** One pill for one status, coloured the same everywhere it appears. */
+/** The kit's display name; a hand-made order has no kit, so its own name. */
+const orderKit = (locale: Locale, o: Order) => (o.concept ? kitName(locale, o.concept.id) : o.name);
+/** The latest step reached, for "updated". */
+const lastStep = (o: Order) =>
+  Object.values(o.dates).reduce((a, d) => (d > a ? d : a), o.placed);
+
 function StatusPill({ order, locale }: { order: Order; locale: Locale }) {
   const st = status(order);
-  const tone = st === 'Delivered' ? s.pillGood : st === 'Collecting sizes' ? s.pillWarn : '';
-  const key = st === 'Delivered' ? 'delivered' : st === 'Collecting sizes' ? 'collectingSizes' : 'inProduction';
-  return <span className={`${s.pill} ${tone}`}>{t(locale, `statuses.${key}`)}</span>;
+  // Good: done. Warn: it is waiting on the customer. Plain: with us or closed.
+  const tone = st === 'delivered' ? s.pillGood
+    : st === 'quote_ready' || st === 'collecting_sizes' ? s.pillWarn : '';
+  return <span className={`${s.pill} ${tone}`}>{t(locale, `orders.state.${st}`)}</span>;
 }
 
-function Orders({ orders, onHome, locale, money, shortDay }: {
-  orders: Order[]; onHome: () => void; locale: Locale;
+function Orders({ orders, loadState, onReload, onApproved, onHome, locale, money, shortDay, onAsk, focus }: {
+  orders: Order[]; loadState: 'loading' | 'ready' | 'failed'; onReload: () => void;
+  /** The order the approval created, to keep open once the list reloads. */
+  onApproved: (id: string) => Promise<boolean>;
+  onHome: () => void; locale: Locale;
   money: (n: number) => string; shortDay: (d: Date) => string;
+  /** Hands this order's id to the ERP assistant as a question. */
+  onAsk: (id: string) => void;
+  /** An order to bring up from outside, e.g. a record the assistant cited. */
+  focus?: { id: string; n: number } | null;
 }) {
   // The open order is a choice on this page, not app state: leaving and
   // coming back should show the newest again.
   const [openId, setOpenId] = useState<string | null>(null);
+  useEffect(() => {
+    if (focus && orders.some((x) => x.id === focus.id)) setOpenId(focus.id);
+  }, [focus, orders]);
   const o = orders.find((x) => x.id === openId) ?? orders[0];
   const head = (
     <div className={s.pageHead}>
@@ -723,6 +794,21 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
       </div>
     </div>
   );
+  if (!o && loadState !== 'ready') {
+    return (
+      <>
+        {head}
+        {loadState === 'failed' ? (
+          <Empty
+            title={t(locale, 'orders.loadFailed')}
+            note={t(locale, 'orders.loadFailedNote')}
+            action={t(locale, 'orders.retry')}
+            onAct={onReload}
+          />
+        ) : <p className={s.muted}>{t(locale, 'common.loading')}</p>}
+      </>
+    );
+  }
   if (!o) {
     return (
       <>
@@ -736,9 +822,9 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
       </>
     );
   }
-  const reached = (i: number) => i <= o.stage || i === STAGES.length - 1;
-  const state = (i: number) => (o.stage >= 5 || i < o.stage ? 'done' : i === o.stage ? 'now' : '');
-  const pct = progress(o);
+  const steps = timeline(o);
+  const pct = Math.round(o.perDelivered);
+  const sized = o.state === 'collecting_sizes' || o.state === 'in_progress' || o.state === 'delivered';
   return (
     <>
       {head}
@@ -758,13 +844,13 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
                 {orders.map((x) => (
                   <tr key={x.id} className={`${s.rowPick} ${x.id === o.id ? s.rowOpen : ''}`}
                     aria-current={x.id === o.id ? 'true' : undefined}
-                    tabIndex={0} role="button" aria-label={t(locale, 'orders.open', { name: kitName(locale, x.concept.id), id: x.id })}
+                    tabIndex={0} role="button" aria-label={t(locale, 'orders.open', { name: orderKit(locale, x), id: x.id })}
                     onClick={() => setOpenId(x.id)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenId(x.id); }
                     }}>
                     <td>
-                      <strong>{kitName(locale, x.concept.id)}</strong>
+                      <strong>{orderKit(locale, x)}</strong>
                       <div className={s.sub}>{t(locale, 'home.orderLine', { id: x.id, sets: x.sets })}</div>
                     </td>
                     <td data-label={t(locale, 'orders.colStatus')}><StatusPill order={x} locale={locale} /></td>
@@ -782,26 +868,30 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
         <div className={s.splitRow}>
           <div>
             <div className={s.sub}>{o.id}</div>
-            <h2 className={s.orderTitle}>{kitName(locale, o.concept.id)}</h2>
+            <h2 className={s.orderTitle}>{orderKit(locale, o)}</h2>
             <div className={s.sub}>{t(locale, 'orders.setsAndValue', { sets: o.sets, value: money(o.total) })}</div>
           </div>
           <div className={s.alignEnd}>
             <StatusPill order={o} locale={locale} />
             <div className={`${s.muted} ${s.metaLine}`}>
-              {o.stage >= 5
+              {o.state === 'delivered'
                 ? t(locale, 'orders.deliveredOn', { date: shortDay(o.due) })
                 : t(locale, 'orders.dueAround', { date: shortDay(o.due) })}
             </div>
+            <button type="button" className={s.askOrder} onClick={() => onAsk(o.id)}>
+              {t(locale, 'erpAsk.askAboutOrder')}
+            </button>
           </div>
         </div>
         <div className={s.timeline}>
-          {STAGE_KEYS.map((key, i) => (
-            <div key={key} className={`${s.tStep} ${state(i) === 'done' ? s.tDone : state(i) === 'now' ? s.tNow : ''}`}>
-              <div className={s.tDot}>{state(i) === 'done' ? <Check /> : i + 1}</div>
-              <b>{t(locale, `orders.${key}`)}</b>
-              <small>{state(i) === 'now' && o.stage < 5
-                ? t(locale, 'orders.now')
-                : reached(i) ? shortDay(stageDate(o, i)) : '—'}</small>
+          {steps.map((st, i) => (
+            <div key={st.key} className={`${s.tStep} ${st.reached ? s.tDone : st.now ? s.tNow : ''}`}>
+              <div className={s.tDot}>{st.reached ? <Check /> : i + 1}</div>
+              <b>{t(locale, `orders.step.${st.key}`)}</b>
+              <small>{st.reached && st.date ? shortDay(st.date)
+                : st.partial ? t(locale, 'orders.partDelivered', { pct: st.partial })
+                  : st.now ? t(locale, 'orders.now') : '—'}</small>
+              {st.doc && <small className={s.mono}>{st.doc}</small>}
             </div>
           ))}
         </div>
@@ -809,9 +899,13 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
 
       <ManagerNote locale={locale} tone="panel" note={orderNote(locale, o)} />
 
+      {o.state === 'quote_ready' && o.quote && (
+        <ApproveQuote key={o.quote} order={o} quote={o.quote} locale={locale} money={money} onDone={onApproved} />
+      )}
+
       <div className={s.group}>
       <div className={s.sectionHead}>
-        <div><h2>{t(locale, o.stage >= 5 ? 'orders.whatWasMade' : 'orders.whatIsBeingMade')}</h2></div>
+        <div><h2>{t(locale, o.state === 'delivered' ? 'orders.whatWasMade' : 'orders.whatIsBeingMade')}</h2></div>
       </div>
       <div className={`${s.tableCard} ${s.tableFixed} ${s.tableLines}`}>
         <div className={s.tableScroll}>
@@ -820,7 +914,7 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
               <tr><th>{t(locale, 'orders.colItem')}</th><th className={s.right}>{t(locale, 'orders.colQty')}</th><th>{t(locale, 'orders.colProgress')}</th><th className={s.right}>{t(locale, 'orders.colReady')}</th></tr>
             </thead>
             <tbody>
-              {o.lines.map((l, i) => (
+              {(o.lines ?? []).map((l, i) => (
                 <tr key={i}>
                   <td>
                     <strong>{l.garment
@@ -834,7 +928,7 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
                       {/* An empty track next to "waiting on sizes" is a grey
                           stub that says nothing the words do not. */}
                       {pct > 0 && <div className={s.progressTrack}><i style={{ width: `${pct}%` }} /></div>}
-                      <span className={s.progressPct}>{pct === 0 ? t(locale, 'orders.waitingOnSizes') : `${pct}%`}</span>
+                      <span className={s.progressPct}>{pct > 0 ? `${pct}%` : sized ? t(locale, 'orders.waitingOnSizes') : '—'}</span>
                     </div>
                   </td>
                   <td data-label={t(locale, 'orders.colReady')} className={`${s.right} ${s.mono}`}>{shortDay(o.due)}</td>
@@ -846,6 +940,50 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
       </div>
       </div>
     </>
+  );
+}
+
+/** ERPNext's sales routes answer with a status; the customer gets a sentence. */
+const failureKey = (status: number) =>
+  status === 409 ? 'orders.errConflict' : status === 502 ? 'orders.errUnreachable' : 'orders.errGeneric';
+
+/** The quoted price, and the one button that turns the quote into an order. */
+function ApproveQuote({ order: o, quote, locale, money, onDone }: {
+  order: Order; quote: string; locale: Locale; money: (n: number) => string; onDone: (id: string) => Promise<boolean>;
+}) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+  async function approve() {
+    if (pending) return;
+    setPending(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/quotes/${encodeURIComponent(quote)}/approve`, { method: 'POST' });
+      if (!res.ok) { setError(t(locale, failureKey(res.status))); setPending(false); return; }
+      // Stay disabled until the reload has moved the order past quote_ready;
+      // the card then unmounts. Only a failed reload gives the button back.
+      if (!(await onDone(((await res.json()) as Order).id))) setPending(false);
+    } catch {
+      setError(t(locale, failureKey(502)));
+      setPending(false);
+    }
+  }
+  return (
+    <div className={`${s.card} ${s.cardPad} ${s.approveBar}`}>
+      <div>
+        <div className={s.sub}>{t(locale, 'orders.quotedTotal')}</div>
+        <b className={`${s.mono} ${s.approveTotal}`}>{money(o.total)}</b>
+        {o.total !== o.estimate && (
+          <div className={s.sub}>{t(locale, 'orders.originalEstimate', { value: money(o.estimate) })}</div>
+        )}
+      </div>
+      <div className={s.approveAct}>
+        <button type="button" className={`${s.btn} ${s.btnPrimary}`} disabled={pending} onClick={approve}>
+          {t(locale, pending ? 'orders.approving' : 'orders.approve')}
+        </button>
+        {error && <p className={s.approveError} role="alert">{error}</p>}
+      </div>
+    </div>
   );
 }
 
@@ -945,7 +1083,7 @@ function Settings({ profile, onSave, locale, onLocale }: {
 }
 
 function Quote({
-  concept, staff, perPerson, sets, grades, sizePlan, onClose, onConfirm, locale, money,
+  concept, staff, perPerson, sets, grades, sizePlan, onClose, onConfirm, pending, error, locale, money,
 }: {
   concept: Concept;
   staff: number;
@@ -958,6 +1096,8 @@ function Quote({
   sizePlan: SizePlan;
   onClose: () => void;
   onConfirm: () => void;
+  pending: boolean;
+  error: string;
 }) {
   const per = perPerson;
   // Escape closes; focus goes back to the button that opened it. The handler
@@ -1069,9 +1209,12 @@ function Quote({
             sizePlan.mode === 'allocate_now' && assigned === sets,
           )} />
         </div>
+        {error && <p className={s.approveError} role="alert" style={{ padding: '0 var(--s5)' }}>{error}</p>}
         <div className={s.modalFoot}>
           <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onClose} ref={first}>{t(locale, 'quote.keepEditing')}</button>
-          <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onConfirm}>{t(locale, 'quote.submit')}</button>
+          <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onConfirm} disabled={pending}>
+            {t(locale, pending ? 'quote.submitting' : 'quote.submit')}
+          </button>
         </div>
       </div>
     </div>

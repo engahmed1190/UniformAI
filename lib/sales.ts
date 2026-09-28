@@ -1,0 +1,202 @@
+// Server side of the sales workflow: reads the customer's chain of ERPNext
+// documents as Orders, and writes the two things the customer may do, ask for
+// a quote and approve one. Everything priced comes from kitLines, never from
+// the request body.
+
+import { call, get, insert, list } from './erp';
+import { type Kit, type DeliveryRow, type QuoteRow, type SalesOrderRow, kitEstimate, kitLines, toOrders } from './orders';
+import type { Order } from './order';
+import {
+  type Concept, type GarmentCut, type GarmentType, type SizePlan,
+  GARMENT_CATALOG, allocatedSizeCount,
+} from './spec';
+
+export const CUSTOMER = 'BrainWise Technology';
+const MAKE_SALES_ORDER = 'erpnext.selling.doctype.quotation.quotation.make_sales_order';
+const QUOTE_VALID_DAYS = 30;
+const DELIVERY_DAYS = 21;
+const MAX_COUNT = 5000;
+
+export class SalesError extends Error {
+  constructor(message: string, readonly status: 400 | 404 | 409) {
+    super(message);
+    this.name = 'SalesError';
+  }
+}
+
+const bad = (what: string) => new SalesError(`Invalid ${what}`, 400);
+
+function isoDay(offset = 0): string {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// ---- reads -----------------------------------------------------------------
+
+type SalesOrderListRow = Omit<SalesOrderRow, 'quotation'> & { prevdoc_docname?: string | null };
+type DeliveryListRow = Omit<DeliveryRow, 'against_sales_order'> & { against_sales_order?: string | null };
+
+export async function listOrders(): Promise<Order[]> {
+  const [quotes, orderRows, noteRows] = await Promise.all([
+    list<QuoteRow>('Quotation', {
+      fields: ['name', 'party_name', 'status', 'docstatus', 'transaction_date', 'valid_till',
+        'grand_total', 'uniformai_kit', 'uniformai_ref'],
+      filters: [['party_name', '=', CUSTOMER], ['docstatus', '<', 2]],
+      orderBy: 'transaction_date desc, creation desc', limit: 500,
+    }),
+    list<SalesOrderListRow>('Sales Order', {
+      fields: ['name', 'customer', 'status', 'docstatus', 'transaction_date', 'delivery_date',
+        'per_delivered', 'grand_total', 'uniformai_kit', 'uniformai_ref', 'items.prevdoc_docname'],
+      filters: [['customer', '=', CUSTOMER], ['docstatus', '<', 2]],
+      orderBy: 'transaction_date desc, `tabSales Order`.creation desc', limit: 2000,
+    }),
+    list<DeliveryListRow>('Delivery Note', {
+      fields: ['name', 'posting_date', 'docstatus', 'items.against_sales_order'],
+      filters: [['customer', '=', CUSTOMER], ['docstatus', '=', 1]],
+      orderBy: 'posting_date desc', limit: 2000,
+    }),
+  ]);
+
+  // Frappe returns one row per item line: fold them back to one per document.
+  const orders = new Map<string, SalesOrderRow>();
+  for (const { prevdoc_docname, ...row } of orderRows) {
+    const seen = orders.get(row.name);
+    if (!seen) orders.set(row.name, { ...row, quotation: prevdoc_docname || null });
+    else if (!seen.quotation && prevdoc_docname) seen.quotation = prevdoc_docname;
+  }
+  const notes: DeliveryRow[] = [];
+  const noted = new Set<string>();
+  for (const row of noteRows) {
+    if (!row.against_sales_order) continue;
+    const key = `${row.name}\u0000${row.against_sales_order}`;
+    if (noted.has(key)) continue;
+    noted.add(key);
+    notes.push({ ...row, against_sales_order: row.against_sales_order });
+  }
+  return toOrders(quotes, [...orders.values()], notes);
+}
+
+async function chainOf(quote: string): Promise<Order> {
+  const order = (await listOrders()).find((o) => o.quote === quote);
+  if (!order) throw new SalesError('Quote not found', 404);
+  return order;
+}
+
+// ---- request a quote ---------------------------------------------------------
+
+const TYPES = Object.keys(GARMENT_CATALOG) as GarmentType[];
+const FITS = ['slim', 'regular', 'relaxed'];
+const CUTS: GarmentCut[] = ['men', 'women', 'unisex'];
+const POSITIONS = ['left_chest', 'right_chest', 'sleeve', 'back', 'none'];
+const METHODS = ['embroidery', 'print'];
+
+const isObject = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+const count = (v: unknown): v is number => Number.isInteger(v) && (v as number) > 0 && (v as number) <= MAX_COUNT;
+const text = (v: unknown, max = 120): v is string => typeof v === 'string' && v.length <= max;
+
+/** The kit the customer may send: rebuilt field by field, so nothing else
+ *  in the body reaches ERPNext. */
+export function parseKit(input: unknown): Kit {
+  if (!isObject(input)) throw bad('request');
+  const { concept: c, staff, sets, grades, sizePlan: plan } = input;
+  if (!count(staff)) throw bad('staff');
+  if (!count(sets) || sets < staff || sets > staff * 2) throw bad('sets');
+  if (!isObject(c) || !text(c.name) || !c.name.trim() || !text(c.id, 80)) throw bad('concept');
+  if (!Array.isArray(c.garments) || c.garments.length < 1 || c.garments.length > TYPES.length) throw bad('garments');
+  if (!isObject(c.logo) || !POSITIONS.includes(c.logo.position as string) || !METHODS.includes(c.logo.method as string)) {
+    throw bad('logo');
+  }
+  const cuts = c.cuts === undefined ? [] : c.cuts;
+  if (!Array.isArray(cuts) || cuts.some((x) => !CUTS.includes(x as GarmentCut))) throw bad('cuts');
+
+  const garments = c.garments.map((g: unknown) => {
+    if (!isObject(g) || !TYPES.includes(g.type as GarmentType) || !FITS.includes(g.fit as string)) throw bad('garment');
+    if (!isObject(g.parts) || Object.values(g.parts).some((h) => !text(h, 20))) throw bad('garment');
+    if (!text(g.fabric) || typeof g.unitPrice !== 'number' || !Number.isFinite(g.unitPrice) || g.unitPrice < 0 || g.unitPrice > 1_000_000) {
+      throw bad('garment');
+    }
+    return {
+      type: g.type as GarmentType, parts: g.parts as Record<string, string>, fabric: g.fabric,
+      fit: g.fit as 'slim' | 'regular' | 'relaxed', unitPrice: g.unitPrice,
+    };
+  });
+  if (new Set(garments.map((g) => g.type)).size !== garments.length) throw bad('garments');
+
+  if (!Array.isArray(grades) || grades.length > garments.length ||
+      grades.some((x) => !Number.isInteger(x) || x < 0 || x > 2)) throw bad('grades');
+  if (!isObject(plan) || (plan.mode !== 'collect_later' && plan.mode !== 'allocate_now') || !isObject(plan.allocation)) {
+    throw bad('size plan');
+  }
+
+  const logo = c.logo as { position: Concept['logo']['position']; method: Concept['logo']['method']; colour?: unknown };
+  const concept: Concept = {
+    id: c.id, name: c.name, garments, cuts: cuts as GarmentCut[],
+    logo: { position: logo.position, method: logo.method, ...(text(logo.colour, 20) ? { colour: logo.colour } : {}) },
+  };
+  const kit: Kit = { concept, staff, sets, grades: grades as number[], sizePlan: plan as SizePlan };
+  try {
+    kitLines(kit); kitEstimate(kit);
+    allocatedSizeCount(kit.sizePlan.allocation, concept.cuts.length ? concept.cuts : ['men', 'women']);
+  } catch { throw bad('kit'); }
+  return kit;
+}
+
+export async function requestQuote(input: unknown): Promise<Order> {
+  const kit = parseKit(input);
+  const created = await insert<{ name: string }>('Quotation', {
+    quotation_to: 'Customer',
+    party_name: CUSTOMER,
+    order_type: 'Sales',
+    transaction_date: isoDay(),
+    valid_till: isoDay(QUOTE_VALID_DAYS),
+    items: kitLines(kit),
+    uniformai_kit: JSON.stringify(kit),
+    uniformai_ref: `app-${Date.now()}`,
+  }, 'write');
+  return chainOf(created.name);
+}
+
+// ---- approve ---------------------------------------------------------------
+
+type QuoteDoc = { name: string; party_name: string; docstatus: number; status: string };
+
+/** Drop the client-side markers Frappe puts on a mapped, unsaved document. */
+function clean<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(clean) as T;
+  if (isObject(value)) {
+    return Object.fromEntries(
+      Object.entries(value).filter(([k]) => !k.startsWith('__')).map(([k, v]) => [k, clean(v)])) as T;
+  }
+  return value;
+}
+
+export async function approveQuote(name: string): Promise<Order> {
+  let quote: QuoteDoc;
+  try {
+    quote = await get<QuoteDoc>('Quotation', name);
+  } catch (error) {
+    if ((error as { status?: number }).status === 404) throw new SalesError('Quote not found', 404);
+    throw error;
+  }
+  if (quote.party_name !== CUSTOMER) throw new SalesError('Quote not found', 404);
+  if (quote.docstatus !== 1) throw new SalesError('This quote has not been issued yet', 409);
+  if (quote.status !== 'Open' && quote.status !== 'Replied') throw new SalesError('This quote can no longer be approved', 409);
+
+  const existing = await list<{ name: string }>('Sales Order', {
+    fields: ['name'],
+    filters: [['Sales Order Item', 'prevdoc_docname', '=', name], ['docstatus', '<', 2]],
+    limit: 1,
+  });
+  if (existing.length) throw new SalesError('This quote has already been approved', 409);
+
+  const mapped = clean(await call<Record<string, unknown> & { items?: Record<string, unknown>[] }>(
+    MAKE_SALES_ORDER, { source_name: name }, 'write'));
+  const delivery = isoDay(DELIVERY_DAYS);
+  const doc = {
+    ...mapped, docstatus: 0, delivery_date: delivery,
+    items: (mapped.items ?? []).map((item) => ({ ...item, delivery_date: delivery })),
+  };
+  await insert('Sales Order', doc, 'write');
+  return chainOf(name);
+}

@@ -78,12 +78,12 @@ import { orderNote } from './manager';
 assert.match(greeting('en', 'Ahmed', []), /Nothing needs you today/);
 assert.doesNotMatch(greeting('en', 'Ahmed', []), /polos|8th/, 'no order, no order news');
 const placed = placeOrder(c, 40, 42, [], 500, new Date('2026-09-02T10:00:00Z'));
-const sewing = placeOrder(c, 40, 42, [], 500, new Date('2026-08-20T10:00:00Z'), 3);
+const sewing = placeOrder(c, 40, 42, [], 500, new Date('2026-08-20T10:00:00Z'), 'in_progress');
 assert.match(greeting('en', 'Ahmed', [placed]), /Front Office/, 'the greeting names the real order');
 assert.match(greeting('en', 'Ahmed', [placed, sewing]), /1 in production/, 'the greeting counts states');
 assert.match(orderNote('en', placed), /23 Sep/, 'the note states the real due date');
-assert.match(orderNote('en', sewing), /Sewing/, 'the note says where a production order is');
-assert.match(orderNote('en', { ...sewing, stage: 5 }), /Delivered/);
+assert.match(orderNote('en', sewing), /In production/, 'the note says where a production order is');
+assert.match(orderNote('en', { ...sewing, state: 'delivered' as const }), /Delivered/);
 
 // 8. The quote note states the real spare count, not a hardcoded one.
 assert.match(quoteNote('en', c, 40, 44), /40 people plus 4 spare/);
@@ -146,7 +146,7 @@ for (const [locale, brief] of [['en', hot], ['ar', hotAr]] as [Locale, string][]
   check('greeting(none)', greeting(locale, 'Ahmed', []));
   check('orderNote', orderNote(locale, placed));
   check('orderNote(sewing)', orderNote(locale, sewing));
-  check('orderNote(done)', orderNote(locale, { ...sewing, stage: 5 }));
+  check('orderNote(done)', orderNote(locale, { ...sewing, state: 'delivered' as const }));
 }
 
 // 11. The Arabic brief is read for the same signals as the English one --

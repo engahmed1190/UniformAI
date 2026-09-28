@@ -18,15 +18,15 @@ assert.equal(o.sets, 42);
 assert.equal(o.staff, 40);
 
 // 2. One line per garment, plus one for the logo, each for every set.
-assert.equal(o.lines.length, c.garments.length + 1);
-assert.ok(o.lines.every((l) => l.qty === 42));
-assert.ok(o.lines[o.lines.length - 1].logo, 'the last line is the branding line');
+assert.equal(o.lines!.length, c.garments.length + 1);
+assert.ok(o.lines!.every((l) => l.qty === 42));
+assert.ok(o.lines![o.lines!.length - 1].logo, 'the last line is the branding line');
 
 // 3. The upgrade the buyer chose is named on its line.
-assert.equal(o.lines[0].fabric, gradeName(c.garments[0], 1));
+assert.equal(o.lines![0].fabric, gradeName(c.garments[0], 1));
 
 // 4. No logo, no branding line.
-assert.equal(placeOrder(setLogo(c, { position: 'none' }), 40, 42, grades, per).lines.length, c.garments.length);
+assert.equal(placeOrder(setLogo(c, { position: 'none' }), 40, 42, grades, per).lines!.length, c.garments.length);
 
 // 5. An ERP-shaped number and a due date after the placing date.
 assert.match(o.id, /^SO-2026-\d{8}$/);
@@ -39,17 +39,12 @@ const [back] = revive(JSON.stringify([o]));
 assert.equal(back.due.getTime(), o.due.getTime());
 assert.equal(back.id, o.id);
 
-// 7. Stage drives status and progress -- one source, so the pill, the bar
-// and the timeline cannot disagree.
-import { status, progress } from './order';
-assert.equal(o.stage, 1, 'a fresh order is waiting on sizes');
-assert.equal(status(o), 'Collecting sizes');
-assert.equal(status({ ...o, stage: 3 }), 'In production');
-assert.equal(status({ ...o, stage: 5 }), 'Delivered');
-assert.equal(progress({ ...o, stage: 1 }), 0);
-assert.equal(progress({ ...o, stage: 5 }), 100);
-assert.ok(progress({ ...o, stage: 3 }) > progress({ ...o, stage: 2 }));
-assert.equal(placeOrder(c, 40, 42, grades, per, new Date(), 5).stage, 5);
+// 7. The state drives status -- one source, so the pill and the notes cannot disagree.
+import { status } from './order';
+assert.equal(o.state, 'collecting_sizes', 'a fresh order is waiting on sizes');
+assert.equal(status(o), 'collecting_sizes');
+assert.equal(status({ ...o, state: 'in_progress' }), 'in_progress');
+assert.equal(placeOrder(c, 40, 42, grades, per, new Date(), 'delivered').perDelivered, 100);
 
 // 8. A list round-trips.
 assert.equal(revive(JSON.stringify([o, o])).length, 2);
@@ -82,9 +77,9 @@ assert.ok(
 // 10. Order lines hold data, not sentences. An order placed in Arabic and
 // reopened in English -- or the reverse -- must read in the language the
 // buyer is looking at, so the line stores what it IS and the screen says it.
-const line = o.lines[0];
+const line = o.lines![0];
 assert.ok('garment' in line || 'logo' in line, 'a line must name what it is, not a rendered string');
-const logoLine = o.lines[o.lines.length - 1];
+const logoLine = o.lines![o.lines!.length - 1];
 assert.equal(logoLine.logo, 'embroidery', 'the logo line stores the method');
 assert.equal(logoLine.position, 'left_chest', 'and the placement');
 assert.equal(line.garment, c.garments[0].type, 'a garment line stores its type');
@@ -93,6 +88,6 @@ assert.ok(line.colour?.startsWith('#'), 'and its colour as the stored hex');
 // A completed measurement breakdown follows the accepted quote into the
 // order. It is order data, not part of the reusable saved kit.
 const plan = { mode: 'allocate_now' as const, allocation: { women: { M: 22 }, men: { L: 20 } } };
-const sized = placeOrder(c, 40, 42, grades, per, new Date('2026-09-02T10:00:00Z'), 2, plan);
+const sized = placeOrder(c, 40, 42, grades, per, new Date('2026-09-02T10:00:00Z'), 'in_progress', plan);
 assert.deepEqual(sized.sizePlan, plan);
-assert.equal(sized.stage, 2, 'complete sizes can move straight to cutting');
+assert.equal(sized.state, 'in_progress', 'complete sizes can move straight to in progress');

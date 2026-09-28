@@ -23,46 +23,45 @@ export type OrderLine = {
   position?: LogoPosition;
 };
 
+/** Where an order is in ERPNext's sales workflow, read from its documents. */
+export type Workflow =
+  | 'quote_requested' | 'quote_ready' | 'quote_closed'
+  | 'awaiting' | 'collecting_sizes' | 'in_progress' | 'delivered';
+
+/** The five steps of the timeline. A step is reached when its document exists. */
+export const STEPS = ['requested', 'issued', 'approved', 'confirmed', 'delivered'] as const;
+
 export type Order = {
   id: string;
   name: string;
-  concept: Concept;
+  /** Absent when the documents carry no kit JSON (a hand-made ERPNext order). */
+  concept?: Concept;
   staff: number;
   sets: number;
   perPerson: number;
+  /** The price: the Sales Order's total, else the quotation's. */
   total: number;
+  /** What the app estimated from the kit, kept beside a differing quote. */
+  estimate: number;
   placed: Date;
-  /** Indicative. Real lead time is the ERP's to say. */
+  /** The Sales Order's delivery date, else placed + 21 days. */
   due: Date;
-  /** Index into STAGES: where the order is right now. */
-  stage: number;
+  state: Workflow;
+  /** Document names, for the timeline. */
+  quote?: string;
+  salesOrder?: string;
+  deliveryNote?: string;
+  /** The day each reached step happened. */
+  dates: Partial<Record<typeof STEPS[number], Date>>;
+  /** ERPNext's per_delivered, 0-100. */
+  perDelivered: number;
   sizePlan?: SizePlan;
-  lines: OrderLine[];
+  lines?: OrderLine[];
 };
 
-/** The production stages every order walks through, and the day each one
- *  falls on, counted from placing. One list, so the timeline, the status
- *  pill and the due date cannot disagree. */
-export const STAGES = ['Ordered', 'Sizes in', 'Fabric cut', 'Sewing', 'Checks', 'Delivery'];
+export const LEAD_DAYS = 21;
 
-/** The same six stages as translation keys, in the same order. Kept beside
- *  STAGES so a stage cannot be added to one list and missed in the other. */
-export const STAGE_KEYS = ['ordered', 'sizesIn', 'fabricCut', 'sewing', 'checks', 'delivery'] as const;
-const DAY = [0, 4, 10, 14, 18, 21];
-const LEAD_DAYS = DAY[DAY.length - 1];
-
-export const stageDate = (o: Order, i: number): Date => {
-  const d = new Date(o.placed);
-  d.setDate(d.getDate() + DAY[i]);
-  return d;
-};
-
-export type Status = 'Collecting sizes' | 'In production' | 'Delivered';
-export const status = (o: Order): Status =>
-  o.stage >= 5 ? 'Delivered' : o.stage >= 2 ? 'In production' : 'Collecting sizes';
-
-/** How far along the making is. Nothing moves until sizes are in. */
-export const progress = (o: Order): number => [0, 0, 30, 60, 85, 100][Math.min(o.stage, 5)];
+export const status = (o: Order): Workflow => o.state;
 
 /** "23 Sep". Hand-rolled: en-GB Intl gives "Sept" on newer ICU. */
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -80,16 +79,8 @@ function seq(d: Date): string {
 
 export const shortDate = (d: Date) => `${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]}`;
 
-export function placeOrder(
-  concept: Concept,
-  staff: number,
-  sets: number,
-  grades: number[],
-  perPerson: number,
-  now = new Date(),
-  stage = 1,
-  sizePlan?: SizePlan,
-): Order {
+/** One line per garment plus the branding line, as the Orders screen lists them. */
+export function orderLines(concept: Concept, sets: number, grades: number[]): OrderLine[] {
   const lines: OrderLine[] = concept.garments.map((g, i) => ({
     qty: sets,
     garment: g.type,
@@ -99,6 +90,20 @@ export function placeOrder(
   if (concept.logo.position !== 'none') {
     lines.push({ qty: sets, logo: concept.logo.method, position: concept.logo.position });
   }
+  return lines;
+}
+
+// ponytail: placeOrder is the localStorage stand-in; it goes when orders come from ERPNext.
+export function placeOrder(
+  concept: Concept,
+  staff: number,
+  sets: number,
+  grades: number[],
+  perPerson: number,
+  now = new Date(),
+  state: Workflow = 'collecting_sizes',
+  sizePlan?: SizePlan,
+): Order {
   const due = new Date(now);
   due.setDate(due.getDate() + LEAD_DAYS);
   return {
@@ -109,11 +114,21 @@ export function placeOrder(
     id: `SO-${now.getFullYear()}-${seq(now)}`,
     name: concept.name,
     concept, staff, sets, perPerson,
-    total: perPerson * sets, sizePlan,
-    placed: now, due, stage, lines,
+    total: perPerson * sets, estimate: perPerson * sets, sizePlan,
+    placed: now, due, state, lines: orderLines(concept, sets, grades),
+    dates: { requested: now, issued: now, approved: now, confirmed: now },
+    perDelivered: state === 'delivered' ? 100 : 0,
   };
 }
 
-/** Back from JSON with the two dates as Dates again. */
+/** Back from JSON with the dates as Dates again. Orders stored before the
+ *  workflow existed carry a stage number; read them as the state it meant. */
+const DATE_KEYS = new Set(['placed', 'due', ...STEPS]);
 export const revive = (json: string): Order[] =>
-  JSON.parse(json, (k, v) => (k === 'placed' || k === 'due' ? new Date(v) : v));
+  (JSON.parse(json, (k, v) => (DATE_KEYS.has(k) ? new Date(v) : v)) as (Order & { stage?: number })[]).map((o) => ({
+    ...o,
+    state: o.state ?? (o.stage! >= 5 ? 'delivered' : o.stage! >= 2 ? 'in_progress' : 'collecting_sizes'),
+    dates: o.dates ?? {},
+    estimate: o.estimate ?? o.total,
+    perDelivered: o.perDelivered ?? 0,
+  }));

@@ -25,7 +25,7 @@ import {
 } from '@/lib/spec';
 import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
 import { suggestions } from '@/lib/suggest';
-import { type Order, STAGES, STAGE_KEYS, placeOrder, progress, revive, shortDate, stageDate, status } from '@/lib/order';
+import { type Order, type Workflow, STEPS, placeOrder, revive, shortDate, status } from '@/lib/order';
 import { ManagerNote } from '@/components/manager';
 import { useConfirm } from '@/components/confirm';
 import { Check } from '@/components/check';
@@ -150,17 +150,17 @@ export default function Page() {
     } catch { /* fall through to the samples */ }
     // Named seeds, not briefs: selectConcepts only ever reaches three of the
     // four, so a brief could not give three visibly different kits.
-    const sample = (kit: string, daysAgo: number, stage: number, people: number, sampleIndex: number) => {
+    const sample = (kit: string, daysAgo: number, state: Workflow, people: number, sampleIndex: number) => {
       const c = CONCEPTS.find((x) => x.id === kit) ?? CONCEPTS[0];
       const erp = erpSamples[sampleIndex] as { name?: string; placed?: string } | undefined;
       const placed = erp?.placed ? new Date(`${erp.placed}T10:00:00`) : new Date(Date.now() - daysAgo * 864e5);
-      const order = placeOrder(c, people, Math.ceil(people * 1.05), [], conceptPriceAt(c, []), placed, stage);
+      const order = placeOrder(c, people, Math.ceil(people * 1.05), [], conceptPriceAt(c, []), placed, state);
       return erp?.name ? { ...order, id: erp.name } : order;
     };
     setOrders([
-      sample('technicians', 4, 1, PROFILE.staff, 0),
-      sample('operations', 18, 3, 24, 1),
-      sample('management', 45, 5, 12, 2),
+      sample('technicians', 4, 'collecting_sizes', PROFILE.staff, 0),
+      sample('operations', 18, 'in_progress', 24, 1),
+      sample('management', 45, 'delivered', 12, 2),
     ]);
   }, []);
   // Set by any configurator edit, cleared by a fresh generate. Guards the
@@ -242,7 +242,7 @@ export default function Page() {
         company={profile.company}
         staff={staff}
         kitCount={saved.length}
-        orderCount={orders.filter((o) => o.stage < 5).length}
+        orderCount={orders.filter((o) => status(o) !== 'delivered').length}
         locale={locale}
       />
 
@@ -510,7 +510,7 @@ export default function Page() {
             const sizesComplete = sizePlan.mode === 'allocate_now'
               && allocatedSizeCount(sizePlan.allocation, cuts) === sets;
             const next = [placeOrder(
-              active, staff, sets, grades, perPerson, new Date(), sizesComplete ? 2 : 1, sizePlan,
+              active, staff, sets, grades, perPerson, new Date(), sizesComplete ? 'in_progress' : 'collecting_sizes', sizePlan,
             ), ...orders];
             setOrders(next);
             try { localStorage.setItem('orders', JSON.stringify(next)); } catch { /* private mode */ }
@@ -541,9 +541,9 @@ function Home({
   onOrders: () => void;
 }) {
   const [text, setText] = useState('');
-  const sizing = orders.filter((o) => status(o) === 'Collecting sizes');
-  const making = orders.filter((o) => status(o) === 'In production');
-  const done = orders.filter((o) => status(o) === 'Delivered');
+  const sizing = orders.filter((o) => status(o) === 'collecting_sizes');
+  const making = orders.filter((o) => status(o) === 'in_progress');
+  const done = orders.filter((o) => status(o) === 'delivered');
   return (
     <>
       {/* Home was the one page with no h1: the heading order ran h3, h2 and
@@ -617,10 +617,10 @@ function Home({
             <tbody>
               {orders.length ? orders.map((o) => (
                 <tr key={o.id}>
-                  <td><strong>{kitName(locale, o.concept.id)}</strong><div className={s.sub}>{t(locale, 'home.orderLine', { id: o.id, sets: o.sets })}</div></td>
+                  <td><strong>{orderKit(locale, o)}</strong><div className={s.sub}>{t(locale, 'home.orderLine', { id: o.id, sets: o.sets })}</div></td>
                   <td data-label={t(locale, 'home.colStatus')}><StatusPill order={o} locale={locale} /></td>
                   <td data-label={t(locale, 'home.colValue')} className={`${s.right} ${s.mono}`}>{money(o.total)}</td>
-                  <td data-label={t(locale, 'home.colUpdated')} className={`${s.right} ${s.muted}`}>{shortDay(stageDate(o, Math.min(o.stage, 5)))}</td>
+                  <td data-label={t(locale, 'home.colUpdated')} className={`${s.right} ${s.muted}`}>{shortDay(lastStep(o))}</td>
                 </tr>
               )) : (
                 <tr>
@@ -715,10 +715,16 @@ function Kits({
 }
 
 /** One pill for one status, coloured the same everywhere it appears. */
+/** The kit's display name; a hand-made order has no kit, so its own name. */
+const orderKit = (locale: Locale, o: Order) => (o.concept ? kitName(locale, o.concept.id) : o.name);
+/** The latest step reached, for "updated". */
+const lastStep = (o: Order) =>
+  Object.values(o.dates).reduce((a, d) => (d > a ? d : a), o.placed);
+
 function StatusPill({ order, locale }: { order: Order; locale: Locale }) {
   const st = status(order);
-  const tone = st === 'Delivered' ? s.pillGood : st === 'Collecting sizes' ? s.pillWarn : '';
-  const key = st === 'Delivered' ? 'delivered' : st === 'Collecting sizes' ? 'collectingSizes' : 'inProduction';
+  const tone = st === 'delivered' ? s.pillGood : st === 'collecting_sizes' ? s.pillWarn : '';
+  const key = st === 'delivered' ? 'delivered' : st === 'collecting_sizes' ? 'collectingSizes' : 'inProduction';
   return <span className={`${s.pill} ${tone}`}>{t(locale, `statuses.${key}`)}</span>;
 }
 
@@ -758,9 +764,10 @@ function Orders({ orders, onHome, locale, money, shortDay, onAsk, focus }: {
       </>
     );
   }
-  const reached = (i: number) => i <= o.stage || i === STAGES.length - 1;
-  const state = (i: number) => (o.stage >= 5 || i < o.stage ? 'done' : i === o.stage ? 'now' : '');
-  const pct = progress(o);
+  const reached = (i: number) => o.dates[STEPS[i]] !== undefined;
+  const nowAt = STEPS.findIndex((k) => !o.dates[k]);
+  const state = (i: number) => (nowAt < 0 || i < nowAt ? 'done' : i === nowAt ? 'now' : '');
+  const pct = o.perDelivered;
   return (
     <>
       {head}
@@ -780,13 +787,13 @@ function Orders({ orders, onHome, locale, money, shortDay, onAsk, focus }: {
                 {orders.map((x) => (
                   <tr key={x.id} className={`${s.rowPick} ${x.id === o.id ? s.rowOpen : ''}`}
                     aria-current={x.id === o.id ? 'true' : undefined}
-                    tabIndex={0} role="button" aria-label={t(locale, 'orders.open', { name: kitName(locale, x.concept.id), id: x.id })}
+                    tabIndex={0} role="button" aria-label={t(locale, 'orders.open', { name: orderKit(locale, x), id: x.id })}
                     onClick={() => setOpenId(x.id)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpenId(x.id); }
                     }}>
                     <td>
-                      <strong>{kitName(locale, x.concept.id)}</strong>
+                      <strong>{orderKit(locale, x)}</strong>
                       <div className={s.sub}>{t(locale, 'home.orderLine', { id: x.id, sets: x.sets })}</div>
                     </td>
                     <td data-label={t(locale, 'orders.colStatus')}><StatusPill order={x} locale={locale} /></td>
@@ -804,13 +811,13 @@ function Orders({ orders, onHome, locale, money, shortDay, onAsk, focus }: {
         <div className={s.splitRow}>
           <div>
             <div className={s.sub}>{o.id}</div>
-            <h2 className={s.orderTitle}>{kitName(locale, o.concept.id)}</h2>
+            <h2 className={s.orderTitle}>{orderKit(locale, o)}</h2>
             <div className={s.sub}>{t(locale, 'orders.setsAndValue', { sets: o.sets, value: money(o.total) })}</div>
           </div>
           <div className={s.alignEnd}>
             <StatusPill order={o} locale={locale} />
             <div className={`${s.muted} ${s.metaLine}`}>
-              {o.stage >= 5
+              {o.state === 'delivered'
                 ? t(locale, 'orders.deliveredOn', { date: shortDay(o.due) })
                 : t(locale, 'orders.dueAround', { date: shortDay(o.due) })}
             </div>
@@ -820,13 +827,13 @@ function Orders({ orders, onHome, locale, money, shortDay, onAsk, focus }: {
           </div>
         </div>
         <div className={s.timeline}>
-          {STAGE_KEYS.map((key, i) => (
+          {STEPS.map((key, i) => (
             <div key={key} className={`${s.tStep} ${state(i) === 'done' ? s.tDone : state(i) === 'now' ? s.tNow : ''}`}>
               <div className={s.tDot}>{state(i) === 'done' ? <Check /> : i + 1}</div>
               <b>{t(locale, `orders.${key}`)}</b>
-              <small>{state(i) === 'now' && o.stage < 5
+              <small>{state(i) === 'now' && o.state !== 'delivered'
                 ? t(locale, 'orders.now')
-                : reached(i) ? shortDay(stageDate(o, i)) : '—'}</small>
+                : reached(i) ? shortDay(o.dates[STEPS[i]]!) : '—'}</small>
             </div>
           ))}
         </div>
@@ -836,7 +843,7 @@ function Orders({ orders, onHome, locale, money, shortDay, onAsk, focus }: {
 
       <div className={s.group}>
       <div className={s.sectionHead}>
-        <div><h2>{t(locale, o.stage >= 5 ? 'orders.whatWasMade' : 'orders.whatIsBeingMade')}</h2></div>
+        <div><h2>{t(locale, o.state === 'delivered' ? 'orders.whatWasMade' : 'orders.whatIsBeingMade')}</h2></div>
       </div>
       <div className={`${s.tableCard} ${s.tableFixed} ${s.tableLines}`}>
         <div className={s.tableScroll}>
@@ -845,7 +852,7 @@ function Orders({ orders, onHome, locale, money, shortDay, onAsk, focus }: {
               <tr><th>{t(locale, 'orders.colItem')}</th><th className={s.right}>{t(locale, 'orders.colQty')}</th><th>{t(locale, 'orders.colProgress')}</th><th className={s.right}>{t(locale, 'orders.colReady')}</th></tr>
             </thead>
             <tbody>
-              {o.lines.map((l, i) => (
+              {(o.lines ?? []).map((l, i) => (
                 <tr key={i}>
                   <td>
                     <strong>{l.garment

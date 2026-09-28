@@ -8,7 +8,7 @@
 
 import { type Concept, type LogoPosition, type SizingMode, conceptPrice } from './spec';
 import { briefWishes, swatchWord } from './refine';
-import { type Order, STAGE_KEYS } from './order';
+import { type Order } from './order';
 import { type Locale, formatCurrency, formatDate, kitName, spareMessage, t } from './i18n';
 
 /** Colour words that describe a family, not a specific cloth. */
@@ -179,10 +179,10 @@ export function quoteNote(
 /** Where the order actually is, and what happens next. */
 export function orderNote(locale: Locale, o: Order): string {
   const on = (d: Date) => formatDate(locale, d);
-  if (o.stage >= 5) return t(locale, 'manager.orderDelivered', { date: on(o.due) });
-  if (o.stage >= 2) {
+  if (o.state === 'delivered') return t(locale, 'manager.orderDelivered', { date: on(o.due) });
+  if (o.state === 'in_progress') {
     return t(locale, 'manager.orderMaking', {
-      stage: t(locale, `orders.${STAGE_KEYS[o.stage]}`),
+      stage: t(locale, 'statuses.inProduction'),
       date: on(o.due),
     });
   }
@@ -193,16 +193,16 @@ export function orderNote(locale: Locale, o: Order): string {
 export function greeting(locale: Locale, name: string, orders: Order[]): string {
   const hour = new Date().getHours();
   const part = t(locale, hour < 12 ? 'manager.morning' : hour < 18 ? 'manager.afternoon' : 'manager.evening');
-  const open = orders.filter((o) => o.stage < 5);
+  const open = orders.filter((o) => o.state !== 'delivered');
   if (open.length === 0) return t(locale, 'manager.greetNothing', { part, name });
   if (open.length === 1) {
     const o = open[0];
-    const kit = kitName(locale, o.concept.id);
-    return o.stage < 2
+    const kit = o.concept ? kitName(locale, o.concept.id) : o.name;
+    return o.state !== 'in_progress'
       ? t(locale, 'manager.greetSizes', { part, name, kit, id: o.id })
       : t(locale, 'manager.greetMaking', { part, name, kit, date: formatDate(locale, o.due) });
   }
-  const sizes = open.filter((o) => o.stage < 2).length;
+  const sizes = open.filter((o) => o.state !== 'in_progress').length;
   return t(locale, 'manager.greetMany', { part, name, sizes, making: open.length - sizes });
 }
 

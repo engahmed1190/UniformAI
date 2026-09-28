@@ -146,15 +146,16 @@ export default function Page() {
   const loadSeq = useRef(0);
   const loadOrders = useCallback(async () => {
     const mine = ++loadSeq.current;
+    setLoadState((cur) => (cur === 'failed' ? 'loading' : cur));
     try {
       const res = await fetch('/api/orders');
       if (!res.ok) throw new Error(String(res.status));
       const list = ((await res.json()) as Order[]).map(fromJson);
-      if (mine !== loadSeq.current) return;
-      setOrders(list);
-      setLoadState('ready');
+      if (mine === loadSeq.current) { setOrders(list); setLoadState('ready'); }
+      return true;
     } catch {
       if (mine === loadSeq.current) setLoadState((cur) => (cur === 'ready' ? 'ready' : 'failed'));
+      return false;
     }
   }, []);
   useEffect(() => {
@@ -262,6 +263,8 @@ export default function Page() {
               shortDay={shortDay}
               staff={staff}
               orders={orders}
+              loadState={loadState}
+              onReload={() => void loadOrders()}
               savedCount={saved.length}
               onAsk={(text) => { setBrief(text); generate(text); }}
               onKits={() => setPage('kits')}
@@ -423,7 +426,7 @@ export default function Page() {
           {page === 'orders' && (
             <>
               <Orders orders={orders} loadState={loadState} onReload={() => void loadOrders()}
-                onApproved={(id) => { setFocusOrder({ id, n: Date.now() }); void loadOrders(); }} onHome={() => setPage('home')}
+                onApproved={(id) => { setFocusOrder({ id, n: Date.now() }); return loadOrders(); }} onHome={() => setPage('home')}
                 locale={locale} money={money} shortDay={shortDay}
                 focus={focusOrder}
                 onAsk={(id) => setErpRequest({ question: t(locale, 'erpAsk.aboutOrder', { id }), id: Date.now() })} />
@@ -543,13 +546,15 @@ export default function Page() {
 }
 
 function Home({
-  staff, orders, savedCount, onAsk, onKits, onOrders, locale, money, shortDay,
+  staff, orders, loadState, onReload, savedCount, onAsk, onKits, onOrders, locale, money, shortDay,
 }: {
   staff: number;
   locale: Locale;
   money: (n: number) => string;
   shortDay: (d: Date) => string;
   orders: Order[];
+  loadState: 'loading' | 'ready' | 'failed';
+  onReload: () => void;
   savedCount: number;
   onAsk: (text: string) => void;
   onKits: () => void;
@@ -571,6 +576,16 @@ function Home({
           <p>{t(locale, 'home.subtitle')}</p>
         </div>
       </div>
+      {loadState !== 'ready' ? (
+        loadState === 'failed' ? (
+          <Empty
+            title={t(locale, 'orders.loadFailed')}
+            note={t(locale, 'orders.loadFailedNote')}
+            action={t(locale, 'orders.retry')}
+            onAct={onReload}
+          />
+        ) : <p className={s.muted}>{t(locale, 'common.loading')}</p>
+      ) : (<>
       <ManagerNote locale={locale} tone="panel" intro note={greeting(locale, 'Ahmed', orders)} />
 
       {/* The primary job, first thing on the page. */}
@@ -656,6 +671,7 @@ function Home({
       <div>
         <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onKits}>{t(locale, 'home.browseSavedKits')}</button>
       </div>
+    </>)}
     </>
   );
 }
@@ -753,7 +769,7 @@ function StatusPill({ order, locale }: { order: Order; locale: Locale }) {
 function Orders({ orders, loadState, onReload, onApproved, onHome, locale, money, shortDay, onAsk, focus }: {
   orders: Order[]; loadState: 'loading' | 'ready' | 'failed'; onReload: () => void;
   /** The order the approval created, to keep open once the list reloads. */
-  onApproved: (id: string) => void;
+  onApproved: (id: string) => Promise<boolean>;
   onHome: () => void; locale: Locale;
   money: (n: number) => string; shortDay: (d: Date) => string;
   /** Hands this order's id to the ERP assistant as a question. */
@@ -931,7 +947,7 @@ const failureKey = (status: number) =>
 
 /** The quoted price, and the one button that turns the quote into an order. */
 function ApproveQuote({ order: o, quote, locale, money, onDone }: {
-  order: Order; quote: string; locale: Locale; money: (n: number) => string; onDone: (id: string) => void;
+  order: Order; quote: string; locale: Locale; money: (n: number) => string; onDone: (id: string) => Promise<boolean>;
 }) {
   const [pending, setPending] = useState(false);
   const [error, setError] = useState('');
@@ -941,11 +957,12 @@ function ApproveQuote({ order: o, quote, locale, money, onDone }: {
     setError('');
     try {
       const res = await fetch(`/api/quotes/${encodeURIComponent(quote)}/approve`, { method: 'POST' });
-      if (!res.ok) setError(t(locale, failureKey(res.status)));
-      else onDone(((await res.json()) as Order).id);
+      if (!res.ok) { setError(t(locale, failureKey(res.status))); setPending(false); return; }
+      // Stay disabled until the reload has moved the order past quote_ready;
+      // the card then unmounts. Only a failed reload gives the button back.
+      if (!(await onDone(((await res.json()) as Order).id))) setPending(false);
     } catch {
       setError(t(locale, failureKey(502)));
-    } finally {
       setPending(false);
     }
   }

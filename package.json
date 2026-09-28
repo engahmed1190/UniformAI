@@ -6,9 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "seed:erp": "tsx scripts/seed-erp.ts",
     "test": "for f in lib/*.test.ts; do npx tsx \"$f\" || exit 1; done"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0",
     "next": "16.3.4",
     "react": "19.2.8",
     "react-dom": "19.2.8"
@@ -17,6 +19,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "tsx": "^4.23.15",
     "typescript": "^5"
   }
 }

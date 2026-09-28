@@ -1426,6 +1426,421 @@
   overflow: hidden;
 }
 
+/* ---------- Ask ERPNext ----------
+   The account assistant on Orders. Its job in a demo is to show that each
+   answer was read from ERPNext, so the answer is set as plain prose and the
+   records it came from sit under it as cards -- the cards, not the chat, are
+   the point. Teal marks anything read from the ERP; amber marks only a value
+   that changed there since it was last shown. */
+.evLauncher {
+  position: fixed;
+  inset-inline-end: var(--s6);
+  inset-block-end: var(--s6);
+  z-index: 25;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 44px;
+  padding-inline: 14px 18px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font: inherit;
+  font-size: var(--t-base);
+  font-weight: 600;
+  box-shadow: 0 4px 16px rgba(15, 107, 98, 0.28);
+  cursor: pointer;
+  transition: background 0.15s, transform 0.15s;
+}
+
+.evLauncher:hover { background: var(--accent-hover); transform: translateY(-1px); }
+.evLauncher:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+.evLive {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #b8c2c6;
+}
+
+.evLive_live { background: #2fbf71; box-shadow: 0 0 0 3px rgba(47, 191, 113, 0.22); }
+.evLive_offline { background: #e08a2e; box-shadow: 0 0 0 3px rgba(224, 138, 46, 0.22); }
+.evLive_probing { animation: evBlink 1s ease-in-out infinite alternate; }
+.evLauncher .evLive { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85); }
+
+.evSheet {
+  position: fixed;
+  inset-block: var(--s4);
+  inset-inline-end: var(--s4);
+  z-index: 30;
+  width: min(440px, calc(100vw - 2 * var(--s4)));
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+  animation: evIn 0.18s ease-out;
+}
+
+.evHead {
+  flex: none;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s4) var(--s5);
+  border-bottom: 1px solid var(--line);
+}
+
+.evHead h2 {
+  margin: 0;
+  font-size: var(--t-lg);
+  font-weight: 650;
+}
+
+.evStatus {
+  margin: 2px 0 0;
+  display: flex;
+  align-items: center;
+  gap: var(--s2);
+  font-size: var(--t-xs);
+  color: var(--text-2);
+}
+
+.evBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--s5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s5);
+  background: var(--bg);
+}
+
+.evIntro h3 {
+  margin: 0 0 var(--s2);
+  font-size: var(--t-xl);
+  line-height: 1.3;
+  font-weight: 650;
+  text-wrap: balance;
+}
+
+.evIntro p {
+  margin: 0;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+
+.evIntro .evTry {
+  margin: var(--s5) 0 var(--s2);
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.evSuggest {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s2);
+}
+
+.evSuggest button {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+
+.evSuggest button:hover { border-color: var(--accent); background: var(--accent-soft); }
+.evSuggest button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+.evQuestion {
+  margin: 0;
+  font-size: var(--t-base);
+}
+
+.evReply {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s3);
+}
+
+/* The reads, in the order they ran, on one rail. */
+.evTrail {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 0;
+  padding-inline-start: var(--s4);
+  border-inline-start: 2px solid var(--line);
+  display: grid;
+  gap: 6px;
+}
+
+.evTrail li {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: var(--s2);
+  font-size: var(--t-sm);
+  color: var(--text-2);
+}
+
+.evTrail small {
+  font-size: var(--t-xs);
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.evDot {
+  position: absolute;
+  inset-inline-start: calc(-1 * var(--s4) - 6px);
+  top: 5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--line-2);
+  background: var(--surface);
+}
+
+.evStep_running .evDot { border-color: var(--accent); animation: evBlink 0.8s ease-in-out infinite alternate; }
+.evStep_done .evDot { border-color: var(--accent); background: var(--accent); }
+.evStep_error .evDot { border-color: var(--warn); background: var(--warn); }
+.evStep_error small { color: var(--warn); }
+
+/* The answer is a statement, not a speech bubble. */
+.evAnswer {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--text);
+  max-width: 62ch;
+}
+
+.evSources h3 {
+  margin: 0 0 var(--s2);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--text-2);
+}
+
+.evSources ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--s2);
+}
+
+.evCard {
+  display: grid;
+  gap: 6px;
+  padding: var(--s3) 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-inline-start: 3px solid var(--accent);
+  border-radius: var(--r);
+}
+
+.evChanged {
+  border-inline-start-color: var(--warn);
+  background: var(--warn-soft);
+  animation: evFlash 1.4s ease-out;
+}
+
+.evTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--s3);
+}
+
+.evKind {
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.evChanged .evKind { color: var(--warn); }
+
+.evName {
+  font-size: var(--t-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.evId {
+  font-family: var(--font-mono), monospace;
+  font-size: var(--t-sm);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.evQty {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--s2);
+  font-variant-numeric: tabular-nums;
+}
+
+.evQty b {
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.evWas {
+  font-size: var(--t-lg);
+  color: var(--text-3);
+}
+
+.evArrow { color: var(--warn); font-weight: 700; }
+
+.evWhere {
+  margin-inline-start: auto;
+  font-size: var(--t-sm);
+  color: var(--text-2);
+}
+
+.evFact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--s3);
+  font-size: var(--t-sm);
+  color: var(--text-2);
+}
+
+.evFact b {
+  font-size: var(--t-base);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.evNote {
+  margin: 0;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  color: var(--warn);
+}
+
+.evFoot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--s3);
+  padding-top: 6px;
+  border-top: 1px solid var(--line);
+  font-size: var(--t-xs);
+  color: var(--text-3);
+}
+
+.evOpen {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.evOpen:hover { text-decoration: underline; }
+.evOpen:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+
+/* "Not found" is a real answer in this demo, so it gets a shape of its own
+   rather than looking like a card that failed to load. */
+.evEmpty {
+  display: grid;
+  gap: 2px;
+  padding: var(--s3) 14px;
+  border: 1px dashed var(--line-2);
+  border-radius: var(--r);
+  font-size: var(--t-sm);
+  color: var(--text-2);
+}
+
+.evEmpty b { color: var(--text); font-weight: 600; }
+
+.evError {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s3);
+  padding: var(--s3) 14px;
+  border: 1px solid rgba(154, 101, 16, 0.3);
+  border-radius: var(--r);
+  background: var(--warn-soft);
+  font-size: var(--t-sm);
+}
+
+.evError p { margin: 0; }
+
+.evError button {
+  flex: none;
+  padding: 6px 12px;
+  border: 1px solid var(--warn);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--warn);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.evCompose {
+  background: var(--surface);
+  border-top-color: var(--line);
+  padding: var(--s3) var(--s4) var(--s4);
+}
+
+.evCompose .askChips button:disabled { opacity: 0.5; cursor: default; }
+
+@keyframes evIn { from { opacity: 0; transform: translateY(8px); } }
+@keyframes evBlink { to { opacity: 0.3; } }
+@keyframes evFlash { from { box-shadow: 0 0 0 4px rgba(154, 101, 16, 0.35); } }
+
+@media (max-width: 760px) {
+  .evLauncher {
+    inset-inline-end: var(--s3);
+    inset-block-end: calc(64px + var(--s3) + env(safe-area-inset-bottom));
+  }
+  /* A bottom sheet over the tab bar: the whole width, most of the height. */
+  .evSheet {
+    inset-block: auto 0;
+    inset-inline: 0;
+    width: auto;
+    height: 88dvh;
+    z-index: 50;
+    border-radius: var(--r-lg) var(--r-lg) 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .evBody { padding: var(--s4); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .evSheet, .evChanged, .evLive_probing, .evStep_running .evDot { animation: none; }
+}
+
+
 /* The chat launcher rides in the price bar rather than above it. Floating in
    the band over the canvas, it covered the per-person price in the stage
    footer on a phone and an option row on a desktop -- and being anchored to
@@ -3306,3 +3721,20 @@
   justify-content: flex-end;
   gap: var(--s2);
 }
+
+/* On the open order: hands this order to the ERP assistant. */
+.askOrder {
+  margin-top: var(--s2);
+  padding: 6px 12px;
+  border: 1px solid rgba(15, 107, 98, 0.3);
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font: inherit;
+  font-size: var(--t-xs);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.askOrder:hover { background: var(--accent); color: #fff; }
+.askOrder:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

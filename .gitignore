@@ -42,3 +42,6 @@ next-env.d.ts
 
 # playwright mcp output
 .playwright-mcp/
+
+# subagent-driven-development scratch
+.superpowers/

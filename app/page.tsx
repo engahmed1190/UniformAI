@@ -29,6 +29,8 @@ import { type Order, STAGES, STAGE_KEYS, placeOrder, progress, revive, shortDate
 import { ManagerNote } from '@/components/manager';
 import { useConfirm } from '@/components/confirm';
 import { Check } from '@/components/check';
+import { AskErp, type AskRequest } from '@/components/ask-erp';
+import erpSamples from '@/lib/erp-samples.json';
 
 const USER = 'Ahmed Osama';
 
@@ -129,6 +131,11 @@ export default function Page() {
   // The designer's panel is opened from the price bar, so its state lives
   // beside the bar rather than inside the configurator.
   const [asking, setAsking] = useState(false);
+  // A question for the ERP assistant from outside it: the order card's button.
+  const [erpRequest, setErpRequest] = useState<AskRequest | null>(null);
+  // An order the assistant cited, to open on Orders. `n` makes a repeat
+  // click on the same order still count.
+  const [focusOrder, setFocusOrder] = useState<{ id: string; n: number } | null>(null);
 
   // The quote, carried over. Everything Orders and Home show comes from here.
   // Newest first. Loaded after mount like the kits. With nothing stored,
@@ -143,15 +150,17 @@ export default function Page() {
     } catch { /* fall through to the samples */ }
     // Named seeds, not briefs: selectConcepts only ever reaches three of the
     // four, so a brief could not give three visibly different kits.
-    const sample = (kit: string, daysAgo: number, stage: number, people: number) => {
+    const sample = (kit: string, daysAgo: number, stage: number, people: number, sampleIndex: number) => {
       const c = CONCEPTS.find((x) => x.id === kit) ?? CONCEPTS[0];
-      return placeOrder(c, people, Math.ceil(people * 1.05), [], conceptPriceAt(c, []),
-        new Date(Date.now() - daysAgo * 864e5), stage);
+      const erp = erpSamples[sampleIndex] as { name?: string; placed?: string } | undefined;
+      const placed = erp?.placed ? new Date(`${erp.placed}T10:00:00`) : new Date(Date.now() - daysAgo * 864e5);
+      const order = placeOrder(c, people, Math.ceil(people * 1.05), [], conceptPriceAt(c, []), placed, stage);
+      return erp?.name ? { ...order, id: erp.name } : order;
     };
     setOrders([
-      sample('technicians', 4, 1, PROFILE.staff),
-      sample('operations', 18, 3, 24),
-      sample('management', 45, 5, 12),
+      sample('technicians', 4, 1, PROFILE.staff, 0),
+      sample('operations', 18, 3, 24, 1),
+      sample('management', 45, 5, 12, 2),
     ]);
   }, []);
   // Set by any configurator edit, cleared by a fresh generate. Guards the
@@ -410,8 +419,14 @@ export default function Page() {
           )}
 
           {page === 'orders' && (
-            <Orders orders={orders} onHome={() => setPage('home')}
-              locale={locale} money={money} shortDay={shortDay} />
+            <>
+              <Orders orders={orders} onHome={() => setPage('home')}
+                locale={locale} money={money} shortDay={shortDay}
+                focus={focusOrder}
+                onAsk={(id) => setErpRequest({ question: t(locale, 'erpAsk.aboutOrder', { id }), id: Date.now() })} />
+              <AskErp locale={locale} request={erpRequest}
+                onOpenOrder={(id) => setFocusOrder({ id, n: Date.now() })} />
+            </>
           )}
           {page === 'settings' && (
             <Settings profile={{ ...profile, staff }} locale={locale} onLocale={changeLocale}
@@ -707,13 +722,20 @@ function StatusPill({ order, locale }: { order: Order; locale: Locale }) {
   return <span className={`${s.pill} ${tone}`}>{t(locale, `statuses.${key}`)}</span>;
 }
 
-function Orders({ orders, onHome, locale, money, shortDay }: {
+function Orders({ orders, onHome, locale, money, shortDay, onAsk, focus }: {
   orders: Order[]; onHome: () => void; locale: Locale;
   money: (n: number) => string; shortDay: (d: Date) => string;
+  /** Hands this order's id to the ERP assistant as a question. */
+  onAsk: (id: string) => void;
+  /** An order to bring up from outside, e.g. a record the assistant cited. */
+  focus?: { id: string; n: number } | null;
 }) {
   // The open order is a choice on this page, not app state: leaving and
   // coming back should show the newest again.
   const [openId, setOpenId] = useState<string | null>(null);
+  useEffect(() => {
+    if (focus && orders.some((x) => x.id === focus.id)) setOpenId(focus.id);
+  }, [focus, orders]);
   const o = orders.find((x) => x.id === openId) ?? orders[0];
   const head = (
     <div className={s.pageHead}>
@@ -792,6 +814,9 @@ function Orders({ orders, onHome, locale, money, shortDay }: {
                 ? t(locale, 'orders.deliveredOn', { date: shortDay(o.due) })
                 : t(locale, 'orders.dueAround', { date: shortDay(o.due) })}
             </div>
+            <button type="button" className={s.askOrder} onClick={() => onAsk(o.id)}>
+              {t(locale, 'erpAsk.askAboutOrder')}
+            </button>
           </div>
         </div>
         <div className={s.timeline}>

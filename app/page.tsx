@@ -585,8 +585,9 @@ function Home({
             onAct={onReload}
           />
         ) : <p className={s.muted}>{t(locale, 'common.loading')}</p>
-      ) : (<>
-      <ManagerNote locale={locale} tone="panel" intro note={greeting(locale, 'Ahmed', orders)} />
+      ) : (
+        <ManagerNote locale={locale} tone="panel" intro note={greeting(locale, 'Ahmed', orders)} />
+      )}
 
       {/* The primary job, first thing on the page. */}
       <div className={s.panel}>
@@ -618,6 +619,7 @@ function Home({
         </div>
       </div>
 
+      {loadState === 'ready' && (<>
       <div className={s.stats}>
         <Stat label={t(locale, 'home.savedKits')} value={String(savedCount)} note={t(locale, 'home.savedKitsNote')} />
         {/* Every number here is counted from the orders, or an honest zero. */}
@@ -668,10 +670,10 @@ function Home({
         </div>
       </div>
       </div>
+      </>)}
       <div>
         <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onKits}>{t(locale, 'home.browseSavedKits')}</button>
       </div>
-    </>)}
     </>
   );
 }

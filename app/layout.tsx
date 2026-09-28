@@ -33,7 +33,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html lang="en" className={`${sans.variable} ${arabic.variable} ${mono.variable}`}>
-      <body>{children}</body>
+      {/* Browser extensions (Grammarly and the like) stamp attributes onto
+          <body> before React hydrates. This only silences the attribute diff
+          on this one element; children are still checked. */}
+      <body suppressHydrationWarning>{children}</body>
     </html>
   );
 }

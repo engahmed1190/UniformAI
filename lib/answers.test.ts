@@ -18,6 +18,12 @@ for (const locale of ['en', 'ar'] as const) {
   assert.match(three, /3/);
   assert.match(three, /2/);
   assert.equal(answer(locale, 'orders', []), none);
+  // 13 orders are counted as 13 whatever the screen shows.
+  const many = answer(locale, 'orders', Array.from({ length: 13 }, (_, i) =>
+    order({ id: `O${i}`, state: i < 9 ? 'in_progress' : 'delivered' })));
+  assert.match(many, /13/);
+  assert.match(many, /9/);
+  assert.match(many, /4/);
 
   // order: a ready quote waits for their approval.
   const ready = answer(locale, 'order', [order({ id: 'QTN-1', state: 'quote_ready' })]);

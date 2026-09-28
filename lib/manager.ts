@@ -180,7 +180,7 @@ export function quoteNote(
 export function orderNote(locale: Locale, o: Order): string {
   const on = (d: Date) => formatDate(locale, d);
   switch (o.state) {
-    case 'delivered': return t(locale, 'manager.orderDelivered', { date: on(o.due) });
+    case 'delivered': return t(locale, 'manager.orderDelivered', { date: on(o.dates.delivered ?? o.due) });
     case 'in_progress':
       return o.perDelivered > 0 && o.perDelivered < 100
         ? t(locale, 'manager.orderPartial', { pct: Math.round(o.perDelivered), date: on(o.due) })

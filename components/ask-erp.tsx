@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import s from '@/app/ui.module.css';
 import { type Locale, formatCurrency, formatDate, formatNumber, t } from '@/lib/i18n';
 import { type Intent, answer } from '@/lib/answers';
-import { type Change, type Source, type Step, changesSince, remember, sourceKey } from '@/lib/evidence';
+import { MAX_CARDS, type Change, type Source, type Step, changesSince, remember, sourceKey } from '@/lib/evidence';
 
 type Health = 'probing' | 'live' | 'offline';
 type Params = Record<string, string>;
@@ -276,7 +276,7 @@ export function AskErp({ locale, request, onOpenOrder }: {
       const changes = Object.fromEntries(changesSince(seen.current, data.sources));
       remember(seen.current, data.sources);
       patchLast((a) => ({ ...a, steps: [data.step], rows: data.rows, sources: data.sources, changes }));
-      if (intent === 'orders') setStage({ k: 'orders', ids: (data.rows as { id: string }[]).map((r) => r.id) });
+      if (intent === 'orders') setStage({ k: 'orders', ids: (data.rows as { id: string }[]).slice(0, MAX_CARDS).map((r) => r.id) });
       else if (intent === 'order') setStage({ k: 'order', id: params.id });
       else if (intent === 'stock') setStage({ k: 'stock' });
       else if (intent === 'price') setStage({ k: 'price' });

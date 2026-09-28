@@ -85,6 +85,11 @@ assert.match(orderNote('en', placed), /23 Sep/, 'the note states the real due da
 assert.match(orderNote('en', sewing), /In production/, 'the note says where a production order is');
 assert.match(orderNote('en', { ...sewing, state: 'delivered' as const }), /Delivered/);
 
+const arrived = { ...sewing, state: 'delivered' as const, due: new Date('2026-10-20T10:00:00'),
+  dates: { ...sewing.dates, delivered: new Date('2026-10-14T10:00:00') } };
+assert.match(orderNote('en', arrived), /14 Oct/, 'a delivered order states the day it arrived');
+assert.doesNotMatch(orderNote('en', arrived), /20 Oct/, 'not the planned day');
+
 // 7b. Every workflow state has its own note; quote_closed and delivered are not open.
 const ready = { ...placed, state: 'quote_ready' as const, total: 21000 };
 assert.match(orderNote('en', ready), /21,000/, 'quote ready names the quoted total');

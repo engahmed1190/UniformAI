@@ -8,8 +8,9 @@ import { type Kit, type DeliveryRow, type QuoteRow, type SalesOrderRow, kitEstim
 import type { Order } from './order';
 import {
   type Concept, type GarmentCut, type GarmentType, type SizePlan,
-  GARMENT_CATALOG, allocatedSizeCount,
+  GARMENT_CATALOG, SIZES, allocatedSizeCount,
 } from './spec';
+import { CONCEPTS } from './concepts';
 
 export const CUSTOMER = 'BrainWise Technology';
 const MAKE_SALES_ORDER = 'erpnext.selling.doctype.quotation.quotation.make_sales_order';
@@ -113,12 +114,14 @@ export function parseKit(input: unknown): Kit {
   const garments = c.garments.map((g: unknown) => {
     if (!isObject(g) || !TYPES.includes(g.type as GarmentType) || !FITS.includes(g.fit as string)) throw bad('garment');
     if (!isObject(g.parts) || Object.values(g.parts).some((h) => !text(h, 20))) throw bad('garment');
-    if (!text(g.fabric) || typeof g.unitPrice !== 'number' || !Number.isFinite(g.unitPrice) || g.unitPrice < 0 || g.unitPrice > 1_000_000) {
-      throw bad('garment');
-    }
+    if (!text(g.fabric)) throw bad('garment');
+    // The browser's price is ignored: the catalogue sets what a garment costs.
+    const type = g.type as GarmentType;
+    const unitPrice = CONCEPTS.find((k) => k.id === c.id)?.garments.find((k) => k.type === type)?.unitPrice
+      ?? GARMENT_CATALOG[type].unitPrice;
     return {
-      type: g.type as GarmentType, parts: g.parts as Record<string, string>, fabric: g.fabric,
-      fit: g.fit as 'slim' | 'regular' | 'relaxed', unitPrice: g.unitPrice,
+      type, parts: g.parts as Record<string, string>, fabric: g.fabric,
+      fit: g.fit as 'slim' | 'regular' | 'relaxed', unitPrice,
     };
   });
   if (new Set(garments.map((g) => g.type)).size !== garments.length) throw bad('garments');
@@ -127,6 +130,15 @@ export function parseKit(input: unknown): Kit {
       grades.some((x) => !Number.isInteger(x) || x < 0 || x > 2)) throw bad('grades');
   if (!isObject(plan) || (plan.mode !== 'collect_later' && plan.mode !== 'allocate_now') || !isObject(plan.allocation)) {
     throw bad('size plan');
+  }
+  // Counts per cut and size are whole numbers of sets, none above the order.
+  for (const [cut, sizes] of Object.entries(plan.allocation)) {
+    if (!CUTS.includes(cut as GarmentCut) || !isObject(sizes)) throw bad('size plan');
+    for (const [size, n] of Object.entries(sizes)) {
+      if (!(SIZES as readonly string[]).includes(size) || !Number.isInteger(n) || (n as number) < 0 || (n as number) > sets) {
+        throw bad('size plan');
+      }
+    }
   }
 
   const logo = c.logo as { position: Concept['logo']['position']; method: Concept['logo']['method']; colour?: unknown };
@@ -159,7 +171,10 @@ export async function requestQuote(input: unknown): Promise<Order> {
 
 // ---- approve ---------------------------------------------------------------
 
-type QuoteDoc = { name: string; party_name: string; docstatus: number; status: string };
+type QuoteDoc = { name: string; party_name: string; docstatus: number; status: string; valid_till?: string | null };
+
+// Quotations being approved right now in this server process.
+const approving = new Set<string>();
 
 /** Drop the client-side markers Frappe puts on a mapped, unsaved document. */
 function clean<T>(value: T): T {
@@ -171,7 +186,15 @@ function clean<T>(value: T): T {
   return value;
 }
 
+/** One approval per quotation at a time (one app server instance): a second
+ *  call while the first runs is refused before it touches ERPNext. */
 export async function approveQuote(name: string): Promise<Order> {
+  if (approving.has(name)) throw new SalesError('This quote is already being approved', 409);
+  approving.add(name);
+  try { return await approve(name); } finally { approving.delete(name); }
+}
+
+async function approve(name: string): Promise<Order> {
   let quote: QuoteDoc;
   try {
     quote = await get<QuoteDoc>('Quotation', name);
@@ -181,6 +204,7 @@ export async function approveQuote(name: string): Promise<Order> {
   }
   if (quote.party_name !== CUSTOMER) throw new SalesError('Quote not found', 404);
   if (quote.docstatus !== 1) throw new SalesError('This quote has not been issued yet', 409);
+  if (quote.valid_till && quote.valid_till < isoDay()) throw new SalesError('This quote has expired', 409);
   if (quote.status !== 'Open' && quote.status !== 'Replied') throw new SalesError('This quote can no longer be approved', 409);
 
   const existing = await list<{ name: string }>('Sales Order', {

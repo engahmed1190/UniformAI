@@ -31,6 +31,9 @@ export type Step = {
 
 export type Change = { field: 'qty' | 'detail' | 'date' | 'rate'; from: string | number; to: string | number };
 
+/** Order cards and "Details of" buttons shown for one answer. */
+export const MAX_CARDS = 10;
+
 export const sourceKey = (s: Source) => `${s.doctype}:${s.name}`;
 
 const FIELDS = ['qty', 'detail', 'date', 'rate'] as const;

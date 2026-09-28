@@ -1,6 +1,7 @@
 // Run: npx tsx lib/sales.test.ts
 import assert from 'node:assert/strict';
 import { CONCEPTS } from './concepts';
+import { GARMENT_CATALOG } from './spec';
 import { ErpError } from './erp';
 import { kitLines } from './orders';
 import { SalesError, approveQuote, listOrders, requestQuote } from './sales';
@@ -168,7 +169,82 @@ async function main() {
   const dn = seen.find((s) => s.url.pathname.endsWith('Delivery%20Note') || s.url.pathname.endsWith('Delivery Note'))!;
   assert.deepEqual(JSON.parse(dn.url.searchParams.get('filters')!), [['customer', '=', 'BrainWise Technology'], ['docstatus', '=', 1]]);
 
-  console.log('sales tests passed');
+  // 8. The server prices from the catalogue, not the body.
+  fresh();
+  routes = {
+    '/api/resource/Quotation': (s) => s.init?.method === 'POST' ? { data: { name: 'SAL-QTN-9' } } : { data: [quoteRow({ name: 'SAL-QTN-9', docstatus: 0 })] },
+    '/api/resource/Sales Order': () => ({ data: [] }),
+    '/api/resource/Delivery Note': () => ({ data: [] }),
+  };
+  const cheap = { ...kit, concept: { ...concept, garments: concept.garments.map((g) => ({ ...g, unitPrice: 0 })) } };
+  await requestQuote(cheap);
+  assert.deepEqual(JSON.parse(String(writes()[0].init!.body)).items, kitLines(kit as never));
+  assert.ok(JSON.parse(String(writes()[0].init!.body)).items[0].rate > 0);
+  // An unknown concept id falls back to the garment catalogue by type.
+  fresh();
+  routes = { '/api/resource/Quotation': (s) => s.init?.method === 'POST' ? { data: { name: 'SAL-QTN-9' } } : { data: [quoteRow({ name: 'SAL-QTN-9', docstatus: 0 })] },
+    '/api/resource/Sales Order': () => ({ data: [] }), '/api/resource/Delivery Note': () => ({ data: [] }) };
+  const unknown = { ...kit, grades: [], concept: { ...concept, id: 'mine', garments: [{ ...concept.garments[0], unitPrice: 1 }] } };
+  await requestQuote(unknown);
+  assert.equal(JSON.parse(String(writes()[0].init!.body)).items[0].rate, GARMENT_CATALOG[concept.garments[0].type].unitPrice);
+
+  // 9. Size allocations are whole numbers, 0..sets, per size.
+  for (const allocation of [{ men: { M: -1 } }, { men: { M: 1.5 } }, { men: { M: 16 } }, { men: { M: '3' } },
+    { men: { Q: 1 } }, { dwarf: { M: 1 } }, { men: 3 }]) {
+    fresh();
+    await assert.rejects(requestQuote({ ...kit, sizePlan: { mode: 'allocate_now', allocation } }),
+      (e) => e instanceof SalesError && e.status === 400, JSON.stringify(allocation));
+    assert.equal(seen.length, 0);
+  }
+
+  // 10. Expired quotes are refused before ERPNext is asked to make anything.
+  await refuse(quoteRow({ valid_till: '2020-01-01' }), 409);
+
+  // 11. ERPNext failing during approve writes nothing.
+  fresh();
+  routes = { '/api/resource/Quotation': () => new Response('{}', { status: 500 }) };
+  await assert.rejects(approveQuote('SAL-QTN-1'), (e) => e instanceof ErpError);
+  assert.equal(writes().length, 0);
+  fresh();
+  routes = {
+    '/api/resource/Quotation': () => ({ data: quoteRow() }),
+    '/api/resource/Sales Order': () => ({ data: [] }),
+    '/api/method/': () => new Response('{}', { status: 500 }),
+  };
+  await assert.rejects(approveQuote('SAL-QTN-1'), (e) => e instanceof ErpError);
+  assert.equal(writes().filter((s) => s.url.pathname.includes('/api/resource/Sales')).length, 0, 'no insert after a failed mapping');
+  // ...and the lock is released, so a retry is not stuck on a 409.
+  routes['/api/method/'] = () => ({ message: { doctype: 'Sales Order', items: [] } });
+  let retried = 0;
+  routes['/api/resource/Sales Order'] = (s) => { if (s.init?.method === 'POST') { retried++; return { data: { name: 'SAL-ORD-8' } }; } return { data: [] }; };
+  routes['/api/resource/Quotation'] = (s) => decodeURIComponent(s.url.pathname).endsWith('/SAL-QTN-1') ? { data: quoteRow() } : { data: [quoteRow()] };
+  routes['/api/resource/Delivery Note'] = () => ({ data: [] });
+  await approveQuote('SAL-QTN-1');
+  assert.equal(retried, 1);
+
+  // 12. Two approvals at once: one insert, the other is a 409 with no ERPNext write.
+  fresh();
+  let inserts = 0;
+  const slow = <T,>(v: T) => new Promise<T>((r) => setTimeout(() => r(v), 30));
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const url = new URL(input instanceof Request ? input.url : String(input));
+    const path = decodeURIComponent(url.pathname);
+    seen.push({ url, init });
+    const json = (v: unknown) => new Response(JSON.stringify(v), { status: 200 });
+    if (init?.method === 'POST' && path.includes('/api/resource/Sales Order')) { inserts++; return json({ data: { name: 'SAL-ORD-9' } }); }
+    if (init?.method === 'POST') return json({ message: { doctype: 'Sales Order', items: [] } });
+    if (path.endsWith('/SAL-QTN-1')) return json(await slow({ data: quoteRow() }));
+    if (path.includes('/Quotation')) return json({ data: [quoteRow()] });
+    return json({ data: [] });
+  }) as typeof fetch;
+  const results = await Promise.allSettled([approveQuote('SAL-QTN-1'), approveQuote('SAL-QTN-1')]);
+  assert.equal(inserts, 1);
+  assert.equal(results.filter((r) => r.status === 'fulfilled').length, 1);
+  const lost = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
+  assert.ok(lost.reason instanceof SalesError && lost.reason.status === 409);
+  assert.equal(writes().length, 2, 'only the winner wrote: one mapping, one insert');
+
+  console.log('sales: all assertions passed');
 }
 
 main().finally(() => { globalThis.fetch = originalFetch; }).catch((e) => { console.error(e); process.exit(1); });

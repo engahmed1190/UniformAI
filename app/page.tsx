@@ -875,7 +875,7 @@ function Orders({ orders, loadState, onReload, onApproved, onHome, locale, money
             <StatusPill order={o} locale={locale} />
             <div className={`${s.muted} ${s.metaLine}`}>
               {o.state === 'delivered'
-                ? t(locale, 'orders.deliveredOn', { date: shortDay(o.due) })
+                ? t(locale, 'orders.deliveredOn', { date: shortDay(o.dates.delivered ?? o.due) })
                 : t(locale, 'orders.dueAround', { date: shortDay(o.due) })}
             </div>
             <button type="button" className={s.askOrder} onClick={() => onAsk(o.id)}>
@@ -931,7 +931,7 @@ function Orders({ orders, loadState, onReload, onApproved, onHome, locale, money
                       <span className={s.progressPct}>{pct > 0 ? `${pct}%` : sized ? t(locale, 'orders.waitingOnSizes') : '—'}</span>
                     </div>
                   </td>
-                  <td data-label={t(locale, 'orders.colReady')} className={`${s.right} ${s.mono}`}>{shortDay(o.due)}</td>
+                  <td data-label={t(locale, 'orders.colReady')} className={`${s.right} ${s.mono}`}>{shortDay(o.state === 'delivered' ? o.dates.delivered ?? o.due : o.due)}</td>
                 </tr>
               ))}
             </tbody>

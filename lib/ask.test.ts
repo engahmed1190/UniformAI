@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { AskInputError, checkStock, lastPrice, options, run, variantMatches } from './ask';
 import { CONCEPTS } from './concepts';
 import { kitEstimate } from './orders';
+import { answer } from './answers';
 
 process.env.ERP_URL = 'http://uniform.localhost:8000';
 process.env.ERP_READ_KEY = 'reader:secret';
@@ -76,6 +77,25 @@ async function main() {
   replies = [[quoteRow('QTN-1', 1)], [salesRow], []];
   assert.equal((await run('order', { id: 'NOPE' })).rows.length, 0);
 
+  // 3b2. Thirteen orders: the answer counts all 13 and the states from all of
+  // them, while only ten cards are drawn. A delivered order carries the day it
+  // was delivered, not the planned one.
+  const deliveredSo = { ...salesRow, per_delivered: 100 };
+  replies = [
+    Array.from({ length: 12 }, (_, i) => quoteRow(`QTN-${i + 10}`, 1)),
+    [deliveredSo],
+    [{ name: 'DN-1', posting_date: '2026-09-20', docstatus: 1, against_sales_order: 'SO-1' }],
+  ];
+  const thirteen = await run('orders', {});
+  assert.equal(thirteen.rows.length, 13);
+  assert.equal(thirteen.sources.length, 10);
+  const said = answer('en', 'orders', thirteen.rows);
+  assert.match(said, /13 orders/);
+  assert.match(said, /12 quote ready/i);
+  assert.match(said, /1 delivered/i);
+  const deliveredRow = thirteen.rows.find((r) => (r as { id: string }).id === 'SO-1') as { due: string };
+  assert.equal(deliveredRow.due, '2026-09-20');
+
   // 3c. An unknown intent, or missing/oversized params, is rejected before any read.
   seen.length = 0;
   for (const [intent, params] of [
@@ -137,6 +157,19 @@ async function main() {
     [stock.sources[0].title, stock.sources[0].detail, stock.sources[0].qty],
     ['Polo Navy XL', 'Stores', 260],
   );
+  // No bin id, no company suffix anywhere in what the browser gets, and the
+  // source key is the same on a second read of the same bin.
+  assert.ok(!JSON.stringify(stock).includes('bin-hash') && !JSON.stringify(stock).includes('- BT'));
+  replies = [
+    [{ name: 'Polo', item_name: 'Polo' }],
+    [
+      { name: 'UA-POLO-NAVY-XL', item_name: 'Polo Navy XL', attribute: 'Colour', attribute_value: 'Navy' },
+      { name: 'UA-POLO-NAVY-XL', item_name: 'Polo Navy XL', attribute: 'Size', attribute_value: 'XL' },
+    ],
+    [{ name: 'other-hash', item_code: 'UA-POLO-NAVY-XL', warehouse: 'Stores - BT', actual_qty: 40 }],
+  ];
+  const again = await checkStock({ item: 'Polo', colour: 'Navy', size: 'XL' });
+  assert.equal(again.sources[0].name, stock.sources[0].name);
 
 // 8. The last price is the newest invoice's line for that garment, whether it
   // was billed as a ready-stock variant or made to order; the join returns every

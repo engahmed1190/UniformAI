@@ -131,4 +131,11 @@ assert.equal(one([quote({ docstatus: 1 })], [so({ per_delivered: 100 })], [dn({ 
 const two = toOrders([quote(), quote({ name: 'QTN-2', transaction_date: '2026-09-05' })], [], []);
 assert.deepEqual(two.map((o) => o.id), ['QTN-2', 'QTN-1']);
 
+// An issued quote past its valid_till is closed; on or after today it is still ready.
+const pad = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const inDays = (n: number) => { const d = new Date(); d.setDate(d.getDate() + n); return pad(d); };
+assert.equal(one([quote({ docstatus: 1, status: 'Open', valid_till: inDays(-1) })]).state, 'quote_closed');
+assert.equal(one([quote({ docstatus: 1, status: 'Open', valid_till: inDays(0) })]).state, 'quote_ready');
+assert.equal(one([quote({ docstatus: 1, status: 'Open', valid_till: inDays(5) })]).state, 'quote_ready');
+
 console.log('orders: all assertions passed');

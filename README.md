@@ -34,9 +34,11 @@ API key and secret, as `key:secret`:
 | Key | User | Can do |
 |---|---|---|
 | `ERP_READ_KEY` | API Reader | Read only: orders, stock, prices, invoices |
-| `ERP_WRITE_KEY` | UniformAI Portal | Create draft Quotations and draft Sales Orders. Cannot submit, and cannot change rates |
+| `ERP_WRITE_KEY` | UniformAI Portal | Create draft Quotations and draft Sales Orders. Cannot submit, and cannot change rates on a submitted document |
 | `ERP_SEED_KEY` | Administrator | Seed and reset only. Never used by the running app |
 | `ERP_URL` | | The site, `http://uniform.localhost:8000` |
+
+Rates on a requested quote come from the server's catalogue (the concept's garment prices, else the garment catalogue) plus the grade delta; the browser's prices are ignored. UniformAI's team then sets the final rates in ERPNext before submitting.
 
 ```sh
 npm run seed:erp            # safe to run again

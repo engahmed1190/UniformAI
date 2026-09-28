@@ -90,6 +90,8 @@ export function toOrders(quotes: QuoteRow[], orders: SalesOrderRow[], deliveries
   const liveOrders = orders.filter((o) => o.docstatus !== 2);
   const submitted = deliveries.filter((d) => d.docstatus === 1);
   const quoteOf = (name?: string | null) => liveQuotes.find((q) => q.name === name);
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   const made = new Set(liveOrders.map((o) => o.quotation));
 
   const build = (q?: QuoteRow, o?: SalesOrderRow): Order => {
@@ -106,7 +108,8 @@ export function toOrders(quotes: QuoteRow[], orders: SalesOrderRow[], deliveries
         : sizesComplete(kit) ? 'in_progress' : 'collecting_sizes';
     } else {
       state = q!.docstatus === 0 ? 'quote_requested'
-        : q!.status === 'Lost' || q!.status === 'Expired' ? 'quote_closed' : 'quote_ready';
+        : q!.status === 'Lost' || q!.status === 'Expired' || (q!.valid_till && q!.valid_till < today) ? 'quote_closed'
+        : 'quote_ready';
     }
 
     // ERPNext has no "submitted at" field, so a step takes the date of its document.

@@ -46,7 +46,7 @@ Quotation → Sales Order → Delivery Note links.
 - **Customer:** always `BrainWise Technology`, set on the server
   (`party_name` on the Quotation, `customer` on the Sales Order).
 - **Lines:** one per garment, item `UA-MTO-<TYPE>` ("Polo (made to order)",
-  non-stock), `qty = sets`, `rate = garment.unitPrice + grade delta`, and a
+  non-stock), `qty = sets`, `rate = catalogue unit price + grade delta` (the server takes the unit price from the concept catalogue, or the garment catalogue for an unknown concept, and ignores the browser's price), and a
   description such as "Navy body, white collar · Cotton Pique 220 GSM ·
   regular fit". One logo line (`UA-EMBROIDERY` or `UA-PRINT`,
   `rate = LOGO_PRICE`) when the kit has a logo. On the draft these sum to

@@ -1,5 +1,5 @@
 import { assertErpConfigured, list } from './erp';
-import type { Source, Step } from './evidence';
+import { MAX_CARDS, type Source, type Step } from './evidence';
 import { INTENTS, type Intent, type OrderRow, warehouseName as warehouse } from './answers';
 import type { Order } from './order';
 import { listOrders } from './sales';
@@ -43,7 +43,7 @@ const isoDay = (d: Date) =>
  *  order has one, else the Quotation's: the number the Orders screen shows. */
 function orderRow(o: Order): OrderRow {
   return {
-    id: o.salesOrder ?? o.quote ?? o.id, state: o.state, due: isoDay(o.due), total: o.total,
+    id: o.salesOrder ?? o.quote ?? o.id, state: o.state, due: isoDay(o.state === 'delivered' ? o.dates.delivered ?? o.due : o.due), total: o.total,
     perDelivered: o.perDelivered,
     lines: (o.lines ?? []).map((l) => ({ garment: l.garment, logo: l.logo, qty: l.qty })),
   };
@@ -53,11 +53,13 @@ function orderRow(o: Order): OrderRow {
  *  two can never disagree. `id` narrows to one Quotation or Sales Order. */
 export async function orders(id?: string): Promise<ToolResult> {
   const all = await listOrders();
-  const found = (id ? all.filter((o) => [o.id, o.salesOrder, o.quote].includes(id)) : all).slice(0, id ? 1 : 10);
+  const found = id ? all.filter((o) => [o.id, o.salesOrder, o.quote].includes(id)).slice(0, 1) : all;
   const rows = found.map(orderRow);
+  // Every order is a row, so the answer counts the true number; only the
+  // cards are capped (the "Details of" buttons cap at the same number).
   return {
     rows: rows as unknown as Row[],
-    sources: rows.map((r, i) => source(found[i].salesOrder ? 'Sales Order' : 'Quotation', r.id, {
+    sources: rows.slice(0, MAX_CARDS).map((r, i) => source(found[i].salesOrder ? 'Sales Order' : 'Quotation', r.id, {
       title: r.id, detail: r.state, date: r.due,
     })),
   };
@@ -115,11 +117,12 @@ export async function checkStock(input: Row): Promise<ToolResult> {
   })));
   // Only what the answer states: no item code or bin id leaves the server.
   const rows: Row[] = stock.flatMap(({ variant, bins }) => bins.map((bin) => ({
-    item_name: variant.item_name, warehouse: bin.warehouse, actual_qty: bin.actual_qty, bin: bin.name,
+    item_name: variant.item_name, warehouse: warehouse(bin.warehouse), actual_qty: bin.actual_qty,
   })));
-  // One card per warehouse balance, named the way the customer would say it.
-  const sources = rows.map((row) => source('Bin', row.bin, {
-    title: String(row.item_name), detail: warehouse(row.warehouse), qty: num(row.actual_qty),
+  // One card per warehouse balance, named the way the customer would say it
+  // and keyed by item and warehouse: stable across reads of the same bin.
+  const sources = rows.map((row) => source('Bin', `${row.item_name} · ${row.warehouse}`, {
+    title: String(row.item_name), detail: String(row.warehouse), qty: num(row.actual_qty),
   }));
   return { rows, sources };
 }

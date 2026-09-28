@@ -24,7 +24,7 @@
 
 ## Review Focus
 
-1. **Approving twice** (double tap, or two tabs): the second approve must be refused, not make a second Sales Order. Test in Task 5.
+1. **Approving twice** (double tap, or two tabs): with one app server instance, the second approve must be refused, not make a second Sales Order. Test in Task 5.
 2. **ERPNext down while approving or requesting:** the dialog shows an error and nothing is half-created in the app. Test in Task 5.
 3. **A Quotation the team marked Lost or that expired:** shows "Quote closed", no Approve button. Test in Task 4.
 4. **Reset while the live demo's Sales Order is submitted:** reset cancels it (children first) instead of failing on links. Checked in Task 3's rehearsal step.

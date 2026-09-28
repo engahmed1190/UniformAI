@@ -1,52 +1,26 @@
-import Anthropic from '@anthropic-ai/sdk';
-import type {
-  BetaContentBlockParam,
-  BetaMessageParam,
-  BetaToolResultBlockParam,
-} from '@anthropic-ai/sdk/resources/beta/messages/messages';
-import { assertErpConfigured, ErpError, list, type ErpFilter } from './erp';
+import { assertErpConfigured, list } from './erp';
 import type { Source, Step } from './evidence';
+import { INTENTS, type Intent, type OrderRow, warehouseName as warehouse } from './answers';
+import type { Order } from './order';
+import { listOrders } from './sales';
 
 export type { Source } from './evidence';
 
 export const DEMO_CUSTOMER = 'BrainWise Technology';
 
-export type AskResult = { answer: string; sources: Source[]; steps: Step[] };
-export type HistoryTurn = { role: 'user' | 'assistant'; content: string };
 type Row = Record<string, unknown>;
 type ToolResult = { rows: Row[]; sources: Source[] };
 
-const ITEM_ALIASES: Record<string, string> = {
-  'بولو': 'Polo', 'بنطال كارغو': 'Cargo Trouser', 'كارغو': 'Cargo Trouser',
-  'قميص': 'Shirt', 'تشينو': 'Chino', 'بليزر': 'Blazer', 'جاكيت': 'Blazer',
-};
-
-/** Colour and size words as a buyer types them, mapped to the ERP attribute
- *  values. The model usually translates on its own; this catches the case
- *  where it passes the Arabic word straight through. */
-const VALUE_ALIASES: Record<string, string> = {
-  'كحلي': 'Navy', 'رملي': 'Sand', 'زيتي': 'Olive', 'أبيض': 'White',
-  'فحمي': 'Charcoal', 'أزرق فاتح': 'Pale Blue', 'كاكي': 'Khaki',
-};
-
 const text = (value: unknown) => typeof value === 'string' ? value.trim() : '';
 const num = (value: unknown) => value === undefined || value === null ? undefined : Number(value);
-const canonical = (value: unknown, aliases: Record<string, string>) => {
-  const raw = text(value);
-  return Object.entries(aliases).find(([ar]) => raw.includes(ar))?.[1] ?? raw;
-};
 
 function source(doctype: string, name: unknown, fields: Omit<Source, 'doctype' | 'name' | 'readAt'>): Source {
   return { doctype, name: String(name), ...fields, readAt: new Date().toISOString() };
 }
 
-/** "Stores - UA" is ERPNext's warehouse name with the company suffix; the
- *  customer only needs "Stores". */
-const warehouse = (value: unknown) => String(value ?? '').replace(/\s+-\s+[^-]+$/, '');
-
 /** Frappe's list endpoint joins one child row per result and returns child
  * fields by their bare field name. Fold those SQL-shaped rows back into one
- * ERP record before giving them to the model. */
+ * record. */
 function groupJoined(joined: Row[], childFields: string[], childKey: string): Row[] {
   const grouped = new Map<string, Row>();
   for (const row of joined) {
@@ -62,26 +36,29 @@ function groupJoined(joined: Row[], childFields: string[], childKey: string): Ro
   return [...grouped.values()];
 }
 
-export async function findOrders(input: Row): Promise<ToolResult> {
-  const id = text(input.order_id);
-  const filters: ErpFilter[] = [['customer', '=', DEMO_CUSTOMER]];
-  if (id) filters.push(['name', '=', id]);
-  // The limit is on joined item lines, so it is set well above any order's
-  // line count and the cut to whole orders happens after grouping.
-  const joined = await list<Row>('Sales Order', {
-    fields: ['name', 'status', 'transaction_date', 'delivery_date', 'per_delivered',
-      'per_billed', 'grand_total', 'currency', 'items.item_name', 'items.qty'],
-    filters,
-    orderBy: 'transaction_date desc',
-    limit: 200,
-  });
-  const rows = groupJoined(joined, ['item_name', 'qty'], 'items').slice(0, id ? 1 : 10);
+const isoDay = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** One order as the assistant states it. The Sales Order number when the
+ *  order has one, else the Quotation's: the number the Orders screen shows. */
+function orderRow(o: Order): OrderRow {
   return {
-    rows,
-    sources: rows.map((row) => source('Sales Order', row.name, {
-      title: String(row.name),
-      detail: String(row.status ?? ''),
-      date: text(row.delivery_date) || undefined,
+    id: o.salesOrder ?? o.quote ?? o.id, state: o.state, due: isoDay(o.due), total: o.total,
+    perDelivered: o.perDelivered,
+    lines: (o.lines ?? []).map((l) => ({ garment: l.garment, logo: l.logo, qty: l.qty })),
+  };
+}
+
+/** The customer's orders, read the way the Orders screen reads them, so the
+ *  two can never disagree. `id` narrows to one Quotation or Sales Order. */
+export async function orders(id?: string): Promise<ToolResult> {
+  const all = await listOrders();
+  const found = (id ? all.filter((o) => [o.id, o.salesOrder, o.quote].includes(id)) : all).slice(0, id ? 1 : 10);
+  const rows = found.map(orderRow);
+  return {
+    rows: rows as unknown as Row[],
+    sources: rows.map((r, i) => source(found[i].salesOrder ? 'Sales Order' : 'Quotation', r.id, {
+      title: r.id, detail: r.state, date: r.due,
     })),
   };
 }
@@ -89,7 +66,7 @@ export async function findOrders(input: Row): Promise<ToolResult> {
 type ItemRow = Row & { name: string };
 
 async function variantsFor(itemInput: unknown): Promise<ItemRow[]> {
-  const wanted = canonical(itemInput, ITEM_ALIASES).toLowerCase();
+  const wanted = text(itemInput).toLowerCase();
   if (!wanted) return [];
   const templates = await list<ItemRow>('Item', {
     fields: ['name', 'item_name'],
@@ -125,7 +102,7 @@ export function variantMatches(row: Row, colour?: string, size?: string): boolea
 }
 
 export async function checkStock(input: Row): Promise<ToolResult> {
-  const colour = canonical(input.colour, VALUE_ALIASES) || undefined;
+  const colour = text(input.colour) || undefined;
   const size = text(input.size).toUpperCase() || undefined;
   const variants = (await variantsFor(input.item)).filter((row) => variantMatches(row, colour, size));
   const stock = await Promise.all(variants.map(async (variant) => ({
@@ -136,12 +113,13 @@ export async function checkStock(input: Row): Promise<ToolResult> {
       limit: 100,
     }),
   })));
+  // Only what the answer states: no item code or bin id leaves the server.
   const rows: Row[] = stock.flatMap(({ variant, bins }) => bins.map((bin) => ({
-    item: variant.name, item_name: variant.item_name, attributes: variant.attributes, ...bin,
+    item_name: variant.item_name, warehouse: bin.warehouse, actual_qty: bin.actual_qty, bin: bin.name,
   })));
   // One card per warehouse balance, named the way the customer would say it.
-  const sources = rows.map((row) => source('Bin', row.name, {
-    title: String(row.item_name ?? row.item_code), detail: warehouse(row.warehouse), qty: num(row.actual_qty),
+  const sources = rows.map((row) => source('Bin', row.bin, {
+    title: String(row.item_name), detail: warehouse(row.warehouse), qty: num(row.actual_qty),
   }));
   return { rows, sources };
 }
@@ -149,158 +127,110 @@ export async function checkStock(input: Row): Promise<ToolResult> {
 export async function lastPrice(input: Row): Promise<ToolResult> {
   const variants = await variantsFor(input.item);
   if (!variants.length) return { rows: [], sources: [] };
+  // What the customer paid for a garment was billed either as a ready-stock
+  // variant or as the garment made to order (UA-MTO-<first word of the name>).
+  const codes = [...variants.map((row) => row.name), `UA-MTO-${text(input.item).split(/\s+/)[0].toUpperCase()}`];
+  const garment = text(input.item);
   const joined = await list<Row>('Sales Invoice', {
-    fields: ['name', 'posting_date', 'currency', 'items.item_code', 'items.item_name',
-      'items.rate', 'items.qty'],
+    fields: ['name', 'posting_date', 'currency', 'items.item_code', 'items.rate', 'items.qty'],
     filters: [
       ['customer', '=', DEMO_CUSTOMER],
       ['docstatus', '=', 1],
-      ['Sales Invoice Item', 'item_code', 'in', variants.map((row) => row.name)],
+      ['Sales Invoice Item', 'item_code', 'in', codes],
     ],
     orderBy: 'posting_date desc',
-    limit: 50,
+    limit: 100,
   });
-  // Newest invoice only; its matching lines may be more than one size.
-  const rows = groupJoined(joined, ['item_code', 'item_name', 'rate', 'qty'], 'items').slice(0, 1);
+  // Newest invoice only. The join returns every line of it, so keep the
+  // garment's own, named as the customer chose it rather than by item code.
+  const rows = groupJoined(joined, ['item_code', 'rate', 'qty'], 'items').slice(0, 1).map((row) => ({
+    name: row.name, posting_date: row.posting_date, currency: row.currency,
+    items: (row.items as Row[]).filter((line) => codes.includes(String(line.item_code)))
+      .map((line) => ({ item_name: garment, rate: line.rate, qty: line.qty })),
+  }));
   return {
     rows,
-    sources: rows.map((row) => {
-      const line = (row.items as Row[])[0] ?? {};
-      return source('Sales Invoice', row.name, {
-        title: String(row.name),
-        detail: String(line.item_name ?? ''),
-        date: text(row.posting_date) || undefined,
-        rate: num(line.rate),
-        currency: text(row.currency) || undefined,
-      });
-    }),
+    sources: rows.map((row) => source('Sales Invoice', row.name, {
+      title: String(row.name),
+      detail: garment,
+      date: text(row.posting_date) || undefined,
+      rate: num(row.items[0]?.rate),
+      currency: text(row.currency) || undefined,
+    })),
   };
 }
 
-const TOOLS = [
-  {
-    name: 'find_orders',
-    description: 'Find this customer\'s ERPNext Sales Orders, newest first. Pass order_id for one exact order.',
-    input_schema: { type: 'object' as const, properties: { order_id: { type: 'string' } } },
-  },
-  {
-    name: 'check_stock',
-    description: 'Current ERPNext stock per warehouse for a garment. item is the garment in English (Polo, Cargo Trouser, Shirt, Chino, Blazer); colour and size are optional English attribute values such as Navy and XL.',
-    input_schema: {
-      type: 'object' as const,
-      properties: { item: { type: 'string' }, colour: { type: 'string' }, size: { type: 'string' } },
-      required: ['item'],
-    },
-  },
-  {
-    name: 'last_price',
-    description: 'The price per piece on this customer\'s latest submitted Sales Invoice for a garment (English name, as in check_stock).',
-    input_schema: {
-      type: 'object' as const,
-      properties: { item: { type: 'string' } }, required: ['item'],
-    },
-  },
-];
+const SIZE_ORDER = ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL'];
+const bySize = (a: string, b: string) => {
+  const [x, y] = [SIZE_ORDER.indexOf(a), SIZE_ORDER.indexOf(b)];
+  return x < 0 && y < 0 ? a.localeCompare(b) : (x < 0 ? 99 : x) - (y < 0 ? 99 : y);
+};
 
-const SYSTEM = `You are the UniformAI assistant, talking to a UniformAI customer about their account: their orders, what is in stock, and what they paid. Speak as UniformAI ("we", "our records"). Never mention ERPNext, an ERP, databases, tools or APIs; the customer does not know or care what system is behind this.
-Answer only from what the tools return. Never estimate or invent a date, quantity, price, status or record. If a tool returns no rows, say plainly that we have no record of it, and do not guess.
-Lead with the direct answer (yes, no, the number, the status), then the one supporting fact, and name the order or invoice number it comes from. Two or three short sentences.
-Put order statuses in plain words: "To Deliver and Bill" and "To Deliver" mean the order is still being made and has not been delivered; "To Bill" and "Completed" mean it has been delivered. Give dates as dates, not as field names.
-Answer in the language of the question. Plain text only: no markdown, no bullet points, no headings.
-You answer only for ${DEMO_CUSTOMER}. If asked about anyone else's order, say you cannot find it on their account. Production stages such as sewing and checks are not in these records; do not claim to know them.`;
+export type Option = { item: string; colours: string[]; sizes: string[] };
 
-async function runTool(name: string, input: Row): Promise<ToolResult> {
-  if (name === 'find_orders') return findOrders(input);
-  if (name === 'check_stock') return checkStock(input);
-  if (name === 'last_price') return lastPrice(input);
-  throw new Error(`Unknown tool: ${name}`);
+/** What the buttons offer: the ready-stock garments with the colours and
+ *  sizes their variants really have, so no button leads to a missing item.
+ *  Made-to-order items are not variants and never appear. */
+export async function options(): Promise<Option[]> {
+  const templates = await list<ItemRow>('Item', {
+    fields: ['name', 'item_name'], filters: [['has_variants', '=', 1]], limit: 100,
+  });
+  const ready = templates.filter((row) => !row.name.startsWith('UA-MTO-'));
+  if (!ready.length) return [];
+  const joined = await list<Row>('Item', {
+    fields: ['name', 'variant_of', 'attributes.attribute', 'attributes.attribute_value'],
+    filters: [['variant_of', 'in', ready.map((row) => row.name)]],
+    limit: 5000,
+  });
+  const variants = groupJoined(joined, ['attribute', 'attribute_value'], 'attributes');
+  return ready.flatMap((template) => {
+    const of = variants.filter((v) => v.variant_of === template.name);
+    const values = (attribute: string) => [...new Set(of.flatMap((v) => attributes(v)
+      .filter((a) => String(a.attribute ?? '').toLowerCase().endsWith(attribute))
+      .map((a) => String(a.attribute_value))))];
+    const [colours, sizes] = [values('colour').sort(), values('size').sort(bySize)];
+    return of.length ? [{ item: String(template.item_name ?? template.name), colours, sizes }] : [];
+  }).sort((a, b) => a.item.localeCompare(b.item));
 }
 
-/** The model loop's error boundary, exported so the no-throw ERP failure
- * contract can be checked without making a model call in CI. */
-export async function executeTool(
-  name: string,
-  input: Row,
-): Promise<{ result?: ToolResult; error?: string; status?: number }> {
-  try {
-    return { result: await runTool(name, input) };
-  } catch (error) {
-    return error instanceof ErpError
-      ? { error: error.message, status: error.status }
-      : { error: 'ERP unavailable' };
+/** Bad intent or params: the route's 400. */
+export class AskInputError extends Error {}
+
+const param = (params: Row, key: string) => {
+  const value = params[key];
+  if (typeof value !== 'string' || !value.trim() || value.length > 80) throw new AskInputError(`Invalid ${key}`);
+  return value.trim();
+};
+
+/** One button's read. Never takes a customer or a free-text question. */
+export async function run(intent: unknown, params: unknown = {}):
+  Promise<{ rows: unknown[]; sources: Source[]; step: Step }> {
+  if (typeof intent !== 'string' || !(INTENTS as readonly string[]).includes(intent)) {
+    throw new AskInputError('Unknown intent');
   }
-}
-
-export async function ask(
-  question: string,
-  history: HistoryTurn[] = [],
-  locale: 'ar' | 'en' = 'ar',
-  onStep: (step: Step) => void = () => {},
-): Promise<AskResult> {
+  if (!params || typeof params !== 'object' || Array.isArray(params)) throw new AskInputError('Invalid params');
+  const input = params as Row;
+  // Validate before the ERP is touched.
+  const args = intent === 'order' ? { id: param(input, 'id') }
+    : intent === 'stock' ? { item: param(input, 'item'), colour: param(input, 'colour'), size: param(input, 'size') }
+    : intent === 'price' ? { item: param(input, 'item') } : {};
   assertErpConfigured();
-  // Resolves ANTHROPIC_API_KEY or an `ant auth login` profile. A key that is
-  // not scoped to a workspace must name one on every request.
-  const workspace = process.env.ANTHROPIC_WORKSPACE_ID;
-  const client = new Anthropic(workspace ? { defaultHeaders: { 'anthropic-workspace-id': workspace } } : {});
-  const recent = history.slice(-6);
-  // The API needs the conversation to open on a user turn.
-  while (recent[0]?.role === 'assistant') recent.shift();
-  const messages: BetaMessageParam[] = [
-    ...recent.map((turn) => ({ role: turn.role, content: turn.content })),
-    { role: 'user', content: question },
-  ];
-  const allSources: Source[] = [];
-  const steps: Step[] = [];
-
-  for (let round = 0; round < 5; round++) {
-    const response = await client.beta.messages.create({
-      betas: ['server-side-fallback-2026-07-01'],
-      model: 'claude-opus-5',
-      max_tokens: 4000,
-      output_config: { effort: 'low' },
-      fallbacks: 'default',
-      // The frozen prompt is cached; the locale line sits after the breakpoint.
-      system: [
-        { type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } },
-        { type: 'text', text: `The interface locale is ${locale}.` },
-      ],
-      tools: TOOLS,
-      messages,
-    });
-    if (response.stop_reason === 'refusal') throw new Error('Assistant refused');
-    messages.push({ role: 'assistant', content: response.content as BetaContentBlockParam[] });
-    const calls = response.content.filter((block) => block.type === 'tool_use');
-    if (!calls.length) {
-      const answer = response.content
-        .filter((block) => block.type === 'text')
-        .map((block) => block.text).join('\n').trim();
-      if (!answer) throw new Error('Assistant returned no answer');
-      const sources = [...new Map(allSources.map((s) => [`${s.doctype}:${s.name}`, s])).values()];
-      return { answer, sources, steps };
-    }
-    const results = await Promise.all(calls.map(async (call): Promise<BetaToolResultBlockParam> => {
-      const input = call.input && typeof call.input === 'object' ? call.input as Row : {};
-      const started = Date.now();
-      const step: Step = { id: call.id, tool: call.name, input, state: 'running' };
-      onStep(step);
-      const executed = await executeTool(call.name, input);
-      const ms = Date.now() - started;
-      if (!executed.result) {
-        if (executed.status === 401 || executed.status === 403) {
-          console.error('ERP authorization failed; check ERP_READ_KEY');
-        }
-        const failed: Step = { ...step, state: 'error', ms };
-        steps.push(failed);
-        onStep(failed);
-        return { type: 'tool_result', tool_use_id: call.id, is_error: true, content: 'ERP unavailable' };
-      }
-      allSources.push(...executed.result.sources);
-      const done: Step = { ...step, state: 'done', rows: executed.result.rows.length, ms };
-      steps.push(done);
-      onStep(done);
-      return { type: 'tool_result', tool_use_id: call.id, content: JSON.stringify(executed.result.rows) };
-    }));
-    messages.push({ role: 'user', content: results });
+  const started = Date.now();
+  let result: { rows: unknown[]; sources: Source[] };
+  const kind = intent as Intent;
+  if (kind === 'orders') result = await orders();
+  else if (kind === 'order') result = await orders((args as { id: string }).id);
+  else if (kind === 'stock') result = await checkStock(args);
+  else if (kind === 'price') result = await lastPrice(args);
+  else {
+    const rows = await options();
+    result = { rows, sources: [] };
   }
-  throw new Error('Assistant tool loop exceeded five rounds');
+  return {
+    ...result,
+    step: {
+      id: crypto.randomUUID(), tool: kind, input: args, state: 'done',
+      rows: result.rows.length, ms: Date.now() - started,
+    },
+  };
 }

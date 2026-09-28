@@ -1564,6 +1564,8 @@
   transition: border-color 0.12s, background 0.12s;
 }
 
+.evChoices { margin-top: var(--s2); }
+
 .evSuggest button:hover { border-color: var(--accent); background: var(--accent-soft); }
 .evSuggest button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 

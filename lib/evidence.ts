@@ -2,10 +2,9 @@
 // and the dock that renders it. The dock faces a UniformAI customer, who has
 // never heard of the ERP behind it: records carry what the customer would
 // recognise, and no internal address ever reaches the browser. Kept apart
-// from lib/ask.ts so the browser bundle never pulls in the model SDK or the
-// ERP client.
+// from lib/ask.ts so the browser bundle never pulls in the ERP client.
 
-/** One ERP record a tool read this turn. The dock renders one card each. */
+/** One ERP record a read returned this turn. The dock renders one card each. */
 export type Source = {
   doctype: string;
   /** The ERP document name, used for de-duplication and the change check. */
@@ -29,12 +28,6 @@ export type Step = {
   rows?: number;
   ms?: number;
 };
-
-/** The route streams these, one JSON object per line. */
-export type AskEvent =
-  | { type: 'step'; step: Step }
-  | { type: 'answer'; answer: string; sources: Source[] }
-  | { type: 'error'; error: string };
 
 export type Change = { field: 'qty' | 'detail' | 'date' | 'rate'; from: string | number; to: string | number };
 

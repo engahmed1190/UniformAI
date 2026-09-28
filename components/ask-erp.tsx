@@ -1,54 +1,62 @@
 'use client';
 
-import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import s from '@/app/ui.module.css';
 import { type Locale, formatCurrency, formatDate, formatNumber, t } from '@/lib/i18n';
-import {
-  type AskEvent, type Change, type Source, type Step, changesSince, remember, sourceKey,
-} from '@/lib/evidence';
+import { type Intent, answer } from '@/lib/answers';
+import { type Change, type Source, type Step, changesSince, remember, sourceKey } from '@/lib/evidence';
 
 type Health = 'probing' | 'live' | 'offline';
+type Params = Record<string, string>;
+type Option = { item: string; colours: string[]; sizes: string[] };
 
 type Answer = {
   role: 'assistant';
-  question: string;
+  intent: Intent;
+  params: Params;
   steps: Step[];
-  content?: string;
+  rows?: unknown[];
   sources?: Source[];
   changes?: Record<string, Change[]>;
   error?: 'unreachable' | 'not_configured';
 };
-type Turn = { role: 'user'; content: string } | Answer;
+/** `prompt` is the assistant asking which garment, colour or size. */
+type Turn = { role: 'user'; content: string } | { role: 'prompt'; content: string } | Answer;
 
-/** A request from outside the dock, e.g. the order card's button. `id` makes
- *  asking the same question twice still count as a new request. */
-export type AskRequest = { question: string; id: number };
+/** Where the guided flow is, which decides the buttons on offer. */
+type Stage =
+  | { k: 'menu' }
+  | { k: 'garment'; intent: 'stock' | 'price' }
+  | { k: 'colour'; item: string }
+  | { k: 'size'; item: string; colour: string }
+  | { k: 'orders'; ids: string[] }
+  | { k: 'order'; id: string }
+  | { k: 'stock' }
+  | { k: 'price' };
+
+/** A request from outside the dock: the order card's button opens the dock on
+ *  that order's details. `id` makes asking twice still count as a new request. */
+export type AskRequest = { orderId: string; id: number };
 
 const KIND: Record<string, string> = {
-  'Sales Order': 'kindSalesOrder', 'Sales Invoice': 'kindSalesInvoice', Bin: 'kindBin', Item: 'kindItem',
+  'Sales Order': 'kindSalesOrder', Quotation: 'kindQuotation', 'Sales Invoice': 'kindSalesInvoice',
+  Bin: 'kindBin', Item: 'kindItem',
 };
 
-/** ERP order statuses in the customer's words. Anything unmapped shows as it
- *  is stored rather than vanishing. */
-const STATUS: Record<string, string> = {
-  'To Deliver and Bill': 'stInProgress', 'To Deliver': 'stInProgress', 'To Bill': 'stDelivered',
-  Completed: 'stCompleted', Closed: 'stCompleted', Cancelled: 'stCancelled', 'On Hold': 'stOnHold',
-  Draft: 'stDraft',
-};
+const isOrderDoc = (doctype: string) => doctype === 'Sales Order' || doctype === 'Quotation';
 
-const status = (locale: Locale, value: string | number) =>
-  STATUS[String(value)] ? t(locale, `erpAsk.${STATUS[String(value)]}`) : String(value);
+/** An order card's fact is the app's own workflow state, in the words the
+ *  Orders screen uses. */
+const status = (locale: Locale, value: string | number) => t(locale, `orders.state.${value}`);
 
 function stepText(locale: Locale, step: Step): string {
   const i = step.input;
   const what = [i.item, i.colour, i.size].filter((v) => typeof v === 'string' && v).join(' ');
-  if (step.tool === 'find_orders') {
-    return typeof i.order_id === 'string' && i.order_id
-      ? t(locale, 'erpAsk.stepOrder', { id: i.order_id })
-      : t(locale, 'erpAsk.stepOrders');
-  }
-  if (step.tool === 'check_stock') return t(locale, 'erpAsk.stepStock', { what });
-  return t(locale, 'erpAsk.stepPrice', { what });
+  if (step.tool === 'orders') return t(locale, 'erpAsk.stepOrders');
+  if (step.tool === 'order') return t(locale, 'erpAsk.stepOrder', { id: String(i.id ?? '') });
+  if (step.tool === 'stock') return t(locale, 'erpAsk.stepStock', { what });
+  if (step.tool === 'price') return t(locale, 'erpAsk.stepPrice', { what });
+  return t(locale, 'erpAsk.stepOptions');
 }
 
 function stepMeta(locale: Locale, step: Step): string {
@@ -71,7 +79,7 @@ const day = (locale: Locale, iso?: string) => (iso ? formatDate(locale, new Date
 function RecordCard({ source, changes, locale, onOpenOrder }: {
   source: Source; changes?: Change[]; locale: Locale; onOpenOrder?: (id: string) => void;
 }) {
-  const isOrder = source.doctype === 'Sales Order';
+  const isOrder = isOrderDoc(source.doctype);
   const qtyChange = changes?.find((c) => c.field === 'qty');
   const otherChange = changes?.find((c) => c.field !== 'qty');
   const kind = KIND[source.doctype] ? t(locale, `erpAsk.${KIND[source.doctype]}`) : source.doctype;
@@ -128,8 +136,8 @@ function RecordCard({ source, changes, locale, onOpenOrder }: {
   );
 }
 
-function Trail({ steps, writing, locale }: { steps: Step[]; writing: boolean; locale: Locale }) {
-  if (!steps.length && !writing) return null;
+function Trail({ steps, locale }: { steps: Step[]; locale: Locale }) {
+  if (!steps.length) return null;
   return (
     <ol className={s.evTrail}>
       {steps.map((step) => (
@@ -139,12 +147,6 @@ function Trail({ steps, writing, locale }: { steps: Step[]; writing: boolean; lo
           <small>{stepMeta(locale, step)}</small>
         </li>
       ))}
-      {writing && (
-        <li className={s.evStep_running}>
-          <span className={s.evDot} aria-hidden="true" />
-          <span>{t(locale, 'erpAsk.thinking')}</span>
-        </li>
-      )}
     </ol>
   );
 }
@@ -152,12 +154,12 @@ function Trail({ steps, writing, locale }: { steps: Step[]; writing: boolean; lo
 function Reply({ turn, busy, locale, onRetry, onOpenOrder }: {
   turn: Answer; busy: boolean; locale: Locale; onRetry: () => void; onOpenOrder?: (id: string) => void;
 }) {
-  const running = turn.steps.some((x) => x.state === 'running');
-  const writing = busy && !turn.content && !turn.error && !running;
   const sources = turn.sources ?? [];
+  // Built here, not stored, so a language switch rewrites the answer too.
+  const content = turn.rows && turn.intent !== 'options' ? answer(locale, turn.intent, turn.rows) : '';
   return (
     <div className={s.evReply}>
-      <Trail steps={turn.steps} writing={writing} locale={locale} />
+      <Trail steps={turn.steps} locale={locale} />
 
       {turn.error && (
         <div className={s.evError} role="alert">
@@ -166,9 +168,9 @@ function Reply({ turn, busy, locale, onRetry, onOpenOrder }: {
         </div>
       )}
 
-      {turn.content && <p className={s.evAnswer} dir="auto">{turn.content}</p>}
+      {content && <p className={s.evAnswer} dir="auto">{content}</p>}
 
-      {turn.content && (sources.length ? (
+      {content && (sources.length ? (
         <section className={s.evSources} aria-label={t(locale, 'erpAsk.evidence')}>
           <h3>{sources.length === 1
             ? t(locale, 'erpAsk.evidenceOne')
@@ -182,13 +184,15 @@ function Reply({ turn, busy, locale, onRetry, onOpenOrder }: {
         </section>
       ) : (
         <div className={s.evEmpty}>
-          <b>{t(locale, 'erpAsk.noRecord')}</b>
           <span>{t(locale, 'erpAsk.noRecordNote')}</span>
         </div>
       ))}
     </div>
   );
 }
+
+const pending = (intent: Intent, params: Params): Step =>
+  ({ id: 'pending', tool: intent, input: params, state: 'running' });
 
 export function AskErp({ locale, request, onOpenOrder }: {
   locale: Locale;
@@ -197,14 +201,18 @@ export function AskErp({ locale, request, onOpenOrder }: {
   onOpenOrder?: (id: string) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState('');
   const [turns, setTurns] = useState<Turn[]>([]);
+  const [stage, setStage] = useState<Stage>({ k: 'menu' });
+  const [garments, setGarments] = useState<Option[]>([]);
   const [busy, setBusy] = useState(false);
   const [health, setHealth] = useState<Health>('probing');
   const log = useRef<HTMLDivElement>(null);
-  const input = useRef<HTMLInputElement>(null);
   // The last value shown for every record, across the whole conversation.
   const seen = useRef(new Map<string, Source>());
+  // Which read the garment buttons are for, and the last stock check, which
+  // "Check again" repeats.
+  const purpose = useRef<'stock' | 'price'>('stock');
+  const lastStock = useRef<Params | null>(null);
 
   // Checked on mount and on every open, so a dropped connection shows on the
   // launcher before anyone asks a question in front of the client.
@@ -220,93 +228,148 @@ export function AskErp({ locale, request, onOpenOrder }: {
 
   useEffect(() => {
     log.current?.scrollTo({ top: log.current.scrollHeight, behavior: 'smooth' });
-  }, [turns, busy]);
-
-  useEffect(() => { if (open) input.current?.focus(); }, [open]);
+  }, [turns, busy, stage]);
 
   const patchLast = (fn: (a: Answer) => Answer) => setTurns((all) => {
     const last = all[all.length - 1];
-    return last?.role === 'assistant' ? [...all.slice(0, -1), fn(last)] : all;
+    return last && last.role === 'assistant' ? [...all.slice(0, -1), fn(last)] : all;
   });
 
-  const send = useCallback(async (question: string, retry = false) => {
-    const clean = question.trim();
-    if (!clean || busy) return;
-    // Only answered turns go back as history. A failed turn's error text is
-    // not something the model said, and replaying it confuses the next answer.
-    const history = turns
-      .filter((x) => x.role === 'user' || (x.content && !x.error))
-      .slice(-6)
-      .map((x) => ({ role: x.role, content: x.content ?? '' }));
+  const promptFor = (next: Stage): string | null =>
+    next.k === 'menu' ? t(locale, 'erpAsk.introTitle')
+      : next.k === 'garment' ? t(locale, garments.length ? 'erpAsk.pickGarment' : 'erpAsk.pickNone')
+        : next.k === 'colour' ? t(locale, 'erpAsk.pickColour')
+          : next.k === 'size' ? t(locale, 'erpAsk.pickSize') : null;
+
+  /** The buttons change with the flow; the question they answer is a message. */
+  const go = (next: Stage, tapped?: string) => {
+    const prompt = promptFor(next);
     setTurns((all) => [
-      ...(retry ? all.slice(0, -2) : all),
-      { role: 'user', content: clean },
-      { role: 'assistant', question: clean, steps: [] },
+      ...all,
+      ...(tapped ? [{ role: 'user' as const, content: tapped }] : []),
+      ...(prompt ? [{ role: 'prompt' as const, content: prompt }] : []),
     ]);
-    setDraft('');
+    setStage(next);
+  };
+
+  /** One button, one read. `tapped` is what the customer's tap says in the
+   *  chat; a retry replaces the failed answer instead of adding a new one. */
+  const read = useCallback(async (intent: Intent, params: Params, tapped?: string, retry = false) => {
+    if (busy) return;
+    setTurns((all) => [
+      ...(retry ? all.slice(0, -1) : all),
+      ...(tapped ? [{ role: 'user' as const, content: tapped }] : []),
+      { role: 'assistant', intent, params, steps: [pending(intent, params)] },
+    ]);
     setBusy(true);
     try {
       const response = await fetch('/api/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: clean, history, locale }),
+        body: JSON.stringify({ intent, params }),
       });
-      if (!response.ok || !response.body) throw new Error('request failed');
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let settled = false;
-      for (;;) {
-        const { value, done } = await reader.read();
-        buffer += decoder.decode(value, { stream: !done });
-        const lines = buffer.split('\n');
-        buffer = lines.pop() ?? '';
-        for (const line of lines.filter(Boolean)) {
-          const event = JSON.parse(line) as AskEvent;
-          if (event.type === 'step') {
-            patchLast((a) => ({
-              ...a,
-              steps: a.steps.some((x) => x.id === event.step.id)
-                ? a.steps.map((x) => (x.id === event.step.id ? event.step : x))
-                : [...a.steps, event.step],
-            }));
-          } else if (event.type === 'answer') {
-            settled = true;
-            const changes = Object.fromEntries(changesSince(seen.current, event.sources));
-            remember(seen.current, event.sources);
-            patchLast((a) => ({ ...a, content: event.answer, sources: event.sources, changes }));
-          } else {
-            settled = true;
-            patchLast((a) => ({ ...a, error: event.error === 'not_configured' ? 'not_configured' : 'unreachable' }));
-          }
-        }
-        if (done) break;
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({})) as { error?: string };
+        throw Object.assign(new Error('request failed'), { code: body.error });
       }
-      if (!settled) throw new Error('stream ended early');
-    } catch {
-      patchLast((a) => ({ ...a, error: 'unreachable' }));
+      const data = await response.json() as { rows: unknown[]; sources: Source[]; step: Step };
+      const changes = Object.fromEntries(changesSince(seen.current, data.sources));
+      remember(seen.current, data.sources);
+      patchLast((a) => ({ ...a, steps: [data.step], rows: data.rows, sources: data.sources, changes }));
+      if (intent === 'orders') setStage({ k: 'orders', ids: (data.rows as { id: string }[]).map((r) => r.id) });
+      else if (intent === 'order') setStage({ k: 'order', id: params.id });
+      else if (intent === 'stock') setStage({ k: 'stock' });
+      else if (intent === 'price') setStage({ k: 'price' });
+      else {
+        const list = data.rows as Option[];
+        setGarments(list);
+        const next: Stage = { k: 'garment', intent: purpose.current };
+        setTurns((all) => [...all, {
+          role: 'prompt',
+          content: t(locale, list.length ? 'erpAsk.pickGarment' : 'erpAsk.pickNone'),
+        }]);
+        setStage(next);
+      }
+    } catch (error) {
+      const code = (error as { code?: string }).code;
+      patchLast((a) => ({
+        ...a, steps: a.steps.map((x) => ({ ...x, state: 'error' as const })),
+        error: code === 'not_configured' ? 'not_configured' : 'unreachable',
+      }));
+      setStage({ k: 'menu' });
     } finally {
       setBusy(false);
     }
-  }, [busy, turns, locale]);
+  }, [busy, locale]);
 
-  // A question handed in from the order card: open, then ask it.
+  // The order card's button: open the dock straight on that order's details.
   const handled = useRef<number | null>(null);
   useEffect(() => {
-    if (!request || handled.current === request.id) return;
+    if (!request || busy || handled.current === request.id) return;
     handled.current = request.id;
     setOpen(true);
-    void send(request.question);
-  }, [request, send]);
-
-  function submit(event: FormEvent) {
-    event.preventDefault();
-    void send(draft);
-  }
+    void read('order', { id: request.orderId }, t(locale, 'erpAsk.btnDetails', { id: request.orderId }));
+  }, [request, busy, read, locale]);
 
   const online = health === 'live' ? t(locale, 'erpAsk.live')
     : health === 'offline' ? t(locale, 'erpAsk.offline') : t(locale, 'erpAsk.probing');
-  const suggestions = ['q1', 'q2', 'q3', 'q4'].map((k) => t(locale, `erpAsk.${k}`));
+
+  const menu = (): Choice[] => [
+    { label: t(locale, 'erpAsk.btnOrders'), tap: () => void read('orders', {}, t(locale, 'erpAsk.btnOrders')) },
+    { label: t(locale, 'erpAsk.btnStock'), tap: () => { purpose.current = 'stock'; void read('options', {}, t(locale, 'erpAsk.btnStock')); } },
+    { label: t(locale, 'erpAsk.btnPrice'), tap: () => { purpose.current = 'price'; void read('options', {}, t(locale, 'erpAsk.btnPrice')); } },
+  ];
+  const toMenu: Choice = { label: t(locale, 'erpAsk.btnMenu'), tap: () => go({ k: 'menu' }, t(locale, 'erpAsk.btnMenu')) };
+  const garment = garments.find((g) => stage.k === 'colour' || stage.k === 'size' ? g.item === stage.item : false);
+
+  const choices: Choice[] = stage.k === 'menu' ? menu()
+    : stage.k === 'garment' ? [
+      ...garments.map((g) => ({
+        label: g.item,
+        tap: () => {
+          if (stage.intent === 'price') void read('price', { item: g.item }, g.item);
+          else go({ k: 'colour', item: g.item }, g.item);
+        },
+      })),
+      toMenu,
+    ]
+      : stage.k === 'colour' ? [
+        ...(garment?.colours ?? []).map((c) => ({ label: c, tap: () => go({ k: 'size', item: stage.item, colour: c }, c) })),
+        toMenu,
+      ]
+        : stage.k === 'size' ? [
+          ...(garment?.sizes ?? []).map((z) => ({
+            label: z,
+            tap: () => {
+              lastStock.current = { item: stage.item, colour: stage.colour, size: z };
+              void read('stock', lastStock.current, z);
+            },
+          })),
+          toMenu,
+        ]
+          : stage.k === 'orders' ? [
+            ...stage.ids.map((id) => ({
+              label: t(locale, 'erpAsk.btnDetails', { id }),
+              tap: () => void read('order', { id }, t(locale, 'erpAsk.btnDetails', { id })),
+            })),
+            toMenu,
+          ]
+            : stage.k === 'order' ? [
+              ...(onOpenOrder ? [{ label: t(locale, 'erpAsk.showOrder'), tap: () => onOpenOrder(stage.id) }] : []),
+              toMenu,
+            ]
+              : stage.k === 'stock' ? [
+                {
+                  label: t(locale, 'erpAsk.btnAgain'),
+                  tap: () => { if (lastStock.current) void read('stock', lastStock.current, t(locale, 'erpAsk.btnAgain')); },
+                },
+                {
+                  label: t(locale, 'erpAsk.btnAnother'),
+                  tap: () => { purpose.current = 'stock'; void read('options', {}, t(locale, 'erpAsk.btnAnother')); },
+                },
+                toMenu,
+              ]
+                : [toMenu];
 
   if (!open) {
     return (
@@ -342,41 +405,26 @@ export function AskErp({ locale, request, onOpenOrder }: {
           <div className={s.evIntro}>
             <h3>{t(locale, 'erpAsk.introTitle')}</h3>
             <p>{t(locale, 'erpAsk.intro')}</p>
-            <p className={s.evTry}>{t(locale, 'erpAsk.tryOne')}</p>
-            <ul className={s.evSuggest}>
-              {suggestions.map((q) => (
-                <li key={q}><button type="button" onClick={() => void send(q)} disabled={busy}>{q}</button></li>
-              ))}
-            </ul>
           </div>
         )}
         {turns.map((turn, index) => turn.role === 'user' ? (
           <p key={index} className={`${s.msg} ${s.msgYou} ${s.evQuestion}`} dir="auto">{turn.content}</p>
+        ) : turn.role === 'prompt' ? (
+          <p key={index} className={s.evAnswer} dir="auto">{turn.content}</p>
         ) : (
           <Reply key={index} turn={turn} locale={locale} busy={busy && index === turns.length - 1}
-            onRetry={() => void send(turn.question, true)} onOpenOrder={onOpenOrder} />
+            onRetry={() => void read(turn.intent, turn.params, undefined, true)} onOpenOrder={onOpenOrder} />
         ))}
-      </div>
-
-      <div className={`${s.dockFoot} ${s.evCompose}`}>
-        {turns.length > 0 && (
-          <div className={s.askChips}>
-            {suggestions.map((q) => (
-              <button key={q} type="button" onClick={() => void send(q)} disabled={busy}>{q}</button>
+        {!busy && (
+          <ul className={`${s.evSuggest} ${s.evChoices}`} aria-label={t(locale, 'erpAsk.next')}>
+            {choices.map((c) => (
+              <li key={c.label}><button type="button" onClick={c.tap}>{c.label}</button></li>
             ))}
-          </div>
+          </ul>
         )}
-        <form className={s.askForm} onSubmit={submit}>
-          <input ref={input} value={draft} onChange={(e) => setDraft(e.target.value)} maxLength={500}
-            dir="auto" placeholder={t(locale, 'erpAsk.placeholder')} aria-label={t(locale, 'erpAsk.placeholder')} />
-          <button className={s.askSend} type="submit" disabled={!draft.trim() || busy}
-            aria-label={t(locale, 'erpAsk.send')}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
-              <path d="M8 13V4M4.5 7.5 8 4l3.5 3.5" />
-            </svg>
-          </button>
-        </form>
       </div>
     </aside>
   );
 }
+
+type Choice = { label: string; tap: () => void };

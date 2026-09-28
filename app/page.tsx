@@ -132,7 +132,7 @@ export default function Page() {
   // The designer's panel is opened from the price bar, so its state lives
   // beside the bar rather than inside the configurator.
   const [asking, setAsking] = useState(false);
-  // A question for the ERP assistant from outside it: the order card's button.
+  // An order to open the assistant on, from outside it: the order card's button.
   const [erpRequest, setErpRequest] = useState<AskRequest | null>(null);
   // An order the assistant cited, to open on Orders. `n` makes a repeat
   // click on the same order still count.
@@ -429,7 +429,7 @@ export default function Page() {
                 onApproved={(id) => { setFocusOrder({ id, n: Date.now() }); return loadOrders(); }} onHome={() => setPage('home')}
                 locale={locale} money={money} shortDay={shortDay}
                 focus={focusOrder}
-                onAsk={(id) => setErpRequest({ question: t(locale, 'erpAsk.aboutOrder', { id }), id: Date.now() })} />
+                onAsk={(id) => setErpRequest({ orderId: id, id: Date.now() })} />
               <AskErp locale={locale} request={erpRequest}
                 onOpenOrder={(id) => setFocusOrder({ id, n: Date.now() })} />
             </>

@@ -23,11 +23,14 @@ export class ErpError extends Error {
   }
 }
 
-function config() {
+type KeyRole = 'read' | 'write';
+
+function config(role: KeyRole = 'read') {
   const url = process.env.ERP_URL?.replace(/\/$/, '');
-  const key = process.env.ERP_READ_KEY;
+  const name = role === 'write' ? 'ERP_WRITE_KEY' : 'ERP_READ_KEY';
+  const key = process.env[name];
   if (!url) throw new ErpError('Missing ERP_URL');
-  if (!key) throw new ErpError('Missing ERP_READ_KEY');
+  if (!key) throw new ErpError(`Missing ${name}`);
   return { url, key };
 }
 
@@ -35,14 +38,22 @@ export function assertErpConfigured(): void {
   config();
 }
 
-async function request<T>(path: string, params?: URLSearchParams): Promise<T> {
-  const { url, key } = config();
+type RequestOptions = { params?: URLSearchParams; role?: KeyRole; body?: unknown };
+
+async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const { params, role = 'read', body } = options;
+  const { url, key } = config(role);
   const target = `${url}${path}${params?.size ? `?${params}` : ''}`;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 8_000);
   try {
     const response = await fetch(target, {
-      headers: { Authorization: `token ${key}`, Accept: 'application/json' },
+      method: body === undefined ? 'GET' : 'POST',
+      headers: {
+        Authorization: `token ${key}`, Accept: 'application/json',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
       cache: 'no-store',
     });
@@ -70,7 +81,7 @@ export async function list<T extends Record<string, unknown>>(
   if (options.filters) params.set('filters', JSON.stringify(options.filters));
   if (options.orderBy) params.set('order_by', options.orderBy);
   params.set('limit_page_length', String(options.limit ?? 20));
-  const result = await request<{ data: T[] }>(`/api/resource/${encodeURIComponent(doctype)}`, params);
+  const result = await request<{ data: T[] }>(`/api/resource/${encodeURIComponent(doctype)}`, { params });
   return result.data;
 }
 
@@ -93,4 +104,25 @@ export async function ping(): Promise<{ ok: boolean }> {
   } catch {
     return { ok: false };
   }
+}
+
+/** Create a document with the write key (the Portal user: drafts only). */
+export async function insert<T extends Record<string, unknown>>(
+  doctype: string,
+  doc: Record<string, unknown>,
+  _key: 'write',
+): Promise<T> {
+  const result = await request<{ data: T }>(
+    `/api/resource/${encodeURIComponent(doctype)}`, { role: 'write', body: doc });
+  return result.data;
+}
+
+/** Call a whitelisted server method. */
+export async function call<T>(
+  method: string,
+  args: Record<string, unknown>,
+  key: 'read' | 'write',
+): Promise<T> {
+  const result = await request<{ message: T }>(`/api/method/${method}`, { role: key, body: args });
+  return result.message;
 }

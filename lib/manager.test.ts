@@ -73,7 +73,7 @@ assert.match(stepAdvice('en', 2, lightTop, 0, hot, 40, 0.05), /show marks/);
 
 // 7. The greeting and the order note say what the session's order actually
 // is -- and nothing about an order that does not exist.
-import { placeOrder } from './order';
+import { sampleOrder as placeOrder } from './order-fixture';
 import { orderNote } from './manager';
 assert.match(greeting('en', 'Ahmed', []), /Nothing needs you today/);
 assert.doesNotMatch(greeting('en', 'Ahmed', []), /polos|8th/, 'no order, no order news');

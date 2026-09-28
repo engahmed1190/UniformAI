@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import s from './ui.module.css';
 import { Sidebar, Topbar, type PageId } from '@/components/shell';
 import { type Locale, LOCALES, LOCALE_CODES, LOCALE_NAMES, dir, kitName, formatCurrency, formatDate, t } from '@/lib/i18n';
@@ -18,19 +18,18 @@ function swatch(locale: Locale, name: string): string {
 }
 import { Configurator } from '@/components/configurator';
 import { GarmentSvg, logoGarmentIndex } from '@/components/garments';
-import { CONCEPTS, selectConcepts } from '@/lib/concepts';
+import { selectConcepts } from '@/lib/concepts';
 import {
   type Concept, type GarmentCut, type SizePlan, LABELS, allocatedSizeCount,
   asSavedKit, conceptPrice, conceptPriceAt, gradeName, gradesFor, sameKit,
 } from '@/lib/spec';
 import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
 import { suggestions } from '@/lib/suggest';
-import { type Order, type Workflow, placeOrder, revive, shortDate, status, timeline } from '@/lib/order';
+import { type Order, type Workflow, fromJson, status, timeline } from '@/lib/order';
 import { ManagerNote } from '@/components/manager';
 import { useConfirm } from '@/components/confirm';
 import { Check } from '@/components/check';
 import { AskErp, type AskRequest } from '@/components/ask-erp';
-import erpSamples from '@/lib/erp-samples.json';
 
 const USER = 'Ahmed Osama';
 
@@ -128,6 +127,8 @@ export default function Page() {
     ]);
   }, []);
   const [quoting, setQuoting] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+  const [quoteError, setQuoteError] = useState('');
   // The designer's panel is opened from the price bar, so its state lives
   // beside the bar rather than inside the configurator.
   const [asking, setAsking] = useState(false);
@@ -137,32 +138,33 @@ export default function Page() {
   // click on the same order still count.
   const [focusOrder, setFocusOrder] = useState<{ id: string; n: number } | null>(null);
 
-  // The quote, carried over. Everything Orders and Home show comes from here.
-  // Newest first. Loaded after mount like the kits. With nothing stored,
-  // three samples in three states stand in so Home does not open on zeros.
-  // ponytail: samples are real placeOrder() calls on real concepts, so every
-  // screen agrees with them. Delete the fallback for a blank-slate demo.
+  // Everything Orders and Home show comes from the sales workflow, newest
+  // first. A reload that fails while orders are on screen keeps them; only a
+  // first load that fails is an error screen.
   const [orders, setOrders] = useState<Order[]>([]);
-  useEffect(() => {
+  const [loadState, setLoadState] = useState<'loading' | 'ready' | 'failed'>('loading');
+  const loadSeq = useRef(0);
+  const loadOrders = useCallback(async () => {
+    const mine = ++loadSeq.current;
     try {
-      const stored = localStorage.getItem('orders');
-      if (stored) { setOrders(revive(stored)); return; }
-    } catch { /* fall through to the samples */ }
-    // Named seeds, not briefs: selectConcepts only ever reaches three of the
-    // four, so a brief could not give three visibly different kits.
-    const sample = (kit: string, daysAgo: number, state: Workflow, people: number, sampleIndex: number) => {
-      const c = CONCEPTS.find((x) => x.id === kit) ?? CONCEPTS[0];
-      const erp = erpSamples[sampleIndex] as { name?: string; placed?: string } | undefined;
-      const placed = erp?.placed ? new Date(`${erp.placed}T10:00:00`) : new Date(Date.now() - daysAgo * 864e5);
-      const order = placeOrder(c, people, Math.ceil(people * 1.05), [], conceptPriceAt(c, []), placed, state);
-      return erp?.name ? { ...order, id: erp.name } : order;
-    };
-    setOrders([
-      sample('technicians', 4, 'collecting_sizes', PROFILE.staff, 0),
-      sample('operations', 18, 'in_progress', 24, 1),
-      sample('management', 45, 'delivered', 12, 2),
-    ]);
+      const res = await fetch('/api/orders');
+      if (!res.ok) throw new Error(String(res.status));
+      const list = ((await res.json()) as Order[]).map(fromJson);
+      if (mine !== loadSeq.current) return;
+      setOrders(list);
+      setLoadState('ready');
+    } catch {
+      if (mine === loadSeq.current) setLoadState((cur) => (cur === 'ready' ? 'ready' : 'failed'));
+    }
   }, []);
+  useEffect(() => {
+    if (page === 'orders' || page === 'home') void loadOrders();
+  }, [page, loadOrders]);
+  useEffect(() => {
+    const onFocus = () => void loadOrders();
+    addEventListener('focus', onFocus);
+    return () => removeEventListener('focus', onFocus);
+  }, [loadOrders]);
   // Set by any configurator edit, cleared by a fresh generate. Guards the
   // one destructive path in the app: asking for new kits replaces these.
   const [edited, setEdited] = useState(false);
@@ -420,7 +422,8 @@ export default function Page() {
 
           {page === 'orders' && (
             <>
-              <Orders orders={orders} onHome={() => setPage('home')}
+              <Orders orders={orders} loadState={loadState} onReload={() => void loadOrders()}
+                onApproved={(id) => { setFocusOrder({ id, n: Date.now() }); void loadOrders(); }} onHome={() => setPage('home')}
                 locale={locale} money={money} shortDay={shortDay}
                 focus={focusOrder}
                 onAsk={(id) => setErpRequest({ question: t(locale, 'erpAsk.aboutOrder', { id }), id: Date.now() })} />
@@ -504,19 +507,31 @@ export default function Page() {
           sizePlan={sizePlan}
           locale={locale}
           money={money}
-          onClose={() => setQuoting(false)}
-          onConfirm={() => {
-            const cuts = active.cuts?.length ? active.cuts : ['men', 'women'] as GarmentCut[];
-            const sizesComplete = sizePlan.mode === 'allocate_now'
-              && allocatedSizeCount(sizePlan.allocation, cuts) === sets;
-            const next = [placeOrder(
-              active, staff, sets, grades, perPerson, new Date(), sizesComplete ? 'in_progress' : 'collecting_sizes', sizePlan,
-            ), ...orders];
-            setOrders(next);
-            try { localStorage.setItem('orders', JSON.stringify(next)); } catch { /* private mode */ }
-            setQuoting(false);
-            flash(t(locale, 'kits.saved', { name: next[0].id }));
-            setTimeout(() => setPage('orders'), 800);
+          onClose={() => { setQuoting(false); setQuoteError(''); }}
+          pending={requesting}
+          error={quoteError}
+          onConfirm={async () => {
+            if (requesting) return;
+            setRequesting(true);
+            setQuoteError('');
+            try {
+              const res = await fetch('/api/quotes', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json' },
+                body: JSON.stringify({ concept: active, staff, sets, grades, sizePlan }),
+              });
+              if (!res.ok) { setQuoteError(t(locale, failureKey(res.status))); return; }
+              const placed = fromJson(await res.json() as Order);
+              setQuoting(false);
+              flash(t(locale, 'quote.requested', { name: placed.quote ?? placed.id }));
+              setFocusOrder({ id: placed.id, n: Date.now() });
+              setPage('orders');
+              void loadOrders();
+            } catch {
+              setQuoteError(t(locale, failureKey(502)));
+            } finally {
+              setRequesting(false);
+            }
           }}
         />
       )}
@@ -735,8 +750,11 @@ function StatusPill({ order, locale }: { order: Order; locale: Locale }) {
   return <span className={`${s.pill} ${tone}`}>{t(locale, `orders.state.${st}`)}</span>;
 }
 
-function Orders({ orders, onHome, locale, money, shortDay, onAsk, focus }: {
-  orders: Order[]; onHome: () => void; locale: Locale;
+function Orders({ orders, loadState, onReload, onApproved, onHome, locale, money, shortDay, onAsk, focus }: {
+  orders: Order[]; loadState: 'loading' | 'ready' | 'failed'; onReload: () => void;
+  /** The order the approval created, to keep open once the list reloads. */
+  onApproved: (id: string) => void;
+  onHome: () => void; locale: Locale;
   money: (n: number) => string; shortDay: (d: Date) => string;
   /** Hands this order's id to the ERP assistant as a question. */
   onAsk: (id: string) => void;
@@ -758,6 +776,21 @@ function Orders({ orders, onHome, locale, money, shortDay, onAsk, focus }: {
       </div>
     </div>
   );
+  if (!o && loadState !== 'ready') {
+    return (
+      <>
+        {head}
+        {loadState === 'failed' ? (
+          <Empty
+            title={t(locale, 'orders.loadFailed')}
+            note={t(locale, 'orders.loadFailedNote')}
+            action={t(locale, 'orders.retry')}
+            onAct={onReload}
+          />
+        ) : <p className={s.muted}>{t(locale, 'common.loading')}</p>}
+      </>
+    );
+  }
   if (!o) {
     return (
       <>
@@ -848,6 +881,10 @@ function Orders({ orders, onHome, locale, money, shortDay, onAsk, focus }: {
 
       <ManagerNote locale={locale} tone="panel" note={orderNote(locale, o)} />
 
+      {o.state === 'quote_ready' && o.quote && (
+        <ApproveQuote key={o.quote} order={o} quote={o.quote} locale={locale} money={money} onDone={onApproved} />
+      )}
+
       <div className={s.group}>
       <div className={s.sectionHead}>
         <div><h2>{t(locale, o.state === 'delivered' ? 'orders.whatWasMade' : 'orders.whatIsBeingMade')}</h2></div>
@@ -885,6 +922,49 @@ function Orders({ orders, onHome, locale, money, shortDay, onAsk, focus }: {
       </div>
       </div>
     </>
+  );
+}
+
+/** ERPNext's sales routes answer with a status; the customer gets a sentence. */
+const failureKey = (status: number) =>
+  status === 409 ? 'orders.errConflict' : status === 502 ? 'orders.errUnreachable' : 'orders.errGeneric';
+
+/** The quoted price, and the one button that turns the quote into an order. */
+function ApproveQuote({ order: o, quote, locale, money, onDone }: {
+  order: Order; quote: string; locale: Locale; money: (n: number) => string; onDone: (id: string) => void;
+}) {
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState('');
+  async function approve() {
+    if (pending) return;
+    setPending(true);
+    setError('');
+    try {
+      const res = await fetch(`/api/quotes/${encodeURIComponent(quote)}/approve`, { method: 'POST' });
+      if (!res.ok) setError(t(locale, failureKey(res.status)));
+      else onDone(((await res.json()) as Order).id);
+    } catch {
+      setError(t(locale, failureKey(502)));
+    } finally {
+      setPending(false);
+    }
+  }
+  return (
+    <div className={`${s.card} ${s.cardPad} ${s.approveBar}`}>
+      <div>
+        <div className={s.sub}>{t(locale, 'orders.quotedTotal')}</div>
+        <b className={`${s.mono} ${s.approveTotal}`}>{money(o.total)}</b>
+        {o.total !== o.estimate && (
+          <div className={s.sub}>{t(locale, 'orders.originalEstimate', { value: money(o.estimate) })}</div>
+        )}
+      </div>
+      <div className={s.approveAct}>
+        <button type="button" className={`${s.btn} ${s.btnPrimary}`} disabled={pending} onClick={approve}>
+          {t(locale, pending ? 'orders.approving' : 'orders.approve')}
+        </button>
+        {error && <p className={s.approveError} role="alert">{error}</p>}
+      </div>
+    </div>
   );
 }
 
@@ -984,7 +1064,7 @@ function Settings({ profile, onSave, locale, onLocale }: {
 }
 
 function Quote({
-  concept, staff, perPerson, sets, grades, sizePlan, onClose, onConfirm, locale, money,
+  concept, staff, perPerson, sets, grades, sizePlan, onClose, onConfirm, pending, error, locale, money,
 }: {
   concept: Concept;
   staff: number;
@@ -997,6 +1077,8 @@ function Quote({
   sizePlan: SizePlan;
   onClose: () => void;
   onConfirm: () => void;
+  pending: boolean;
+  error: string;
 }) {
   const per = perPerson;
   // Escape closes; focus goes back to the button that opened it. The handler
@@ -1108,9 +1190,12 @@ function Quote({
             sizePlan.mode === 'allocate_now' && assigned === sets,
           )} />
         </div>
+        {error && <p className={s.approveError} role="alert" style={{ padding: '0 var(--s5)' }}>{error}</p>}
         <div className={s.modalFoot}>
           <button type="button" className={`${s.btn} ${s.btnSecondary}`} onClick={onClose} ref={first}>{t(locale, 'quote.keepEditing')}</button>
-          <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onConfirm}>{t(locale, 'quote.submit')}</button>
+          <button type="button" className={`${s.btn} ${s.btnPrimary}`} onClick={onConfirm} disabled={pending}>
+            {t(locale, pending ? 'quote.submitting' : 'quote.submit')}
+          </button>
         </div>
       </div>
     </div>

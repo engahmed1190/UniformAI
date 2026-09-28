@@ -3743,3 +3743,36 @@
 
 .askOrder:hover { background: var(--accent); color: #fff; }
 .askOrder:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- Quote ready: the price and the approve button ---------- */
+.approveBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s4);
+}
+
+.approveTotal {
+  font-size: var(--t-xl);
+  font-variant-numeric: tabular-nums;
+}
+
+.approveAct {
+  display: grid;
+  gap: var(--s2);
+  justify-items: end;
+}
+
+.approveError {
+  margin: 0;
+  color: var(--warn);
+  font-size: var(--t-sm);
+  max-width: 34ch;
+}
+
+@media (max-width: 640px) {
+  .approveAct { justify-items: stretch; width: 100%; }
+  .approveAct .btn { width: 100%; }
+  .approveError { max-width: none; }
+}

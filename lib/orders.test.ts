@@ -95,6 +95,21 @@ assert.equal(hand.estimate, hand.total);
 assert.equal(hand.dates.requested, undefined);
 // Malformed kit JSON is no kit, not a crash.
 assert.equal(one([quote({ uniformai_kit: '{oops' })]).concept, undefined);
+// So is JSON that parses but has the wrong shape.
+const { logo: _logo, ...noLogo } = K.concept;
+for (const bad of [
+  '{"concept":{"garments":[{}]}}',
+  JSON.stringify({ ...K, concept: noLogo }),
+  JSON.stringify({ ...K, grades: undefined }),
+  JSON.stringify({ ...K, sets: undefined }),
+  JSON.stringify({ ...K, concept: { ...K.concept, garments: [{ type: 'polo' }] } }),
+  JSON.stringify({ ...K, sizePlan: { mode: 'allocate_now' } }),
+]) {
+  const m = one([quote({ docstatus: 1, uniformai_kit: bad, grand_total: 777 })], [so({ uniformai_kit: bad, grand_total: 777 })]);
+  assert.equal(m.concept, undefined, bad);
+  assert.equal(m.lines, undefined, bad);
+  assert.equal(m.estimate, 777, bad);
+}
 
 // Price: the quote's total wins, the estimate stays beside it.
 const priced = one([quote({ docstatus: 1, grand_total: 99999 })]);

@@ -67,7 +67,12 @@ function parseKit(json?: string | null): Kit | undefined {
   if (!json) return undefined;
   try {
     const k = JSON.parse(json) as Kit;
-    return k?.concept && Array.isArray(k.concept.garments) ? k : undefined;
+    if (!k?.concept || !Array.isArray(k.concept.garments)) return undefined;
+    // Parseable is not usable: run everything downstream reads, so a kit of
+    // the wrong shape is no kit instead of a throw that hides every order.
+    if (!Number.isFinite(k.sets) || !Number.isFinite(k.staff)) return undefined;
+    kitEstimate(k); orderLines(k.concept, k.sets, k.grades); sizesComplete(k);
+    return k;
   } catch { return undefined; }
 }
 

@@ -91,3 +91,19 @@ const plan = { mode: 'allocate_now' as const, allocation: { women: { M: 22 }, me
 const sized = placeOrder(c, 40, 42, grades, per, new Date('2026-09-02T10:00:00Z'), 'in_progress', plan);
 assert.deepEqual(sized.sizePlan, plan);
 assert.equal(sized.state, 'in_progress', 'complete sizes can move straight to in progress');
+
+// Timeline: exactly the reached steps, the current one as Now, delivery only at 100%.
+import { timeline as tl } from './order';
+{
+  const d = new Date('2026-09-02T10:00:00Z');
+  const base = placeOrder(CONCEPTS[0], 40, 42, [], 500, d);
+  const shape = (o: typeof base) => tl(o).map((x) => (x.reached ? 'R' : x.now ? 'N' : '-')).join('');
+  assert.equal(shape(base), 'RRRRN', 'collecting sizes: four reached, delivery is Now');
+  assert.equal(shape(placeOrder(CONCEPTS[0], 40, 42, [], 500, d, 'delivered')), 'RRRRR');
+  assert.equal(shape(placeOrder(CONCEPTS[0], 40, 42, [], 500, d, 'quote_ready')), 'RRN--');
+  assert.equal(shape(placeOrder(CONCEPTS[0], 40, 42, [], 500, d, 'quote_closed')), 'RR---', 'a closed quote has no Now');
+  const part = tl({ ...base, state: 'in_progress', perDelivered: 60, salesOrder: 'SAL-ORD-2026-00016' });
+  assert.equal(part[4].reached, false);
+  assert.equal(part[4].partial, 60);
+  assert.equal(part[3].doc, 'SAL-ORD-2026-00016');
+}

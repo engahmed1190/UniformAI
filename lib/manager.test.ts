@@ -85,6 +85,34 @@ assert.match(orderNote('en', placed), /23 Sep/, 'the note states the real due da
 assert.match(orderNote('en', sewing), /In production/, 'the note says where a production order is');
 assert.match(orderNote('en', { ...sewing, state: 'delivered' as const }), /Delivered/);
 
+// 7b. Every workflow state has its own note; quote_closed and delivered are not open.
+const ready = { ...placed, state: 'quote_ready' as const, total: 21000 };
+assert.match(orderNote('en', ready), /21,000/, 'quote ready names the quoted total');
+assert.match(orderNote('en', ready), /approve/i, 'quote ready asks for approval');
+assert.match(orderNote('en', { ...placed, state: 'awaiting' as const }), /UniformAI is confirming/);
+assert.match(orderNote('en', { ...placed, state: 'quote_requested' as const }), /pricing/);
+assert.match(orderNote('en', { ...placed, state: 'quote_closed' as const }), /closed/);
+assert.match(orderNote('en', { ...sewing, perDelivered: 60 }), /60% delivered/);
+for (const st of ['quote_requested', 'quote_ready', 'quote_closed', 'awaiting'] as const) {
+  assert.doesNotMatch(orderNote('en', { ...placed, state: st }), /collecting sizes/i, `${st} is not the sizes note`);
+}
+assert.match(greeting('en', 'Ahmed', [ready]), /quote/i, 'a ready quote leads the greeting');
+assert.match(greeting('en', 'Ahmed', [ready]), /approv/i);
+assert.doesNotMatch(greeting('en', 'Ahmed', [ready]), /sizes/);
+const closed = { ...placed, state: 'quote_closed' as const };
+assert.match(greeting('en', 'Ahmed', [closed, { ...placed, state: 'delivered' as const }]), /Nothing needs you/,
+  'closed and delivered orders need nobody');
+assert.match(greeting('en', 'Ahmed', [ready, placed]), /1 waiting for your approval/);
+for (const locale of ['en', 'ar'] as const) {
+  for (const st of ['quote_requested', 'quote_ready', 'quote_closed', 'awaiting', 'collecting_sizes', 'in_progress', 'delivered'] as const) {
+    const o = { ...placed, state: st };
+    for (const out of [orderNote(locale, o), greeting(locale, 'Ahmed', [o])]) {
+      assert.doesNotMatch(out, /ERP|manager\.|orders\./, `${st}/${locale} leaked a key or ERP: ${out}`);
+      if (locale === 'ar') assert.match(out, /[\u0600-\u06FF]/);
+    }
+  }
+}
+
 // 8. The quote note states the real spare count, not a hardcoded one.
 assert.match(quoteNote('en', c, 40, 44), /40 people plus 4 spare/);
 assert.match(quoteNote('en', c, 40, 40), /Covers 40 people\./);

@@ -25,7 +25,7 @@ import {
 } from '@/lib/spec';
 import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
 import { suggestions } from '@/lib/suggest';
-import { type Order, type Workflow, STEPS, placeOrder, revive, shortDate, status } from '@/lib/order';
+import { type Order, type Workflow, placeOrder, revive, shortDate, status, timeline } from '@/lib/order';
 import { ManagerNote } from '@/components/manager';
 import { useConfirm } from '@/components/confirm';
 import { Check } from '@/components/check';
@@ -541,8 +541,10 @@ function Home({
   onOrders: () => void;
 }) {
   const [text, setText] = useState('');
-  const sizing = orders.filter((o) => status(o) === 'collecting_sizes');
-  const making = orders.filter((o) => status(o) === 'in_progress');
+  const inState = (...w: Workflow[]) => orders.filter((o) => w.includes(status(o)));
+  const waiting = inState('quote_ready');
+  const withUs = inState('quote_requested', 'awaiting');
+  const making = inState('collecting_sizes', 'in_progress');
   const done = orders.filter((o) => status(o) === 'delivered');
   return (
     <>
@@ -589,10 +591,14 @@ function Home({
       <div className={s.stats}>
         <Stat label={t(locale, 'home.savedKits')} value={String(savedCount)} note={t(locale, 'home.savedKitsNote')} />
         {/* Every number here is counted from the orders, or an honest zero. */}
-        <Stat label={t(locale, 'home.collectingSizes')} value={String(sizing.length)}
-          note={sizing[0]
-            ? t(locale, 'home.orderLine', { id: sizing[0].id, sets: sizing[0].sets })
-            : t(locale, 'home.noneWaiting')} />
+        <Stat label={t(locale, 'home.waitingOnYou')} value={String(waiting.length)}
+          note={waiting[0]
+            ? t(locale, 'home.orderLine', { id: waiting[0].id, sets: waiting[0].sets })
+            : t(locale, 'home.noneOnYou')} />
+        <Stat label={t(locale, 'home.withUs')} value={String(withUs.length)}
+          note={withUs[0]
+            ? t(locale, 'home.orderLine', { id: withUs[0].id, sets: withUs[0].sets })
+            : t(locale, 'home.noneWithUs')} />
         <Stat label={t(locale, 'home.inProduction')} value={String(making.length)}
           note={making[0]
             ? t(locale, 'home.nextDue', { date: shortDay(making[0].due) })
@@ -723,9 +729,10 @@ const lastStep = (o: Order) =>
 
 function StatusPill({ order, locale }: { order: Order; locale: Locale }) {
   const st = status(order);
-  const tone = st === 'delivered' ? s.pillGood : st === 'collecting_sizes' ? s.pillWarn : '';
-  const key = st === 'delivered' ? 'delivered' : st === 'collecting_sizes' ? 'collectingSizes' : 'inProduction';
-  return <span className={`${s.pill} ${tone}`}>{t(locale, `statuses.${key}`)}</span>;
+  // Good: done. Warn: it is waiting on the customer. Plain: with us or closed.
+  const tone = st === 'delivered' ? s.pillGood
+    : st === 'quote_ready' || st === 'collecting_sizes' ? s.pillWarn : '';
+  return <span className={`${s.pill} ${tone}`}>{t(locale, `orders.state.${st}`)}</span>;
 }
 
 function Orders({ orders, onHome, locale, money, shortDay, onAsk, focus }: {
@@ -764,10 +771,9 @@ function Orders({ orders, onHome, locale, money, shortDay, onAsk, focus }: {
       </>
     );
   }
-  const reached = (i: number) => o.dates[STEPS[i]] !== undefined;
-  const nowAt = STEPS.findIndex((k) => !o.dates[k]);
-  const state = (i: number) => (nowAt < 0 || i < nowAt ? 'done' : i === nowAt ? 'now' : '');
-  const pct = o.perDelivered;
+  const steps = timeline(o);
+  const pct = Math.round(o.perDelivered);
+  const sized = o.state === 'collecting_sizes' || o.state === 'in_progress' || o.state === 'delivered';
   return (
     <>
       {head}
@@ -827,13 +833,14 @@ function Orders({ orders, onHome, locale, money, shortDay, onAsk, focus }: {
           </div>
         </div>
         <div className={s.timeline}>
-          {STEPS.map((key, i) => (
-            <div key={key} className={`${s.tStep} ${state(i) === 'done' ? s.tDone : state(i) === 'now' ? s.tNow : ''}`}>
-              <div className={s.tDot}>{state(i) === 'done' ? <Check /> : i + 1}</div>
-              <b>{t(locale, `orders.${key}`)}</b>
-              <small>{state(i) === 'now' && o.state !== 'delivered'
-                ? t(locale, 'orders.now')
-                : reached(i) ? shortDay(o.dates[STEPS[i]]!) : '—'}</small>
+          {steps.map((st, i) => (
+            <div key={st.key} className={`${s.tStep} ${st.reached ? s.tDone : st.now ? s.tNow : ''}`}>
+              <div className={s.tDot}>{st.reached ? <Check /> : i + 1}</div>
+              <b>{t(locale, `orders.step.${st.key}`)}</b>
+              <small>{st.reached && st.date ? shortDay(st.date)
+                : st.partial ? t(locale, 'orders.partDelivered', { pct: st.partial })
+                  : st.now ? t(locale, 'orders.now') : '—'}</small>
+              {st.doc && <small className={s.mono}>{st.doc}</small>}
             </div>
           ))}
         </div>
@@ -866,7 +873,7 @@ function Orders({ orders, onHome, locale, money, shortDay, onAsk, focus }: {
                       {/* An empty track next to "waiting on sizes" is a grey
                           stub that says nothing the words do not. */}
                       {pct > 0 && <div className={s.progressTrack}><i style={{ width: `${pct}%` }} /></div>}
-                      <span className={s.progressPct}>{pct === 0 ? t(locale, 'orders.waitingOnSizes') : `${pct}%`}</span>
+                      <span className={s.progressPct}>{pct > 0 ? `${pct}%` : sized ? t(locale, 'orders.waitingOnSizes') : '—'}</span>
                     </div>
                   </td>
                   <td data-label={t(locale, 'orders.colReady')} className={`${s.right} ${s.mono}`}>{shortDay(o.due)}</td>

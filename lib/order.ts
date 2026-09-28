@@ -63,6 +63,36 @@ export const LEAD_DAYS = 21;
 
 export const status = (o: Order): Workflow => o.state;
 
+export type TimelineStep = {
+  key: typeof STEPS[number];
+  reached: boolean;
+  /** The step the order is on: the first not reached. None once it is over. */
+  now: boolean;
+  /** The document that made the step happen, once it has. */
+  doc?: string;
+  date?: Date;
+  /** Delivery started but is not complete: 1-99. */
+  partial?: number;
+};
+
+/** What the Orders timeline draws. Delivery is reached only at 100%; a
+ *  partial delivery is In progress and says how much has arrived. */
+export function timeline(o: Order): TimelineStep[] {
+  const done = o.state === 'delivered' || o.perDelivered >= 100;
+  const over = done || o.state === 'quote_closed';
+  const reached = STEPS.map((k) => (k === 'delivered' ? done : o.dates[k] !== undefined));
+  const nowAt = over ? -1 : reached.indexOf(false);
+  const docs = { requested: o.quote, confirmed: o.salesOrder, delivered: o.deliveryNote } as const;
+  return STEPS.map((key, i) => ({
+    key,
+    reached: reached[i],
+    now: i === nowAt,
+    doc: reached[i] ? (docs as Partial<Record<string, string>>)[key] : undefined,
+    date: reached[i] ? o.dates[key] : undefined,
+    partial: key === 'delivered' && !done && o.perDelivered > 0 ? Math.round(o.perDelivered) : undefined,
+  }));
+}
+
 /** "23 Sep". Hand-rolled: en-GB Intl gives "Sept" on newer ICU. */
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 /** Day-of-year (001-366) then the second within that day, so an id is short,
@@ -116,7 +146,11 @@ export function placeOrder(
     concept, staff, sets, perPerson,
     total: perPerson * sets, estimate: perPerson * sets, sizePlan,
     placed: now, due, state, lines: orderLines(concept, sets, grades),
-    dates: { requested: now, issued: now, approved: now, confirmed: now },
+    // Only the steps this state has been through, so a sample never shows a
+    // step it has not reached.
+    dates: Object.fromEntries(STEPS.slice(0, {
+      quote_requested: 1, quote_ready: 2, quote_closed: 2, awaiting: 3, collecting_sizes: 4, in_progress: 4, delivered: 5,
+    }[state]).map((k) => [k, now])),
     perDelivered: state === 'delivered' ? 100 : 0,
   };
 }

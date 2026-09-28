@@ -420,7 +420,7 @@
 /* ---------- Stats ---------- */
 .stats {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   gap: 1px;
   background: var(--line);
   border: 1px solid var(--line);
@@ -2314,7 +2314,7 @@
 /* ---------- Order timeline ---------- */
 .timeline {
   display: grid;
-  grid-template-columns: repeat(6, 1fr);
+  grid-template-columns: repeat(5, 1fr);
   margin-top: var(--s5);
 }
 
@@ -2618,6 +2618,11 @@
   }
   .stats {
     grid-template-columns: 1fr 1fr;
+  }
+
+  /* Five stats in two columns: the odd one out spans the row. */
+  .stats > :last-child:nth-child(odd) {
+    grid-column: 1 / -1;
   }
 }
 

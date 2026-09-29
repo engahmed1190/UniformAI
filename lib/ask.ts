@@ -182,7 +182,8 @@ export type Option = { item: string; colours: string[]; sizes: string[] };
 
 /** What the buttons offer: the ready-stock garments with the colours and
  *  sizes their variants really have, so no button leads to a missing item.
- *  Made-to-order items are not variants and never appear. */
+ *  Made-to-order templates and the sized templates that carry a customer's
+ *  size run are not ready stock and are left out. */
 export async function options(): Promise<Option[]> {
   const templates = await list<ItemRow>('Item', {
     fields: ['name', 'item_name'], filters: [['has_variants', '=', 1]], limit: 100,

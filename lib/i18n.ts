@@ -181,10 +181,7 @@ const en = {
   erpAsk: {
     launcher: 'Ask your assistant', title: 'UniformAI Assistant', close: 'Close',
     live: 'Online, reading your live account', offline: 'Your account records are unavailable right now', probing: 'Connecting',
-    introTitle: 'What would you like to check?',
-    intro: 'Every answer is checked against our live records, and shows you exactly which records it came from.',
-    btnOrders: 'My orders', btnStock: 'Stock availability', btnPrice: 'Last price paid',
-    btnMenu: 'Menu', btnDetails: 'Details of {id}', btnAgain: 'Check again', btnAnother: 'Another item',
+    btnDetails: 'Details of {id}', btnAgain: 'Check again', btnAnother: 'Another item',
     pickGarment: 'Which garment?', pickColour: 'Which colour?', pickSize: 'Which size?',
     pickNone: 'We have no garments to choose from right now.',
     next: 'What next?',
@@ -699,10 +696,7 @@ const ar: Dict<typeof en> = {
   erpAsk: {
     launcher: 'اسأل مساعدك', title: 'مساعد UniformAI', close: 'إغلاق',
     live: 'متصل، يقرأ بيانات حسابك مباشرة', offline: 'بيانات حسابك غير متاحة الآن', probing: 'جارٍ الاتصال',
-    introTitle: 'ماذا تريد أن تتحقق منه؟',
-    intro: 'نتحقق من كل إجابة في سجلاتنا المباشرة، ونعرض لك السجلات التي بُنيت عليها بالتحديد.',
-    btnOrders: 'طلباتي', btnStock: 'توفر المخزون', btnPrice: 'آخر سعر دفعته',
-    btnMenu: 'القائمة', btnDetails: 'تفاصيل {id}', btnAgain: 'تحقق مرة أخرى', btnAnother: 'صنف آخر',
+    btnDetails: 'تفاصيل {id}', btnAgain: 'تحقق مرة أخرى', btnAnother: 'صنف آخر',
     pickGarment: 'أي قطعة؟', pickColour: 'أي لون؟', pickSize: 'أي مقاس؟',
     pickNone: 'لا توجد قطع للاختيار منها الآن.',
     next: 'ماذا بعد؟',

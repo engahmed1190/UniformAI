@@ -154,10 +154,6 @@ async function ensureCustomField(dt: string, fieldname: string, props: Record<st
   }
 }
 
-const SIZE_RUN = 'UniformAI Size Run';
-
-/** Insert-only record of the size breakdown a customer sent for an order.
- *  The app never writes the Sales Order; the team reads size runs here. */
 /** Create the attribute, or add the values an older seed's copy lacks. The
  *  whole child table is sent back, existing rows included, so none is lost. */
 async function ensureAttribute(attribute_name: string, values: string[]) {
@@ -179,6 +175,10 @@ async function ensureAttribute(attribute_name: string, values: string[]) {
   console.log(`${attribute_name}: added ${missing.join(', ')}`);
 }
 
+const SIZE_RUN = 'UniformAI Size Run';
+
+/** Insert-only record of the size breakdown a customer sent for an order.
+ *  The app never writes the Sales Order; the team reads size runs here. */
 async function ensureSizeRunDoctype() {
   if (await find('DocType', [['name', '=', SIZE_RUN]])) return;
   await create('DocType', {

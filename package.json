@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack -H 127.0.0.1 -p 3100",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H 127.0.0.1 -p 3100",
     "seed:erp": "tsx scripts/seed-erp.ts",
     "team": "tsx scripts/team.ts",
     "demo:check": "tsx scripts/demo-check.ts",

@@ -1687,6 +1687,7 @@
 
 .evTop {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: baseline;
   gap: var(--s3);
@@ -1710,7 +1711,27 @@
   font-family: var(--font-mono), monospace;
   font-size: var(--t-sm);
   color: var(--text);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+  unicode-bidi: isolate;
+}
+
+/* A document number or amount inside a sentence stays whole. */
+.evNum { white-space: nowrap; unicode-bidi: isolate; }
+/* One per turn, the scroll anchor; a column so the customer's bubble keeps its end alignment. */
+.evTurn { display: flex; flex-direction: column; }
+/* A read still running shows only the typing dots, not an empty gap. */
+.evTurn:has(> .evReply:empty) { display: none; }
+/* Read out by screen readers, not shown. */
+.srOnly, .evTyping .srOnly {
+  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+  animation: none; background: none;
+}
+
+@media (max-width: 760px) {
+  .evSuggest button, .evPanel button, .evCard > button, .evOpen { min-height: 44px; }
+  .dockClose { min-width: 44px; min-height: 44px; display: inline-grid; place-items: center; }
+  .evRun { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .evRun input, .evPanel input { min-height: 44px; }
 }
 
 .evQty {

@@ -17,11 +17,11 @@ export type Topic = 'general' | 'order' | 'billing';
 export type Act =
   | { k: 'menu' } | { k: 'more'; from?: number } | { k: 'orders' } | { k: 'order'; id: string } | { k: 'show'; id: string }
   | { k: 'stock' } | { k: 'price' } | { k: 'invoices' }
-  | { k: 'new' } | { k: 'people'; kit: string; people?: number } | { k: 'plan'; kit: string; people: number }
+  | { k: 'new' } | { k: 'people'; kit: string }
   | { k: 'requestQuote'; kit: string; people: number; sets: number }
   | { k: 'viewQuote'; quote: string } | { k: 'approve'; quote: string; total: number } | { k: 'approveNow'; quote: string }
   | { k: 'sizes'; order: string } | { k: 'sendSizes'; order: string; run: SizeAllocation }
-  | { k: 'contact'; topic: Topic; doc?: string } | { k: 'sendContact'; topic: Topic; doc?: string };
+  | { k: 'sendContact'; topic: Topic; doc?: string };
 export type Button = { label: string; act: Act; primary?: boolean };
 /** `card`, when set, shows under the sentence and holds the turn's one primary. */
 export type Turn = { say: string; buttons: Button[]; card?: Card };
@@ -29,7 +29,7 @@ export type Turn = { say: string; buttons: Button[]; card?: Card };
 const money = formatCurrency;
 const btn = (locale: Locale, key: string, act: Act, values?: Record<string, string | number>, primary = false): Button =>
   ({ label: t(locale, `journey.${key}`, values), act, ...(primary ? { primary } : {}) });
-const discuss = (locale: Locale, doc: string) => btn(locale, 'btnDiscuss', { k: 'contact', topic: 'order', doc });
+const discuss = (locale: Locale, doc: string) => btn(locale, 'btnDiscuss', { k: 'sendContact', topic: 'order', doc });
 
 const kitOf = (locale: Locale, o: Order) => (o.concept ? kitName(locale, o.concept.id) : docOf(o));
 
@@ -52,7 +52,7 @@ function homeButtons(locale: Locale, orders: Order[]): { shown: Button[]; rest: 
   const lead = [
     ...waiting.slice(0, 2),
     btn(locale, 'btnNew', { k: 'new' }),
-    btn(locale, 'btnContact', { k: 'contact', topic: 'general' }),
+    btn(locale, 'btnContact', { k: 'sendContact', topic: 'general' }),
     btn(locale, 'btnOrders', { k: 'orders' }),
   ];
   return { shown: lead.slice(0, 4), rest: [...waiting.slice(2), ...lead.slice(4)] };
@@ -96,10 +96,7 @@ export function planTurn(locale: Locale, kit: string, people: number): Turn {
   };
   return {
     say: t(locale, p.moqApplied ? 'journey.planMoq' : 'journey.plan', values),
-    buttons: [
-      btn(locale, 'btnRequest', { k: 'requestQuote', kit, people, sets: p.sets }, { sets: values.sets }, true),
-      btn(locale, 'btnChangePeople', { k: 'people', kit, people }),
-    ],
+    buttons: [btn(locale, 'btnRequest', { k: 'requestQuote', kit, people, sets: p.sets }, { sets: values.sets }, true)],
   };
 }
 
@@ -152,10 +149,12 @@ export const approveTurn = (locale: Locale, quote: string, total: number): Turn 
   ],
 });
 
-/** A turn whose buttons send something (a confirmation, a request): news
- *  must not replace it, or the pending write and what was typed are lost. */
+/** A turn whose buttons send something the customer confirmed or typed (a
+ *  confirmation, a request, a size run): news must not replace it, or the
+ *  pending write is lost. Contact is not one: it sends on its first tap, from
+ *  the greeting, with nothing typed. */
 export const holdsWrite = (buttons: Button[]): boolean =>
-  buttons.some((b) => ['approveNow', 'sendSizes', 'requestQuote', 'sendContact'].includes(b.act.k));
+  buttons.some((b) => ['approveNow', 'sendSizes', 'requestQuote'].includes(b.act.k));
 
 /** "Since we last spoke: …": one clause per change, and a button for what
  *  the customer can do about it (first one primary). */
@@ -182,18 +181,6 @@ export function newsTurn(locale: Locale, news: News[]): Turn {
   return { say: `${t(locale, 'journey.news.since')} ${news.map(line).join(locale === 'ar' ? '؛ ' : '; ')}.`, buttons };
 }
 
-export function contactTurn(locale: Locale, topic: Topic, doc?: string): Turn {
-  const say = doc ? t(locale, 'journey.contactAbout', { id: doc })
-    : t(locale, topic === 'billing' ? 'journey.contactBilling' : 'journey.contactGeneral');
-  return {
-    say,
-    buttons: [
-      btn(locale, 'btnContact', { k: 'sendContact', topic, ...(doc ? { doc } : {}) }, undefined, true),
-      btn(locale, 'btnNotNow', { k: 'menu' }),
-    ],
-  };
-}
-
 /** One line: what is late, if anything. The card carries the figures and the one action. */
 export function invoicesTurn(locale: Locale, invoices: Invoice[]): Turn {
   const open = invoices.filter((i) => i.status !== 'paid').length;
@@ -213,8 +200,11 @@ export const approvedTurn = (locale: Locale, o: Order): Turn =>
   ({ say: t(locale, 'journey.approved', { id: docOf(o) }), buttons: [showOrder(locale, o)] });
 export const sizesSentTurn = (locale: Locale, o: Order): Turn =>
   ({ say: t(locale, 'journey.sizesSent', { id: docOf(o), sets: countOf(locale, 'set', o.sets), date: formatDate(locale, o.due) }), buttons: [showOrder(locale, o)] });
-export const caseTurn = (locale: Locale, name: string): Turn =>
-  ({ say: t(locale, 'journey.caseSent', { id: name }), buttons: [] });
+/** The receipt: a case about a document names it. */
+export const caseTurn = (locale: Locale, name: string, doc?: string): Turn => ({
+  say: doc ? t(locale, 'journey.caseAbout', { id: name, doc }) : t(locale, 'journey.caseSent', { id: name }),
+  buttons: [],
+});
 export const failTurn = (locale: Locale, retry: Act): Turn =>
   ({ say: t(locale, 'journey.failed'), buttons: [btn(locale, 'btnRetry', retry, undefined, true)] });
 export const noOrderTurn = (locale: Locale): Turn =>

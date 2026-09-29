@@ -9,7 +9,7 @@ import type { Order, Workflow } from './order';
 import type { Invoice } from './invoices';
 import { LOCALES, type Locale } from './i18n';
 import {
-  type Turn, approveTurn, approvedTurn, caseTurn, contactTurn, failTurn, invoicesTurn, menuTurn, moreTurn,
+  type Turn, approveTurn, approvedTurn, caseTurn, failTurn, invoicesTurn, menuTurn, moreTurn,
   movedTurn, orderTurn, quoteShownTurn, refusedId, planTurn, quoteSentTurn, sizesSentTurn, teamTurn, waitingButtons, holdsWrite,
 } from './journey';
 
@@ -33,11 +33,11 @@ const primary = (turn: Turn) => turn.buttons.find((b) => b.primary)?.act;
 for (const locale of LOCALES as readonly Locale[]) {
   // Greeting: up to two waiting items, then New and Contact, then Orders; More holds the rest.
   let turn = keep(menuTurn(locale, [order('quote_ready'), order('collecting_sizes')], 15));
-  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['approve', 'sizes', 'new', 'contact', 'more']);
+  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['approve', 'sizes', 'new', 'sendContact', 'more']);
   assert.deepEqual(primary(turn), { k: 'approve', quote: 'SAL-QTN-2026-00031', total: 27300 });
   const three = [order('quote_ready'), order('collecting_sizes'), order('quote_ready', { quote: 'SAL-QTN-2026-00032' })];
   turn = keep(menuTurn(locale, three, 15));
-  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['approve', 'sizes', 'new', 'contact', 'more']);
+  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['approve', 'sizes', 'new', 'sendContact', 'more']);
   turn = keep(moreTurn(locale, three));
   assert.deepEqual(turn.buttons.map((b) => b.act), [
     { k: 'approve', quote: 'SAL-QTN-2026-00032', total: 27300 }, { k: 'orders' }, { k: 'invoices' }, { k: 'more', from: 3 },
@@ -45,7 +45,7 @@ for (const locale of LOCALES as readonly Locale[]) {
   turn = keep(moreTurn(locale, three, 3));
   assert.deepEqual(turn.buttons.map((b) => b.act.k), ['stock', 'price']);
   turn = keep(menuTurn(locale, [], 9));
-  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['new', 'contact', 'orders', 'more']);
+  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['new', 'sendContact', 'orders', 'more']);
   assert.equal(primary(turn), undefined);
   assert.match(turn.say, locale === 'en' ? /^Good morning, Mr\. Ahmed\./ : /^صباح الخير أستاذ أحمد\./);
   turn = keep(menuTurn(locale, [order('collecting_sizes')], 15, true));
@@ -60,14 +60,13 @@ for (const locale of LOCALES as readonly Locale[]) {
   assert.deepEqual(primary(turn), { k: 'requestQuote', kit: 'technicians', people: 40, sets: 42 });
   turn = keep(planTurn(locale, 'technicians', 6));
   assert.deepEqual(primary(turn), { k: 'requestQuote', kit: 'technicians', people: 6, sets: 10 });
-  assert.deepEqual(turn.buttons.find((b) => b.act.k === 'people')?.act, { k: 'people', kit: 'technicians', people: 6 },
-    'Change the number starts from the last number');
+  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['requestQuote'], 'the people form requests in one tap');
   keep(quoteSentTurn(locale, order('quote_requested')));
   turn = keep(orderTurn(locale, order('quote_requested')));
   assert.ok(!turn.buttons.some((b) => b.act.k === 'approve'), 'a draft quote is never approvable');
   turn = keep(orderTurn(locale, order('quote_ready')));
   assert.deepEqual(turn.card?.k === 'order' && turn.card.view.action?.act, { k: 'approve', quote: 'SAL-QTN-2026-00031', total: 27300 });
-  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['viewQuote', 'contact']);
+  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['viewQuote', 'sendContact']);
   // After the card: the review sentence and View are not repeated.
   turn = keep(quoteShownTurn(locale, order('quote_ready')));
   assert.ok(!turn.buttons.some((b) => b.act.k === 'viewQuote'));
@@ -97,19 +96,20 @@ for (const locale of LOCALES as readonly Locale[]) {
   keep(orderTurn(locale, order('in_progress')));
   keep(orderTurn(locale, order('in_progress', { perDelivered: 50 })));
   turn = keep(orderTurn(locale, order('delivered')));
-  assert.ok(turn.buttons.some((b) => b.act.k === 'contact'));
+  assert.ok(turn.buttons.some((b) => b.act.k === 'sendContact'));
   turn = keep(invoicesTurn(locale, invoices));
   assert.equal(turn.card?.k, 'invoices');
-  assert.deepEqual(turn.card?.k === 'invoices' && turn.card.view.action?.act, { k: 'contact', topic: 'billing', doc: 'ACC-SINV-2026-00006' },
+  assert.deepEqual(turn.card?.k === 'invoices' && turn.card.view.action?.act, { k: 'sendContact', topic: 'billing', doc: 'ACC-SINV-2026-00006' },
     'the case names the overdue invoice');
   turn = keep(invoicesTurn(locale, [invoices[2]]));
   assert.equal(turn.card?.k === 'invoices' && turn.card.view.action, undefined);
   assert.equal(invoicesTurn(locale, []).card, undefined);
 
-  // 5. Contact our team.
-  turn = keep(contactTurn(locale, 'order', 'SAL-ORD-2026-00011'));
-  assert.deepEqual(primary(turn), { k: 'sendContact', topic: 'order', doc: 'SAL-ORD-2026-00011' });
-  keep(contactTurn(locale, 'general'));
+  // 5. Contact our team: one tap sends, from the greeting and from Discuss.
+  assert.deepEqual(menuTurn(locale, [], 15).buttons.find((b) => b.act.k === 'sendContact')?.act, { k: 'sendContact', topic: 'general' });
+  assert.deepEqual(orderTurn(locale, order('awaiting')).buttons[0].act, { k: 'sendContact', topic: 'order', doc: 'SAL-ORD-2026-00011' });
+  turn = keep(caseTurn(locale, 'CASE-2026-00008', 'ACC-SINV-2026-00006'));
+  assert.ok(turn.say.includes('ACC-SINV-2026-00006') && turn.say.includes('CASE-2026-00008'));
   turn = keep(caseTurn(locale, 'CASE-2026-00007'));
   assert.ok(turn.say.includes('CASE-2026-00007'));
   keep(failTurn(locale, { k: 'menu' }));
@@ -132,7 +132,8 @@ for (const locale of LOCALES as readonly Locale[]) {
   assert.ok(holdsWrite(approveTurn(locale, 'Q', 27300).buttons));
   assert.ok(holdsWrite(failTurn(locale, { k: 'sendSizes', order: 'O', run: {} }).buttons), 'a size run to retry');
   assert.ok(holdsWrite(planTurn(locale, 'technicians', 40).buttons));
-  assert.ok(holdsWrite(contactTurn(locale, 'general').buttons));
+  // Contact sends on its first tap, with nothing typed: it may be replaced.
+  assert.ok(!holdsWrite(menuTurn(locale, [], 15).buttons));
   assert.ok(!holdsWrite(menuTurn(locale, [order('quote_ready')], 15).buttons));
   assert.ok(!holdsWrite(orderTurn(locale, order('quote_ready')).buttons));
 }

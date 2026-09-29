@@ -110,7 +110,7 @@ assert.equal(card.open, 'Open invoices: 3');
 assert.deepEqual(card.rows.map((r) => r.id), ['ACC-SINV-2026-00007', 'ACC-SINV-2026-00008', 'ACC-SINV-2026-00010']);
 assert.match(card.rows[0].note, /^Overdue since /);
 assert.equal(card.paid, 'Paid invoices: 1');
-assert.deepEqual(card.action?.act, { k: 'contact', topic: 'billing', doc: 'ACC-SINV-2026-00007' });
+assert.deepEqual(card.action?.act, { k: 'sendContact', topic: 'billing', doc: 'ACC-SINV-2026-00007' });
 assert.equal(card.action?.label, 'Discuss invoice ACC-SINV-2026-00007');
 assert.equal(invoicesCard('en', [invoices[3]]).action, undefined);
 

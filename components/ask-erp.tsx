@@ -11,13 +11,13 @@ import type { QuoteView } from '@/lib/quote-view';
 import type { Invoice } from '@/lib/invoices';
 import type { Card } from '@/lib/cards';
 import {
-  type Act, type Button, type Turn as JourneyTurn, approveTurn, approvedTurn, caseTurn, contactTurn, failTurn,
-  holdsWrite, invoicesTurn, menuTurn, moreTurn, movedTurn, newsTurn, noOrderTurn, orderTurn, planTurn, quoteSentTurn, quoteShownTurn, refusedId,
+  type Act, type Button, type Turn as JourneyTurn, approveTurn, approvedTurn, caseTurn, failTurn,
+  holdsWrite, invoicesTurn, menuTurn, moreTurn, movedTurn, newsTurn, noOrderTurn, orderTurn, quoteSentTurn, quoteShownTurn, refusedId,
   sizesSentTurn, teamTurn,
 } from '@/lib/journey';
 import { type News, type Seen, UPDATE_MS, newsSince, withOrder } from '@/lib/updates';
 import { typingMs } from '@/lib/pace';
-import { InvoicesCard, OrderCard, PeopleForm, QuoteCard, SizeRunCard } from './chat-actions';
+import { InvoicesCard, OrderCard, PeopleForm, QuoteCard, Rich, SizeRunCard } from './chat-actions';
 
 type Health = 'probing' | 'live' | 'offline';
 type Params = Record<string, string>;
@@ -41,7 +41,7 @@ type Turn = { role: 'user'; content: string } | { role: 'prompt'; content: strin
  *  `turn` carries its own buttons; `home` means it already is the menu. */
 type Stage =
   | { k: 'turn'; buttons: Button[]; home?: boolean }
-  | { k: 'people'; kit: string; people?: number }
+  | { k: 'people'; kit: string }
   | { k: 'sizes'; order: Order }
   | { k: 'garment'; intent: 'stock' | 'price'; from?: number }
   | { k: 'colour'; item: string }
@@ -142,7 +142,7 @@ function Reply({ turn, busy, locale, onRetry, onOpenOrder }: {
         </div>
       )}
 
-      {content && <p className={s.evAnswer} dir="auto">{content}</p>}
+      {content && <p className={s.evAnswer} dir="auto"><Rich text={content} /></p>}
 
       {content && (sources.length ? (
         <section className={s.evSources} aria-label={t(locale, 'erpAsk.evidence')}>
@@ -205,16 +205,33 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
     return () => { live = false; };
   }, [open]);
 
+  const reduced = () => typeof window !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Each new reply opens on its first line; a short one shows whole, with its
+  // buttons. `anchor` is the first turn added since the last run, past the
+  // customer's own words when a reply came with them (a read adds both).
+  const shown = useRef(0);
+  const anchor = useRef(0);
   useEffect(() => {
-    log.current?.scrollTo({ top: log.current.scrollHeight, behavior: 'smooth' });
-  }, [turns, busy, stage]);
+    const box = log.current;
+    if (!box) return;
+    if (turns.length < shown.current) { shown.current = 0; anchor.current = 0; }
+    if (turns.length > shown.current) {
+      const said = turns.findIndex((x, i) => i >= shown.current && x.role !== 'user');
+      anchor.current = said >= 0 ? said : shown.current;
+      shown.current = turns.length;
+    }
+    const el = box.querySelector<HTMLElement>(`[data-turn="${anchor.current}"]`);
+    const end = box.scrollHeight - box.clientHeight;
+    // A read still running has nothing on screen yet: show the typing dots.
+    const top = el?.getClientRects().length ? box.scrollTop + el.getBoundingClientRect().top - box.getBoundingClientRect().top - 8 : end;
+    box.scrollTo({ top: Math.min(top, end), behavior: reduced() ? 'auto' : 'smooth' });
+  }, [turns, busy, stage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const patchLast = (fn: (a: Answer) => Answer) => setTurns((all) => {
     const last = all[all.length - 1];
     return last && last.role === 'assistant' ? [...all.slice(0, -1), fn(last)] : all;
   });
 
-  const reduced = () => typeof window !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
   /** Wait out the rest of a person's pause; time already spent fetching counts. */
   const beat = async (text: string, started: number) => {
     const wait = typingMs(text, reduced()) - (Date.now() - started);
@@ -237,6 +254,12 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
     setStage(next);
   };
 
+  // React state disables the controls after render; this ref closes the
+  // same-tick double-click window before any write request can start.
+  const actionLock = useRef(false);
+  // Bumped by a language switch: a reply typed in the old language is dropped.
+  const langEpoch = useRef(0);
+
   /** One button, one read. `tapped` is what the customer's tap says in the
    *  chat; a retry replaces the failed answer instead of adding a new one. */
   const read = useCallback(async (intent: Intent, params: Params, tapped?: string, retry = false) => {
@@ -248,6 +271,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
     ]);
     setBusy(true);
     const started = Date.now();
+    const lang = langEpoch.current;
     try {
       const response = await fetch('/api/ask', {
         method: 'POST',
@@ -262,6 +286,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
       const changes = Object.fromEntries(changesSince(seen.current, data.sources));
       remember(seen.current, data.sources);
       await beat('', started);
+      if (langEpoch.current !== lang) return;
       patchLast((a) => ({ ...a, steps: [data.step], rows: data.rows, sources: data.sources, changes }));
       if (intent === 'orders') setStage({ k: 'orders', ids: (data.rows as { id: string }[]).slice(0, MAX_CARDS).map((r) => r.id) });
       else if (intent === 'stock') setStage({ k: 'stock' });
@@ -277,6 +302,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
         setStage(next);
       }
     } catch (error) {
+      if (langEpoch.current !== lang) return;
       const code = (error as { code?: string }).code;
       patchLast((a) => ({
         ...a, steps: a.steps.map((x) => ({ ...x, state: 'error' as const })),
@@ -288,9 +314,6 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
     }
   }, [busy, locale]);
 
-  // React state disables the controls after render; this ref closes the
-  // same-tick double-click window before any write request can start.
-  const actionLock = useRef(false);
 
   /** A journey turn: its sentence in the log, its buttons as the choices. */
   const say = (turn: JourneyTurn, home = false) => {
@@ -355,6 +378,10 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
    *  first. `tapped` is the button's label, echoed as the customer's words. */
   const act = async (a: Act, tapped?: string) => {
     if (busy || actionLock.current) return;
+    // A language switch while this reply is being typed restarts the chat in
+    // the new language; this reply, in the old one, is then dropped.
+    const lang = langEpoch.current;
+    const stale = () => langEpoch.current !== lang;
     if (a.k === 'orders') return void read('orders', {}, tapped);
     if (a.k === 'stock' || a.k === 'price') { purpose.current = a.k; return void read('options', {}, tapped); }
     echo(tapped);
@@ -364,16 +391,22 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
     epoch.current += 1;
     setBusy(true);
     const started = Date.now();
-    const reply = async (turn: JourneyTurn, home = false) => { await beat(turn.say, started); say(turn, home); };
-    const ask = async (content: string) => { await beat(content, started); setTurns((all) => [...all, { role: 'prompt', content }]); };
+    const reply = async (turn: JourneyTurn, home = false) => {
+      await beat(turn.say, started);
+      if (stale()) throw STALE;
+      say(turn, home);
+    };
+    const ask = async (content: string) => {
+      await beat(content, started);
+      if (stale()) throw STALE;
+      setTurns((all) => [...all, { role: 'prompt', content }]);
+    };
     try {
       if (a.k === 'new') await reply(teamTurn(locale));
-      else if (a.k === 'plan') await reply(planTurn(locale, a.kit, a.people));
       else if (a.k === 'approve') await reply(approveTurn(locale, a.quote, a.total));
-      else if (a.k === 'contact') await reply(contactTurn(locale, a.topic, a.doc));
       else if (a.k === 'people') {
         await ask(t(locale, 'journey.people'));
-        setStage({ k: 'people', kit: a.kit, ...(a.people ? { people: a.people } : {}) });
+        setStage({ k: 'people', kit: a.kit });
       } else if (a.k === 'more') {
         await reply(moreTurn(locale, await myOrders(), a.from));
       } else if (a.k === 'menu') {
@@ -387,6 +420,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
         const view = await api<QuoteView>(`/api/quotes/${encodeURIComponent(a.quote)}`);
         const o = findIn(await myOrders(), a.quote);
         await beat('', started);
+        if (stale()) throw STALE;
         setTurns((all) => [...all, { role: 'quote', view }]);
         say(o ? quoteShownTurn(locale, o) : noOrderTurn(locale));
       } else if (a.k === 'invoices') {
@@ -419,9 +453,10 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
         await reply(sizesSentTurn(locale, o));
       } else if (a.k === 'sendContact') {
         const c = await api<{ name: string }>('/api/contact', { topic: a.topic, ...(a.doc ? { document: a.doc } : {}) });
-        await reply(caseTurn(locale, c.name));
+        await reply(caseTurn(locale, c.name, a.doc));
       }
     } catch (error) {
+      if (stale()) return;
       // Refused (already approved, sizes already in, gone): not an outage.
       // Say where things stand instead of offering the same write again.
       const status = (error as { status?: number }).status;
@@ -430,7 +465,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
         try {
           const { orders, invoices } = await myAccount();
           return await reply(movedTurn(locale, findIn(orders, id), invoices ?? []));
-        } catch { /* the re-read failed too: that is an outage */ }
+        } catch { if (stale()) return; /* the re-read failed too: that is an outage */ }
       }
       // A failed menu is the menu: its Try again is the only way on.
       say(failTurn(locale, a), a.k === 'menu');
@@ -469,16 +504,22 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
     // reply rather than replacing what the customer is about to send.
     const { stage: at } = now.current;
     if (at.k !== 'turn' || holdsWrite(at.buttons)) return;
-    const turn = newsTurn(locale, news.current.splice(0));
-    // The news is typed like any reply; `reading` keeps a second look out
-    // until it has landed.
+    const told = news.current.splice(0);
+    const turn = newsTurn(locale, told);
+    // The news is typed like any reply; `reading` keeps a second look out and
+    // the lock keeps every tap out until it has landed.
+    const lang = langEpoch.current;
     reading.current = true;
+    actionLock.current = true;
     setBusy(true);
     try {
       await beat(turn.say, Date.now());
-      say(turn);
+      // A language switch mid-pause: the new greeting tells it instead.
+      if (langEpoch.current !== lang) news.current.unshift(...told);
+      else say(turn);
     } finally {
       reading.current = false;
+      actionLock.current = false;
       setBusy(false);
     }
   };
@@ -521,14 +562,17 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
 
   // First open, or a fresh start: the account manager greets and offers
   // what is waiting.
+  // `busy` too: a reply dropped by a language switch leaves the log empty
+  // once it lets go.
   useEffect(() => {
-    if (open && !turns.length) void actRef.current({ k: 'menu' });
-  }, [open, turns.length]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (open && !turns.length && !busy) void actRef.current({ k: 'menu' });
+  }, [open, turns.length, busy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // A language switch restarts the conversation in the new language: the
   // log holds sentences and labels already written in the old one.
   useEffect(() => {
     if (!turns.length) return;
+    langEpoch.current += 1;
     setTurns([]);
     seen.current.clear();
     setGarments([]);
@@ -656,39 +700,44 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
       </header>
 
       <div className={s.evBody} ref={log} aria-live="polite">
-        {turns.map((turn, index) => turn.role === 'user' ? (
-          <p key={index} className={`${s.msg} ${s.msgYou} ${s.evQuestion}`} dir="auto">{turn.content}</p>
-        ) : turn.role === 'prompt' ? (
-          <p key={index} className={s.evAnswer} dir="auto">{turn.content}</p>
-        ) : turn.role === 'quote' ? (
-          <QuoteCard key={index} view={turn.view} locale={locale} />
-        ) : turn.role === 'card' ? (
-          // Live only while it is the last thing said: an older card further
-          // up the log never offers a second Approve.
-          turn.card.k === 'order'
-            ? <OrderCard key={index} view={turn.card.view} live={!busy && index === turns.length - 1} onAct={(b) => void act(b.act, b.label)} />
-            : <InvoicesCard key={index} view={turn.card.view} live={!busy && index === turns.length - 1} onAct={(b) => void act(b.act, b.label)} />
-        ) : (
-          <Reply key={index} turn={turn} locale={locale} busy={busy && index === turns.length - 1}
-            onRetry={() => void read(turn.intent, turn.params, undefined, true)} onOpenOrder={onOpenOrder} />
+        {/* Each turn is a scroll anchor: a new reply opens on its first line. */}
+        {turns.map((turn, index) => (
+          <div key={index} data-turn={index} className={s.evTurn}>
+            {turn.role === 'user' ? (
+              <p className={`${s.msg} ${s.msgYou} ${s.evQuestion}`} dir="auto"><Rich text={turn.content} /></p>
+            ) : turn.role === 'prompt' ? (
+              <p className={s.evAnswer} dir="auto"><Rich text={turn.content} /></p>
+            ) : turn.role === 'quote' ? (
+              <QuoteCard view={turn.view} locale={locale} />
+            ) : turn.role === 'card' ? (
+              // Live only while it is the last thing said: an older card further
+              // up the log never offers a second Approve.
+              turn.card.k === 'order'
+                ? <OrderCard view={turn.card.view} live={!busy && index === turns.length - 1} onAct={(b) => void act(b.act, b.label)} />
+                : <InvoicesCard view={turn.card.view} live={!busy && index === turns.length - 1} onAct={(b) => void act(b.act, b.label)} />
+            ) : (
+              <Reply turn={turn} locale={locale} busy={busy && index === turns.length - 1}
+                onRetry={() => void read(turn.intent, turn.params, undefined, true)} onOpenOrder={onOpenOrder} />
+            )}
+          </div>
         ))}
         {!busy && stage.k === 'people' && (
-          <PeopleForm locale={locale} initial={stage.people}
-            onSubmit={(people) => void act({ k: 'plan', kit: stage.kit, people }, t(locale, 'journey.peopleEcho', { count: people }))} />
+          <PeopleForm key={stage.kit} locale={locale} kit={stage.kit} onRequest={(b) => void act(b.act, b.label)} />
         )}
         {!busy && stage.k === 'sizes' && (
           <SizeRunCard key={stage.order.id} order={stage.order} locale={locale}
             onSend={(run) => void act({ k: 'sendSizes', order: stage.order.salesOrder ?? stage.order.id, run }, t(locale, 'journey.btnSendRun'))} />
         )}
         {busy && (
-          <p className={s.evTyping} role="status" aria-label={t(locale, 'erpAsk.typing')}>
-            <span /><span /><span />
+          <p className={s.evTyping} role="status">
+            <span aria-hidden="true" /><span aria-hidden="true" /><span aria-hidden="true" />
+            <span className={s.srOnly}>{t(locale, 'erpAsk.typing')}</span>
           </p>
         )}
         {!busy && (
           <ul ref={choiceList} className={`${s.evSuggest} ${s.evChoices}`} aria-label={t(locale, 'erpAsk.next')}>
             {choices.map((c, i) => (
-              <li key={i}><button type="button" className={c.primary ? s.evPrimary : undefined} onClick={c.tap}>{c.label}</button></li>
+              <li key={i}><button type="button" className={c.primary ? s.evPrimary : undefined} onClick={c.tap}><Rich text={c.label} /></button></li>
             ))}
           </ul>
         )}
@@ -698,3 +747,6 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
 }
 
 type Choice = { label: string; tap: () => void; primary?: boolean };
+
+/** Thrown by a reply whose language was switched away mid-pause. */
+const STALE = new Error('stale');

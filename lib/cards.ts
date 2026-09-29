@@ -107,7 +107,7 @@ export function invoicesCard(locale: Locale, invoices: Invoice[]): InvoicesCardV
     ...(paid ? { paid: t(locale, 'journey.invCard.paid', { count: paid }) } : {}),
     ...(doc ? { action: {
       label: t(locale, 'journey.btnDiscussInvoice', { id: doc }),
-      act: { k: 'contact', topic: 'billing', doc }, primary: true,
+      act: { k: 'sendContact', topic: 'billing', doc }, primary: true,
     } } : {}),
   };
 }

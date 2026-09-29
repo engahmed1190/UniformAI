@@ -253,8 +253,17 @@ const en = {
     invRest: 'The rest are on time.', invOnTime: 'All your open invoices are on time.',
     invDue: 'Due {date}',
     card: {
-      production: 'In production', invoiced: 'Invoiced', you: 'Waiting on you',
-      team: 'With our team · usually within one working day', done: 'Complete', closed: 'Closed',
+      past: {
+        quote: 'Quote issued', approved: 'Approved by you', confirmed: 'Order confirmed', sizes: 'Sizes received',
+        production: 'Produced', delivered: 'Delivered', invoiced: 'Invoiced',
+      },
+      await: {
+        quote: 'Pricing by our team', approved: 'Your approval', confirmed: 'Confirmation by our team', sizes: 'Your sizes',
+        production: 'In production', delivered: 'Delivery', invoiced: 'Invoice',
+      },
+      step: 'Step {n} of {total} · {name}',
+      you: 'Waiting on you', team: 'With our team · usually within one working day', making: 'With our team',
+      done: 'Complete', closed: 'Closed',
       due: 'Expected delivery {date}', deliveredOn: 'Delivered {date}',
     },
     invCard: { outstanding: '{total} outstanding', open: 'Open invoices: {count}', paid: 'Paid invoices: {count}', lateSince: 'Overdue since {date}' },
@@ -782,8 +791,17 @@ const ar: Dict<typeof en> = {
     invRest: 'والباقي في موعده.', invOnTime: 'جميع فواتيركم المفتوحة في موعدها.',
     invDue: 'تستحق في {date}',
     card: {
-      production: 'قيد الإنتاج', invoiced: 'صدرت الفاتورة', you: 'بانتظاركم',
-      team: 'لدى فريقنا · عادةً خلال يوم عمل واحد', done: 'مكتمل', closed: 'مغلق',
+      past: {
+        quote: 'صدر عرض السعر', approved: 'تمت موافقتكم', confirmed: 'تم تأكيد الطلب', sizes: 'تم استلام المقاسات',
+        production: 'اكتمل الإنتاج', delivered: 'تم التسليم', invoiced: 'صدرت الفاتورة',
+      },
+      await: {
+        quote: 'التسعير لدى فريقنا', approved: 'موافقتكم', confirmed: 'التأكيد من فريقنا', sizes: 'مقاساتكم',
+        production: 'قيد الإنتاج', delivered: 'التسليم', invoiced: 'الفاتورة',
+      },
+      step: 'الخطوة {n} من {total} · {name}',
+      you: 'بانتظاركم', team: 'لدى فريقنا · عادةً خلال يوم عمل واحد', making: 'لدى فريقنا',
+      done: 'مكتمل', closed: 'مغلق',
       due: 'التسليم المتوقع {date}', deliveredOn: 'تم التسليم {date}',
     },
     invCard: { outstanding: 'المستحق {total}', open: 'الفواتير المفتوحة: {count}', paid: 'الفواتير المسدّدة: {count}', lateSince: 'متأخرة منذ {date}' },

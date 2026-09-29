@@ -62,17 +62,18 @@ export function OrderCard({ view, live, onAct }: { view: OrderCardView; live: bo
         <bdi className={s.evId}>{view.id}</bdi>
       </div>
       <p className={s.evMeta}>{view.meta}</p>
+      {/* Seven segments, no labels under them: the one line below names the
+          current step. Each segment keeps its name for hover and screen readers. */}
       <ol className={s.evSteps}>
         {view.steps.map((step) => (
-          <li key={step.key} aria-current={step.state === 'now' ? 'step' : undefined}
+          <li key={step.key} title={step.label} aria-current={step.state === 'now' ? 'step' : undefined}
             className={step.state === 'done' ? s.evStepDone : step.state === 'now' ? s.evStepNow : undefined}>
             <span>{step.label}</span>
           </li>
         ))}
       </ol>
-      <p className={s.evNext}>
-        {view.nowLabel && <b>{view.nowLabel} · </b>}{view.next}{view.date && <> · {view.date}</>}
-      </p>
+      {view.progress && <p className={s.evProgress}>{view.progress}</p>}
+      <p className={s.evNext}>{view.next}{view.date && <> · {view.date}</>}</p>
       {view.action && (
         <button type="button" className={s.evPrimary} disabled={!live} onClick={() => onAct(view.action!)}>{view.action.label}</button>
       )}

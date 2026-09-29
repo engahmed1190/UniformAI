@@ -8,22 +8,28 @@ import type { Button } from './journey';
 import { type Locale, countOf, formatCurrency, formatDate, formatDay, kitName, t } from './i18n';
 
 export type CardStepKey = 'quote' | 'approved' | 'confirmed' | 'sizes' | 'production' | 'delivered' | 'invoiced';
+export type Actor = 'you' | 'team';
+/** `label` is past wording once done ("Approved by you") and the awaited
+ *  wording otherwise ("Your approval"): the current step is never named as done. */
 export type CardStep = { key: CardStepKey; label: string; state: 'done' | 'now' | 'todo' };
 export type OrderCardView = {
   title: string; id: string; meta: string; steps: CardStep[];
-  nowLabel?: string; next: string; date?: string; action?: Button;
+  /** The current step: its awaited name, who owns it, and "Step 2 of 7 · Your approval". */
+  nowLabel?: string; actor?: Actor; progress?: string;
+  next: string; date?: string; action?: Button;
 };
 export type InvoiceRowView = { id: string; amount: string; status: InvoiceStatus; label: string; note: string };
 export type InvoicesCardView = { outstanding: string; open: string; rows: InvoiceRowView[]; paid?: string; action?: Button };
 export type Card = { k: 'order'; view: OrderCardView } | { k: 'invoices'; view: InvoicesCardView };
 
-/** Five labels are the Orders timeline's own; two are the card's. */
-const LABEL: Record<CardStepKey, string> = {
-  quote: 'orders.step.issued', approved: 'orders.step.approved', confirmed: 'orders.step.confirmed',
-  sizes: 'orders.step.sized', production: 'journey.card.production', delivered: 'orders.step.delivered',
-  invoiced: 'journey.card.invoiced',
+const KEYS: CardStepKey[] = ['quote', 'approved', 'confirmed', 'sizes', 'production', 'delivered', 'invoiced'];
+/** Who owns each step while it is the current one. */
+const ACTOR: Record<CardStepKey, Actor> = {
+  quote: 'team', approved: 'you', confirmed: 'team', sizes: 'you', production: 'team', delivered: 'team', invoiced: 'team',
 };
-const KEYS = Object.keys(LABEL) as CardStepKey[];
+/** Steps whose team answer comes within a working day; production and
+ *  delivery take until the delivery date instead. */
+const QUICK: CardStepKey[] = ['quote', 'confirmed', 'invoiced'];
 /** Steps each state has finished. From the workflow rather than timeline():
  *  a hand-made order with no quote is still past the quote. */
 const DONE: Record<Workflow, number> = {
@@ -42,10 +48,14 @@ export function orderCard(locale: Locale, o: Order, invoices: Invoice[]): OrderC
   const invoice = o.state === 'delivered' ? invoiceOf(o, invoices) : undefined;
   const done = DONE[o.state] + (invoice ? 1 : 0);
   const now = o.state === 'quote_closed' || done >= KEYS.length ? -1 : done;
-  const steps = KEYS.map((key, i): CardStep =>
-    ({ key, label: t(locale, LABEL[key]), state: i < done ? 'done' : i === now ? 'now' : 'todo' }));
-  const yours = o.state === 'quote_ready' || o.state === 'collecting_sizes';
-  const next = t(locale, `journey.card.${o.state === 'quote_closed' ? 'closed' : now < 0 ? 'done' : yours ? 'you' : 'team'}`);
+  const steps = KEYS.map((key, i): CardStep => {
+    const state = i < done ? 'done' : i === now ? 'now' : 'todo';
+    return { key, label: t(locale, `journey.card.${state === 'done' ? 'past' : 'await'}.${key}`), state };
+  });
+  const current = now >= 0 ? steps[now] : undefined;
+  const actor = current ? ACTOR[current.key] : undefined;
+  const next = t(locale, `journey.card.${o.state === 'quote_closed' ? 'closed' : !current ? 'done'
+    : actor === 'you' ? 'you' : QUICK.includes(current.key) ? 'team' : 'making'}`);
   const date = o.state === 'delivered'
     ? t(locale, 'journey.card.deliveredOn', { date: formatDate(locale, o.dates.delivered ?? o.due) })
     : DATED.includes(o.state) ? t(locale, 'journey.card.due', { date: formatDate(locale, o.due) }) : undefined;
@@ -61,7 +71,10 @@ export function orderCard(locale: Locale, o: Order, invoices: Invoice[]): OrderC
     id: docOf(o),
     meta: `${countOf(locale, 'set', o.sets)} · ${total}`,
     steps,
-    ...(now >= 0 ? { nowLabel: steps[now].label } : {}),
+    ...(current ? {
+      nowLabel: current.label, actor,
+      progress: t(locale, 'journey.card.step', { n: now + 1, total: KEYS.length, name: current.label }),
+    } : {}),
     next,
     ...(date ? { date } : {}),
     ...(action ? { action } : {}),

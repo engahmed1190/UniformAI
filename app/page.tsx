@@ -590,7 +590,7 @@ function Home({
           />
         ) : <p className={s.muted}>{t(locale, 'common.loading')}</p>
       ) : (
-        <ManagerNote locale={locale} tone="panel" intro note={greeting(locale, 'Ahmed', orders)} />
+        <ManagerNote locale={locale} tone="panel" intro note={greeting(locale, orders)} />
       )}
 
       {/* The primary job, first thing on the page. */}

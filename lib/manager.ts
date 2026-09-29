@@ -195,8 +195,10 @@ export function orderNote(locale: Locale, o: Order): string {
 }
 
 /** The greeting: what is open right now. Delivered and closed orders need nobody. */
-export function greeting(locale: Locale, name: string, orders: Order[]): string {
+export function greeting(locale: Locale, orders: Order[]): string {
   const hour = new Date().getHours();
+  // The same professional voice as the assistant: "Good afternoon, Mr. Ahmed".
+  const name = t(locale, 'manager.you');
   const part = t(locale, hour < 12 ? 'manager.morning' : hour < 18 ? 'manager.afternoon' : 'manager.evening');
   const open = orders.filter((o) => o.state !== 'delivered' && o.state !== 'quote_closed');
   if (open.length === 0) return t(locale, 'manager.greetNothing', { part, name });

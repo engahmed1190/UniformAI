@@ -33,7 +33,7 @@ const ARABIC = /[؀-ۿ]/;
 // to translate. Listed one by one so a genuinely untranslated string cannot
 // hide behind a blanket exemption. Their punctuation may still differ --
 // Arabic joins these two clauses with a full stop where English uses a dash.
-const NO_WORDS = new Set(['manager.whyWithDid', 'manager.whyPlain']);
+const NO_WORDS = new Set(['manager.whyWithDid', 'manager.whyPlain', 'manager.greetMany']);
 for (const key of arKeys) {
   if (NO_WORDS.has(key)) continue;
   const v = t('ar', key);

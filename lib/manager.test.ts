@@ -75,12 +75,16 @@ assert.match(stepAdvice('en', 2, lightTop, 0, hot, 40, 0.05), /show marks/);
 // is -- and nothing about an order that does not exist.
 import { sampleOrder as placeOrder } from './order-fixture';
 import { orderNote } from './manager';
-assert.match(greeting('en', 'Ahmed', []), /Nothing needs you today/);
-assert.doesNotMatch(greeting('en', 'Ahmed', []), /polos|8th/, 'no order, no order news');
+assert.match(greeting('en', []), /Nothing needs your attention today/);
+// The professional voice the assistant uses, in both languages.
+assert.match(greeting('en', []), /^Good (morning|afternoon|evening), Mr\. Ahmed\./);
+assert.match(greeting('ar', []), /^(صباح|مساء) الخير أستاذ أحمد\./);
+assert.doesNotMatch(greeting('ar', []), /Ahmed| يا /);
+assert.doesNotMatch(greeting('en', []), /polos|8th/, 'no order, no order news');
 const placed = placeOrder(c, 40, 42, [], 500, new Date('2026-09-02T10:00:00Z'));
 const sewing = placeOrder(c, 40, 42, [], 500, new Date('2026-08-20T10:00:00Z'), 'in_progress');
-assert.match(greeting('en', 'Ahmed', [placed]), /Front Office/, 'the greeting names the real order');
-assert.match(greeting('en', 'Ahmed', [placed, sewing]), /1 in production/, 'the greeting counts states');
+assert.match(greeting('en', [placed]), /Front Office/, 'the greeting names the real order');
+assert.match(greeting('en', [placed, sewing]), /1 in production/, 'the greeting counts states');
 assert.match(orderNote('en', placed), /23 Sep/, 'the note states the real due date');
 assert.match(orderNote('en', sewing), /In production/, 'the note says where a production order is');
 assert.match(orderNote('en', { ...sewing, state: 'delivered' as const }), /Delivered/);
@@ -101,17 +105,17 @@ assert.match(orderNote('en', { ...sewing, perDelivered: 60 }), /60% delivered/);
 for (const st of ['quote_requested', 'quote_ready', 'quote_closed', 'awaiting'] as const) {
   assert.doesNotMatch(orderNote('en', { ...placed, state: st }), /collecting sizes/i, `${st} is not the sizes note`);
 }
-assert.match(greeting('en', 'Ahmed', [ready]), /quote/i, 'a ready quote leads the greeting');
-assert.match(greeting('en', 'Ahmed', [ready]), /approv/i);
-assert.doesNotMatch(greeting('en', 'Ahmed', [ready]), /sizes/);
+assert.match(greeting('en', [ready]), /quote/i, 'a ready quote leads the greeting');
+assert.match(greeting('en', [ready]), /approv/i);
+assert.doesNotMatch(greeting('en', [ready]), /sizes/);
 const closed = { ...placed, state: 'quote_closed' as const };
-assert.match(greeting('en', 'Ahmed', [closed, { ...placed, state: 'delivered' as const }]), /Nothing needs you/,
+assert.match(greeting('en', [closed, { ...placed, state: 'delivered' as const }]), /Nothing needs your attention/,
   'closed and delivered orders need nobody');
-assert.match(greeting('en', 'Ahmed', [ready, placed]), /1 waiting for your approval/);
+assert.match(greeting('en', [ready, placed]), /1 waiting for your approval/);
 for (const locale of ['en', 'ar'] as const) {
   for (const st of ['quote_requested', 'quote_ready', 'quote_closed', 'awaiting', 'collecting_sizes', 'in_progress', 'delivered'] as const) {
     const o = { ...placed, state: st };
-    for (const out of [orderNote(locale, o), greeting(locale, 'Ahmed', [o])]) {
+    for (const out of [orderNote(locale, o), greeting(locale, [o])]) {
       assert.doesNotMatch(out, /ERP|manager\.|orders\./, `${st}/${locale} leaked a key or ERP: ${out}`);
       if (locale === 'ar') assert.match(out, /[\u0600-\u06FF]/);
     }
@@ -175,8 +179,8 @@ for (const [locale, brief] of [['en', hot], ['ar', hotAr]] as [Locale, string][]
     check(`stepAdvice(${step})`, stepAdvice(locale, step, c, 0, brief, 40, 0.05));
   }
   check('quoteNote', quoteNote(locale, c, 40, 44));
-  check('greeting', greeting(locale, 'Ahmed', [placed]));
-  check('greeting(none)', greeting(locale, 'Ahmed', []));
+  check('greeting', greeting(locale, [placed]));
+  check('greeting(none)', greeting(locale, []));
   check('orderNote', orderNote(locale, placed));
   check('orderNote(sewing)', orderNote(locale, sewing));
   check('orderNote(done)', orderNote(locale, { ...sewing, state: 'delivered' as const }));

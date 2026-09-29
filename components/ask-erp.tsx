@@ -12,7 +12,7 @@ import type { Invoice } from '@/lib/invoices';
 import type { SizeAllocation } from '@/lib/spec';
 import {
   type Act, type Button, type Turn as JourneyTurn, approveTurn, approvedTurn, caseTurn, contactTurn, failTurn,
-  invoicesTurn, menuTurn, moreTurn, movedTurn, newsTurn, noOrderTurn, orderTurn, planTurn, quoteSentTurn, quoteShownTurn, refusedId,
+  holdsWrite, invoicesTurn, menuTurn, moreTurn, movedTurn, newsTurn, noOrderTurn, orderTurn, planTurn, quoteSentTurn, quoteShownTurn, refusedId,
   sizeConfirmTurn, sizesSentTurn, teamTurn,
 } from '@/lib/journey';
 import { type News, type Seen, UPDATE_MS, newsSince, withOrder } from '@/lib/updates';
@@ -476,19 +476,26 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
 
   /** Look again; tell the news now (open, on a button turn), later (mid-form),
    *  or with the launcher's dot (closed). */
+  const reading = useRef(false);
   const refresh = async () => {
-    if (busy || actionLock.current || !known.current) return;
+    // One look at a time: focus and visibilitychange fire together, and an
+    // older answer landing last would roll `known` back and repeat news.
+    if (busy || actionLock.current || reading.current || !known.current) return;
     const started = epoch.current;
+    reading.current = true;
     let read: Awaited<ReturnType<typeof readAccount>>;
-    try { read = await readAccount(); } catch { return; }
+    try { read = await readAccount(); } catch { return; } finally { reading.current = false; }
     // An act ran while this read was in flight: drop it, never learn it.
     if (epoch.current !== started || actionLock.current || now.current.busy) return;
     readOrders.current = true;
     learn(...read);
     if (!news.current.length) return;
     if (!now.current.open) return setUnread(true);
-    // Mid-form (people, sizes, a stock pick) the news waits for the next reply.
-    if (now.current.stage.k === 'turn') say(newsTurn(locale, news.current.splice(0)));
+    // Mid-form (people, sizes, a stock pick) or on a confirmation that holds
+    // a write (Yes, approve; Send the size run), the news waits for the next
+    // reply rather than replacing what the customer is about to send.
+    const { stage: at } = now.current;
+    if (at.k === 'turn' && !holdsWrite(at.buttons)) say(newsTurn(locale, news.current.splice(0)));
   };
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;

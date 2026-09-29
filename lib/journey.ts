@@ -155,6 +155,11 @@ export const approveTurn = (locale: Locale, quote: string, total: number): Turn 
   ],
 });
 
+/** A turn whose buttons send something (a confirmation, a request): news
+ *  must not replace it, or the pending write and what was typed are lost. */
+export const holdsWrite = (buttons: Button[]): boolean =>
+  buttons.some((b) => ['approveNow', 'sendSizes', 'requestQuote', 'sendContact'].includes(b.act.k));
+
 /** "Since we last spoke: …": one clause per change, and a button for what
  *  the customer can do about it (first one primary). */
 export function newsTurn(locale: Locale, news: News[]): Turn {

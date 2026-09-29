@@ -10,7 +10,7 @@ import type { Invoice } from './invoices';
 import { LOCALES, type Locale } from './i18n';
 import {
   type Turn, approveTurn, approvedTurn, caseTurn, contactTurn, failTurn, invoicesTurn, menuTurn, moreTurn,
-  movedTurn, orderTurn, quoteShownTurn, refusedId, planTurn, quoteSentTurn, sizeConfirmTurn, sizesSentTurn, teamTurn, waitingButtons,
+  movedTurn, orderTurn, quoteShownTurn, refusedId, planTurn, quoteSentTurn, sizeConfirmTurn, sizesSentTurn, teamTurn, waitingButtons, holdsWrite,
 } from './journey';
 
 const QUOTE_STATES: Workflow[] = ['quote_requested', 'quote_ready', 'quote_closed'];
@@ -129,6 +129,16 @@ assert.equal(refusedId({ k: 'approveNow', quote: 'Q1' }), 'Q1');
 assert.equal(refusedId({ k: 'sendSizes', order: 'O1', run: {} }), 'O1');
 assert.equal(refusedId({ k: 'viewQuote', quote: 'Q2' }), 'Q2');
 assert.equal(refusedId({ k: 'menu' }), undefined);
+
+// News waits behind a turn that holds a write; it may replace a plain turn.
+for (const locale of LOCALES as readonly Locale[]) {
+  assert.ok(holdsWrite(approveTurn(locale, 'Q', 27300).buttons));
+  assert.ok(holdsWrite(sizeConfirmTurn(locale, order('collecting_sizes'), { men: { M: 1 } }).buttons));
+  assert.ok(holdsWrite(planTurn(locale, 'technicians', 40).buttons));
+  assert.ok(holdsWrite(contactTurn(locale, 'general').buttons));
+  assert.ok(!holdsWrite(menuTurn(locale, [order('quote_ready')], 15).buttons));
+  assert.ok(!holdsWrite(orderTurn(locale, order('quote_ready')).buttons));
+}
 
 // English specifics a customer would read.
 assert.match(approveTurn('en', 'Q', 27300).buttons[1].label, /^Yes, approve EGP.27,300$/);

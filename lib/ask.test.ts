@@ -26,6 +26,8 @@ async function main() {
   replies = [[], [], []];
   await run('orders', { customer: 'Delta Hotels' });
   for (const call of seen) {
+    // The size-run read is scoped by the customer's own sales orders, not a customer filter.
+    if (call.url.pathname.includes('UniformAI%20Size%20Run')) continue;
     assert.ok(JSON.stringify(JSON.parse(call.url.searchParams.get('filters')!)).includes('BrainWise Technology'));
   }
   let filters: unknown[][];

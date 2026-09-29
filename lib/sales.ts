@@ -4,7 +4,9 @@
 // the request body.
 
 import { acceptsSets } from './policy';
-import { call, get, insert, list } from './erp';
+import { ErpError, call, get, insert, list } from './erp';
+import { type Invoice, type InvoiceRow, toInvoice } from './invoices';
+import { type QuoteView, toQuoteView } from './quote-view';
 import { type Kit, type DeliveryRow, type QuoteRow, type SalesOrderRow, kitEstimate, kitLines, toOrders } from './orders';
 import type { Order } from './order';
 import {
@@ -39,8 +41,44 @@ function isoDay(offset = 0): string {
 type SalesOrderListRow = Omit<SalesOrderRow, 'quotation'> & { prevdoc_docname?: string | null };
 type DeliveryListRow = Omit<DeliveryRow, 'against_sales_order'> & { against_sales_order?: string | null };
 
+export const SIZE_RUN = 'UniformAI Size Run';
+
+type StoredRun = { sales_order: string; allocation: string };
+
+/** Stored runs are only evidence that sizes are complete when every cut and
+ *  size belongs to the order, counts are non-negative integers, and the total
+ *  matches the order. */
+function storedRunTotal(value: string, allowedCuts: ReadonlySet<string>): number | null {
+  try {
+    const cuts = JSON.parse(value) as unknown;
+    if (!cuts || typeof cuts !== 'object' || Array.isArray(cuts)) return null;
+    let total = 0;
+    for (const [cut, sizes] of Object.entries(cuts)) {
+      if (!allowedCuts.has(cut)) return null;
+      if (!sizes || typeof sizes !== 'object' || Array.isArray(sizes)) return null;
+      for (const [size, count] of Object.entries(sizes)) {
+        if (!(SIZES as readonly string[]).includes(size)) return null;
+        if (!Number.isInteger(count) || (count as number) < 0) return null;
+        total += count as number;
+      }
+    }
+    return total;
+  } catch { return null; }
+}
+
+/** Orders with stored size-run data. A site seeded before the doctype existed
+ *  answers 403 or 404: that is "no runs yet", not an outage. */
+async function sizeRuns(): Promise<StoredRun[]> {
+  try {
+    return await list<StoredRun>(SIZE_RUN, { fields: ['sales_order', 'allocation'], orderBy: 'creation desc', limit: 2000 });
+  } catch (error) {
+    if (error instanceof ErpError && (error.status === 403 || error.status === 404)) return [];
+    throw error;
+  }
+}
+
 export async function listOrders(): Promise<Order[]> {
-  const [quotes, orderRows, noteRows] = await Promise.all([
+  const [quotes, orderRows, noteRows, runs] = await Promise.all([
     list<QuoteRow>('Quotation', {
       fields: ['name', 'party_name', 'status', 'docstatus', 'transaction_date', 'valid_till',
         'grand_total', 'uniformai_kit', 'uniformai_ref'],
@@ -58,6 +96,7 @@ export async function listOrders(): Promise<Order[]> {
       filters: [['customer', '=', CUSTOMER], ['docstatus', '=', 1]],
       orderBy: 'posting_date desc', limit: 2000,
     }),
+    sizeRuns(),
   ]);
 
   // Frappe returns one row per item line: fold them back to one per document.
@@ -76,13 +115,49 @@ export async function listOrders(): Promise<Order[]> {
     noted.add(key);
     notes.push({ ...row, against_sales_order: row.against_sales_order });
   }
-  return toOrders(quotes, [...orders.values()], notes);
+  // Rebuilt once more on purpose: stored runs are validated against the set
+  // count read from the customer's order, so malformed or manual records do
+  // not advance its state.
+  const base = toOrders(quotes, [...orders.values()], notes);
+  const bySalesOrder = new Map(base.flatMap((o) => o.salesOrder ? [[o.salesOrder, o] as const] : []));
+  const sized = new Set(runs.flatMap((run) => {
+    const order = bySalesOrder.get(run.sales_order);
+    if (!order?.concept) return [];
+    const cuts = new Set(order.concept.cuts?.length ? order.concept.cuts : ['men', 'women']);
+    return storedRunTotal(run.allocation, cuts) === order.sets ? [run.sales_order] : [];
+  }));
+  return toOrders(quotes, [...orders.values()], notes, sized);
 }
 
 async function chainOf(quote: string): Promise<Order> {
   const order = (await listOrders()).find((o) => o.quote === quote);
   if (!order) throw new SalesError('Quote not found', 404);
   return order;
+}
+
+/** An issued quotation of the customer's. Missing, another customer's and
+ *  not yet issued all read as not found. */
+export async function quoteDetail(name: string): Promise<QuoteView> {
+  let doc: Record<string, unknown>;
+  try {
+    doc = await get<Record<string, unknown>>('Quotation', name);
+  } catch (error) {
+    if ((error as { status?: number }).status === 404) throw new SalesError('Quote not found', 404);
+    throw error;
+  }
+  if (doc.party_name !== CUSTOMER || doc.docstatus !== 1) throw new SalesError('Quote not found', 404);
+  return toQuoteView(doc);
+}
+
+/** The customer's submitted invoices, newest first, with a derived status. */
+export async function listInvoices(): Promise<Invoice[]> {
+  const rows = await list<InvoiceRow>('Sales Invoice', {
+    fields: ['name', 'posting_date', 'due_date', 'grand_total', 'outstanding_amount'],
+    filters: [['customer', '=', CUSTOMER], ['docstatus', '=', 1], ['is_return', '=', 0]],
+    orderBy: 'posting_date desc', limit: 50,
+  });
+  const today = isoDay();
+  return rows.map((r) => toInvoice(r, today));
 }
 
 // ---- request a quote ---------------------------------------------------------

@@ -85,7 +85,11 @@ const sizesComplete = (kit?: Kit) => {
 /** Each Sales Order, and each Quotation still waiting for one, becomes an
  *  order, newest first. Cancelled documents and draft Delivery Notes are
  *  not part of the story. */
-export function toOrders(quotes: QuoteRow[], orders: SalesOrderRow[], deliveries: DeliveryRow[]): Order[] {
+export function toOrders(
+  quotes: QuoteRow[], orders: SalesOrderRow[], deliveries: DeliveryRow[],
+  /** Sales Orders with a size run on record: their sizes are complete. */
+  sized: ReadonlySet<string> = new Set(),
+): Order[] {
   const liveQuotes = quotes.filter((q) => q.docstatus !== 2);
   const liveOrders = orders.filter((o) => o.docstatus !== 2);
   const submitted = deliveries.filter((d) => d.docstatus === 1);
@@ -105,7 +109,7 @@ export function toOrders(quotes: QuoteRow[], orders: SalesOrderRow[], deliveries
     if (o) {
       state = o.docstatus === 0 ? 'awaiting'
         : perDelivered >= 100 ? 'delivered'
-        : sizesComplete(kit) ? 'in_progress' : 'collecting_sizes';
+        : sizesComplete(kit) || sized.has(o.name) ? 'in_progress' : 'collecting_sizes';
     } else {
       state = q!.docstatus === 0 ? 'quote_requested'
         : q!.status === 'Lost' || q!.status === 'Expired' || (q!.valid_till && q!.valid_till < today) ? 'quote_closed'

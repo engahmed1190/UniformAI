@@ -8,7 +8,7 @@ import type { Invoice } from './invoices';
 import { CONCEPTS } from './concepts';
 import { type GarmentCut, type SizeAllocation, SIZES, conceptPriceAt } from './spec';
 import { POLICY, plan } from './policy';
-import { type Locale, formatCurrency, formatDate, kitName, t } from './i18n';
+import { type Locale, countOf, formatCurrency, formatDate, kitName, t } from './i18n';
 import { greeting } from './manager';
 import type { News } from './updates';
 
@@ -90,25 +90,27 @@ export function planTurn(locale: Locale, kit: string, people: number): Turn {
   const p = plan(people);
   const concept = CONCEPTS.find((c) => c.id === kit) ?? CONCEPTS[0];
   const values = {
-    people: p.people, sets: p.sets, spare: p.spareSets, min: POLICY.minimumSets,
+    people: countOf(locale, 'person', p.people), sets: countOf(locale, 'set', p.sets),
+    spare: countOf(locale, 'set', p.spareSets), min: countOf(locale, 'set', POLICY.minimumSets),
     price: money(locale, conceptPriceAt(concept, []) * p.sets),
   };
   return {
     say: t(locale, p.moqApplied ? 'journey.planMoq' : 'journey.plan', values),
     buttons: [
-      btn(locale, 'btnRequest', { k: 'requestQuote', kit, people, sets: p.sets }, { sets: p.sets }, true),
+      btn(locale, 'btnRequest', { k: 'requestQuote', kit, people, sets: p.sets }, { sets: values.sets }, true),
       btn(locale, 'btnChangePeople', { k: 'people', kit, people }),
     ],
   };
 }
 
-/** Where an order is, who owns the next step, and the buttons for it. */
-export function orderTurn(locale: Locale, o: Order): Turn {
+/** Where an order is, who owns the next step, and the buttons for it. A
+ *  delivered order names its invoice when one is linked to it. */
+export function orderTurn(locale: Locale, o: Order, invoices: Invoice[] = []): Turn {
   const id = docOf(o);
   const quote = o.quote ?? id;
   const total = money(locale, o.total);
   const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  const values = { id, quote, total, sets: o.sets, date: day(locale, iso(o.due)), pct: Math.round(o.perDelivered) };
+  const values = { id, quote, total, sets: countOf(locale, 'set', o.sets), date: day(locale, iso(o.due)), pct: Math.round(o.perDelivered) };
   const say = (key: string, extra = {}) => t(locale, `journey.stage.${key}`, { ...values, ...extra });
   if (o.state === 'quote_ready') {
     return {
@@ -127,8 +129,12 @@ export function orderTurn(locale: Locale, o: Order): Turn {
     };
   }
   if (o.state === 'delivered') {
+    const invoice = invoices.find((i) => !!i.order && i.order === o.salesOrder);
+    const tail = invoice
+      ? say('deliveredInvoice', { invoice: invoice.name, total: money(locale, invoice.total), date: day(locale, invoice.due) })
+      : say('deliveredNoInvoice');
     return {
-      say: say('delivered', { date: day(locale, iso(o.dates.delivered ?? o.due)) }),
+      say: `${say('delivered', { date: day(locale, iso(o.dates.delivered ?? o.due)) })} ${tail}`,
       buttons: [btn(locale, 'btnInvoices', { k: 'invoices' }), discuss(locale, id)],
     };
   }
@@ -242,7 +248,7 @@ export const quoteSentTurn = (locale: Locale, o: Order): Turn =>
 export const approvedTurn = (locale: Locale, o: Order): Turn =>
   ({ say: t(locale, 'journey.approved', { id: docOf(o) }), buttons: [showOrder(locale, o)] });
 export const sizesSentTurn = (locale: Locale, o: Order): Turn =>
-  ({ say: t(locale, 'journey.sizesSent', { id: docOf(o), sets: o.sets }), buttons: [showOrder(locale, o)] });
+  ({ say: t(locale, 'journey.sizesSent', { id: docOf(o), sets: countOf(locale, 'set', o.sets), date: formatDate(locale, o.due) }), buttons: [showOrder(locale, o)] });
 export const caseTurn = (locale: Locale, name: string): Turn =>
   ({ say: t(locale, 'journey.caseSent', { id: name }), buttons: [] });
 export const failTurn = (locale: Locale, retry: Act): Turn =>

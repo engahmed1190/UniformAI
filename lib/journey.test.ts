@@ -142,10 +142,31 @@ for (const locale of LOCALES as readonly Locale[]) {
 
 // English specifics a customer would read.
 assert.match(approveTurn('en', 'Q', 27300).buttons[1].label, /^Yes, approve EGP.27,300$/);
-assert.match(movedTurn('en', order('awaiting')).say, /^This has already moved on, so I have made no change\. I have received/);
+assert.match(movedTurn('en', order('awaiting')).say, /^This has already moved on, so I have made no change\. Order SAL-ORD-2026-00011 is with our team;/);
 assert.match(planTurn('en', 'technicians', 6).say, /minimum .* 10 sets/);
 assert.match(invoicesTurn('en', invoices).say, /not yet paid.*Open invoices: 2.*Past due: 1/);
 assert.equal(invoicesTurn('en', [invoices[2]]).say, 'Your latest invoice, ACC-SINV-2026-00005, is paid. You have no unpaid invoices.');
+
+// Every reply says who acts next and when.
+const bill: Invoice = { name: 'ACC-SINV-2026-00010', date: '2026-09-29', due: '2026-10-29', total: 14345,
+  outstanding: 14345, status: 'unpaid', order: 'SAL-ORD-2026-00011' };
+assert.match(orderTurn('en', order('delivered'), [bill]).say,
+  /Invoice ACC-SINV-2026-00010 for EGP.14,345 is attached to this delivery, due on 29 Oct\.$/);
+assert.match(orderTurn('en', order('delivered')).say, /accounts team will send the invoice within one working day\.$/);
+for (const state of ['quote_requested', 'quote_ready', 'awaiting'] as Workflow[]) {
+  assert.match(orderTurn('en', order(state)).say, /within one working day/, state);
+}
+assert.match(orderTurn('en', order('collecting_sizes')).say, /next step is yours/);
+assert.match(orderTurn('en', order('in_progress')).say, /Nothing else is needed from you\.$/);
+assert.match(quoteSentTurn('en', order('quote_requested')).say, /within one working day.*approve\.$/);
+assert.match(approvedTurn('en', order('awaiting')).say, /within one working day, and then I will ask you for the sizes\.$/);
+assert.match(sizesSentTurn('en', order('in_progress')).say, /Production starts now; expected delivery .+\. Nothing else is needed from you\.$/);
+assert.match(caseTurn('en', 'CASE-2026-00007').say, /within one working day\.$/);
+// Arabic counts and wording from the audit.
+assert.ok(planTurn('ar', 'technicians', 18).say.includes('لفريق من 18 موظفًا'));
+assert.ok(planTurn('ar', 'technicians', 18).say.includes('19 طقمًا'));
+assert.ok(!planTurn('ar', 'technicians', 18).say.includes('من الأطقم'));
+assert.ok(caseTurn('ar', 'CASE-2026-00007').say.includes('أحلت طلب التواصل'));
 
 // The voice rules, over every turn above.
 for (const turn of all) {
@@ -153,7 +174,7 @@ for (const turn of all) {
   assert.ok(turn.buttons.filter((b) => b.primary).length <= 1, `two primaries: ${turn.say}`);
   for (const text of [turn.say, ...turn.buttons.map((b) => b.label)]) {
     assert.ok(text.trim(), 'empty text');
-    assert.doesNotMatch(text, /ERPNext|UA-|https?:|journey\.|\{\w+\}|Draft|To Deliver/, text);
+    assert.doesNotMatch(text, /ERPNext|UA-|https?:|journey\.|\{\w+\}|Draft|To Deliver|Based on \d+ records?|Records checked|found in|Checked at/, text);
   }
 }
 

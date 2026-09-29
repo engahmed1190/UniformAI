@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict';
 import {
   type Locale, LOCALES, t, dir, translations,
-  formatCurrency, formatNumber, formatDate, spareMessage,
+  formatCurrency, formatNumber, formatDate, spareMessage, countOf,
 } from './i18n';
 
 // 1. Direction. The whole RTL layer hangs off this one function.
@@ -123,3 +123,16 @@ for (const key of enKeys) {
 // the waw to the next word, which is right for Arabic and wrong here: these
 // join Latin catalogue names, and "GSM وCotton Twill" runs them together.
 assert.equal(t('ar', 'reply.and'), ' و ', 'the waw is spaced before a Latin name');
+
+// Counted nouns: Arabic has five forms, and "19 من الأطقم" was not one of them.
+assert.equal(countOf('en', 'set', 1), '1 set');
+assert.equal(countOf('en', 'set', 19), '19 sets');
+assert.equal(countOf('en', 'person', 1), '1 person');
+assert.equal(countOf('en', 'person', 18), '18 people');
+assert.equal(countOf('ar', 'set', 1), 'طقم واحد');
+assert.equal(countOf('ar', 'set', 2), 'طقمان');
+assert.equal(countOf('ar', 'set', 10), '10 أطقم');
+assert.equal(countOf('ar', 'set', 19), '19 طقمًا');
+assert.equal(countOf('ar', 'set', 100), '100 طقم');
+assert.equal(countOf('ar', 'person', 5), '5 موظفين');
+assert.equal(countOf('ar', 'person', 18), '18 موظفًا');

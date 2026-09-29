@@ -1607,49 +1607,8 @@
   flex-direction: column;
   gap: var(--s3);
 }
-
-/* The reads, in the order they ran, on one rail. */
-.evTrail {
-  list-style: none;
-  margin: 0;
-  padding: 0 0 0 0;
-  padding-inline-start: var(--s4);
-  border-inline-start: 2px solid var(--line);
-  display: grid;
-  gap: 6px;
-}
-
-.evTrail li {
-  position: relative;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  column-gap: var(--s2);
-  font-size: var(--t-sm);
-  color: var(--text-2);
-}
-
-.evTrail small {
-  font-size: var(--t-xs);
-  color: var(--text-3);
-  font-variant-numeric: tabular-nums;
-}
-
-.evDot {
-  position: absolute;
-  inset-inline-start: calc(-1 * var(--s4) - 6px);
-  top: 5px;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 2px solid var(--line-2);
-  background: var(--surface);
-}
-
-.evStep_running .evDot { border-color: var(--accent); animation: evBlink 0.8s ease-in-out infinite alternate; }
-.evStep_done .evDot { border-color: var(--accent); background: var(--accent); }
-.evStep_error .evDot { border-color: var(--warn); background: var(--warn); }
-.evStep_error small { color: var(--warn); }
+/* A read still running has nothing to show yet; the typing dots stand in. */
+.evReply:empty { display: none; }
 
 /* The answer is a statement, not a speech bubble. */
 .evAnswer {
@@ -1659,6 +1618,27 @@
   color: var(--text);
   max-width: 62ch;
 }
+
+/* The account manager is typing: three dots, where the reply will land. */
+.evTyping {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 4px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+.evTyping span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-3);
+  animation: evBlink 0.6s ease-in-out infinite alternate;
+}
+.evTyping span:nth-child(2) { animation-delay: 0.2s; }
+.evTyping span:nth-child(3) { animation-delay: 0.4s; }
 
 .evSources h3 {
   margin: 0 0 var(--s2);
@@ -1867,7 +1847,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .evSheet, .evChanged, .evLive_probing, .evStep_running .evDot { animation: none; }
+  .evSheet, .evChanged, .evLive_probing, .evTyping span { animation: none; }
 }
 
 

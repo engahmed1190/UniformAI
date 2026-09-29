@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import s from '@/app/ui.module.css';
-import { type Locale, formatCurrency, formatDate, formatNumber, t } from '@/lib/i18n';
+import { type Locale, countOf, formatCurrency, formatDate, formatNumber, t } from '@/lib/i18n';
 import { type Intent, answer } from '@/lib/answers';
 import { MAX_CARDS, type Change, type Source, type Step, changesSince, remember, sourceKey } from '@/lib/evidence';
 import { CONCEPTS } from '@/lib/concepts';
@@ -16,6 +16,7 @@ import {
   sizeConfirmTurn, sizesSentTurn, teamTurn,
 } from '@/lib/journey';
 import { type News, type Seen, UPDATE_MS, newsSince, withOrder } from '@/lib/updates';
+import { typingMs } from '@/lib/pace';
 import { InvoiceList, PeopleForm, QuoteCard, SizeRunForm } from './chat-actions';
 
 type Health = 'probing' | 'live' | 'offline';
@@ -63,28 +64,6 @@ const isOrderDoc = (doctype: string) => doctype === 'Sales Order' || doctype ===
 /** An order card's fact is the app's own workflow state, in the words the
  *  Orders screen uses. */
 const status = (locale: Locale, value: string | number) => t(locale, `orders.state.${value}`);
-
-function stepText(locale: Locale, step: Step): string {
-  const i = step.input;
-  const what = [i.item, i.colour, i.size].filter((v) => typeof v === 'string' && v).join(' ');
-  if (step.tool === 'orders') return t(locale, 'erpAsk.stepOrders');
-  if (step.tool === 'order') return t(locale, 'erpAsk.stepOrder', { id: String(i.id ?? '') });
-  if (step.tool === 'stock') return t(locale, 'erpAsk.stepStock', { what });
-  if (step.tool === 'price') return t(locale, 'erpAsk.stepPrice', { what });
-  return t(locale, 'erpAsk.stepOptions');
-}
-
-function stepMeta(locale: Locale, step: Step): string {
-  if (step.state === 'error') return t(locale, 'erpAsk.stepFailed');
-  if (step.state !== 'done') return '';
-  if (!step.rows) return t(locale, 'erpAsk.stepNone');
-  return t(locale, 'erpAsk.stepFound', { count: step.rows, secs: ((step.ms ?? 0) / 1000).toFixed(1) });
-}
-
-const clock = (locale: Locale, iso: string) => new Intl.DateTimeFormat(
-  locale === 'ar' ? 'ar-EG' : 'en-GB',
-  { hour: '2-digit', minute: '2-digit', second: '2-digit', numberingSystem: 'latn' } as Intl.DateTimeFormatOptions,
-).format(new Date(iso));
 
 const day = (locale: Locale, iso?: string) => (iso ? formatDate(locale, new Date(`${iso}T12:00:00`)) : '');
 
@@ -140,7 +119,6 @@ function RecordCard({ source, changes, locale, onOpenOrder }: {
       )}
 
       <div className={s.evFoot}>
-        <time dateTime={source.readAt}>{t(locale, 'erpAsk.checkedAt', { time: clock(locale, source.readAt) })}</time>
         {isOrder && onOpenOrder && (
           <button type="button" className={s.evOpen} onClick={() => onOpenOrder(source.name)}>
             {t(locale, 'erpAsk.showOrder')}
@@ -148,21 +126,6 @@ function RecordCard({ source, changes, locale, onOpenOrder }: {
         )}
       </div>
     </li>
-  );
-}
-
-function Trail({ steps, locale }: { steps: Step[]; locale: Locale }) {
-  if (!steps.length) return null;
-  return (
-    <ol className={s.evTrail}>
-      {steps.map((step) => (
-        <li key={step.id} className={s[`evStep_${step.state}`]}>
-          <span className={s.evDot} aria-hidden="true" />
-          <span dir="auto">{stepText(locale, step)}</span>
-          <small>{stepMeta(locale, step)}</small>
-        </li>
-      ))}
-    </ol>
   );
 }
 
@@ -174,8 +137,6 @@ function Reply({ turn, busy, locale, onRetry, onOpenOrder }: {
   const content = turn.rows && turn.intent !== 'options' ? answer(locale, turn.intent, turn.rows) : '';
   return (
     <div className={s.evReply}>
-      <Trail steps={turn.steps} locale={locale} />
-
       {turn.error && (
         <div className={s.evError} role="alert">
           <p>{t(locale, turn.error === 'not_configured' ? 'erpAsk.errorConfig' : 'erpAsk.errorUnreachable')}</p>
@@ -188,11 +149,9 @@ function Reply({ turn, busy, locale, onRetry, onOpenOrder }: {
       {content && (sources.length ? (
         <section className={s.evSources} aria-label={t(locale, 'erpAsk.evidence')}>
           {/* The answer counts every order; the cards stop at MAX_CARDS. */}
-          <h3>{turn.intent === 'orders' && (turn.rows?.length ?? 0) > sources.length
-            ? t(locale, 'erpAsk.evidenceSome', { shown: sources.length, count: turn.rows!.length })
-            : sources.length === 1
-              ? t(locale, 'erpAsk.evidenceOne')
-              : t(locale, 'erpAsk.evidenceMany', { count: sources.length })}</h3>
+          {turn.intent === 'orders' && (turn.rows?.length ?? 0) > sources.length && (
+            <h3>{t(locale, 'erpAsk.evidenceSome', { shown: sources.length, count: turn.rows!.length })}</h3>
+          )}
           <ul>
             {sources.map((src) => (
               <RecordCard key={sourceKey(src)} source={src} locale={locale} onOpenOrder={onOpenOrder}
@@ -257,6 +216,13 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
     return last && last.role === 'assistant' ? [...all.slice(0, -1), fn(last)] : all;
   });
 
+  const reduced = () => typeof window !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  /** Wait out the rest of a person's pause; time already spent fetching counts. */
+  const beat = async (text: string, started: number) => {
+    const wait = typingMs(text, reduced()) - (Date.now() - started);
+    if (wait > 0) await new Promise((done) => setTimeout(done, wait));
+  };
+
   const promptFor = (next: Stage): string | null =>
     next.k === 'garment' ? t(locale, garments.length ? 'erpAsk.pickGarment' : 'erpAsk.pickNone')
         : next.k === 'colour' ? t(locale, 'erpAsk.pickColour')
@@ -283,6 +249,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
       { role: 'assistant', intent, params, steps: [pending(intent, params)] },
     ]);
     setBusy(true);
+    const started = Date.now();
     try {
       const response = await fetch('/api/ask', {
         method: 'POST',
@@ -296,6 +263,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
       const data = await response.json() as { rows: unknown[]; sources: Source[]; step: Step };
       const changes = Object.fromEntries(changesSince(seen.current, data.sources));
       remember(seen.current, data.sources);
+      await beat('', started);
       patchLast((a) => ({ ...a, steps: [data.step], rows: data.rows, sources: data.sources, changes }));
       if (intent === 'orders') setStage({ k: 'orders', ids: (data.rows as { id: string }[]).slice(0, MAX_CARDS).map((r) => r.id) });
       else if (intent === 'stock') setStage({ k: 'stock' });
@@ -391,40 +359,47 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
     if (a.k === 'orders') return void read('orders', {}, tapped);
     if (a.k === 'stock' || a.k === 'price') { purpose.current = a.k; return void read('options', {}, tapped); }
     echo(tapped);
-    if (a.k === 'new') return say(teamTurn(locale));
-    if (a.k === 'plan') return say(planTurn(locale, a.kit, a.people));
-    if (a.k === 'approve') return say(approveTurn(locale, a.quote, a.total));
-    if (a.k === 'contact') return say(contactTurn(locale, a.topic, a.doc));
-    if (a.k === 'people') {
-      setTurns((all) => [...all, { role: 'prompt', content: t(locale, 'journey.people') }]);
-      return setStage({ k: 'people', kit: a.kit, ...(a.people ? { people: a.people } : {}) });
-    }
+    // Every reply, even one that needs no data, runs under the lock and
+    // `busy`: nothing can be tapped while the account manager is typing.
     actionLock.current = true;
     epoch.current += 1;
     setBusy(true);
+    const started = Date.now();
+    const reply = async (turn: JourneyTurn, home = false) => { await beat(turn.say, started); say(turn, home); };
+    const ask = async (content: string) => { await beat(content, started); setTurns((all) => [...all, { role: 'prompt', content }]); };
     try {
-      if (a.k === 'more') {
-        say(moreTurn(locale, await myOrders(), a.from));
+      if (a.k === 'new') await reply(teamTurn(locale));
+      else if (a.k === 'plan') await reply(planTurn(locale, a.kit, a.people));
+      else if (a.k === 'approve') await reply(approveTurn(locale, a.quote, a.total));
+      else if (a.k === 'contact') await reply(contactTurn(locale, a.topic, a.doc));
+      else if (a.k === 'people') {
+        await ask(t(locale, 'journey.people'));
+        setStage({ k: 'people', kit: a.kit, ...(a.people ? { people: a.people } : {}) });
+      } else if (a.k === 'more') {
+        await reply(moreTurn(locale, await myOrders(), a.from));
       } else if (a.k === 'menu') {
-        say(menuTurn(locale, (await myAccount()).orders, new Date().getHours(), turns.length > 0), true);
+        await reply(menuTurn(locale, (await myAccount()).orders, new Date().getHours(), turns.length > 0), true);
       } else if (a.k === 'order' || a.k === 'show') {
-        const o = findIn(await myOrders(), a.id);
+        const { orders, invoices } = await myAccount();
+        const o = findIn(orders, a.id);
         if (a.k === 'show' && o) onOpenOrder?.(o.id);
-        say(o ? orderTurn(locale, o) : noOrderTurn(locale));
+        await reply(o ? orderTurn(locale, o, invoices ?? []) : noOrderTurn(locale));
       } else if (a.k === 'viewQuote') {
         const view = await api<QuoteView>(`/api/quotes/${encodeURIComponent(a.quote)}`);
-        setTurns((all) => [...all, { role: 'quote', view }]);
         const o = findIn(await myOrders(), a.quote);
+        await beat('', started);
+        setTurns((all) => [...all, { role: 'quote', view }]);
         say(o ? quoteShownTurn(locale, o) : noOrderTurn(locale));
       } else if (a.k === 'invoices') {
         const rows = await api<Invoice[]>('/api/invoices');
+        await beat('', started);
         setTurns((all) => [...all, { role: 'invoices', rows }]);
         say(invoicesTurn(locale, rows));
       } else if (a.k === 'sizes') {
         const o = findIn(await myOrders(), a.order);
-        if (!o || o.state !== 'collecting_sizes') say(o ? orderTurn(locale, o) : noOrderTurn(locale));
+        if (!o || o.state !== 'collecting_sizes') await reply(o ? orderTurn(locale, o) : noOrderTurn(locale));
         else {
-          setTurns((all) => [...all, { role: 'prompt', content: t(locale, 'journey.sizesAsk', { id: a.order, sets: o.sets }) }]);
+          await ask(t(locale, 'journey.sizesAsk', { id: a.order, sets: countOf(locale, 'set', o.sets) }));
           setStage({ k: 'sizes', order: o, ...(a.run ? { run: a.run } : {}) });
         }
       } else if (a.k === 'requestQuote') {
@@ -434,20 +409,20 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
         }));
         own(o);
         onChanged?.();
-        say(quoteSentTurn(locale, o));
+        await reply(quoteSentTurn(locale, o));
       } else if (a.k === 'approveNow') {
         const o = fromJson(await api<Order>(`/api/quotes/${encodeURIComponent(a.quote)}/approve`, {}));
         own(o);
         onChanged?.();
-        say(approvedTurn(locale, o));
+        await reply(approvedTurn(locale, o));
       } else if (a.k === 'sendSizes') {
         const o = fromJson(await api<Order>(`/api/orders/${encodeURIComponent(a.order)}/sizes`, { allocation: a.run }));
         own(o);
         onChanged?.();
-        say(sizesSentTurn(locale, o));
+        await reply(sizesSentTurn(locale, o));
       } else if (a.k === 'sendContact') {
         const c = await api<{ name: string }>('/api/contact', { topic: a.topic, ...(a.doc ? { document: a.doc } : {}) });
-        say(caseTurn(locale, c.name));
+        await reply(caseTurn(locale, c.name));
       }
     } catch (error) {
       // Refused (already approved, sizes already in, gone): not an outage.
@@ -456,7 +431,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
       const id = refusedId(a);
       if (id && (status === 409 || status === 404)) {
         try {
-          return say(movedTurn(locale, findIn(await myOrders(), id)));
+          return await reply(movedTurn(locale, findIn(await myOrders(), id)));
         } catch { /* the re-read failed too: that is an outage */ }
       }
       // A failed menu is the menu: its Try again is the only way on.
@@ -495,7 +470,19 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
     // a write (Yes, approve; Send the size run), the news waits for the next
     // reply rather than replacing what the customer is about to send.
     const { stage: at } = now.current;
-    if (at.k === 'turn' && !holdsWrite(at.buttons)) say(newsTurn(locale, news.current.splice(0)));
+    if (at.k !== 'turn' || holdsWrite(at.buttons)) return;
+    const turn = newsTurn(locale, news.current.splice(0));
+    // The news is typed like any reply; `reading` keeps a second look out
+    // until it has landed.
+    reading.current = true;
+    setBusy(true);
+    try {
+      await beat(turn.say, Date.now());
+      say(turn);
+    } finally {
+      reading.current = false;
+      setBusy(false);
+    }
   };
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
@@ -690,6 +677,11 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
         {!busy && stage.k === 'sizes' && (
           <SizeRunForm key={stage.order.id} order={stage.order} initial={stage.run} locale={locale}
             onReview={(run) => { echo(t(locale, 'journey.btnReviewRun')); say(sizeConfirmTurn(locale, stage.order, run)); }} />
+        )}
+        {busy && (
+          <p className={s.evTyping} role="status" aria-label={t(locale, 'erpAsk.typing')}>
+            <span /><span /><span />
+          </p>
         )}
         {!busy && (
           <ul ref={choiceList} className={`${s.evSuggest} ${s.evChoices}`} aria-label={t(locale, 'erpAsk.next')}>

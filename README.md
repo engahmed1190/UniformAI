@@ -20,9 +20,12 @@ Request quote (app) -> UniformAI submits the Quotation (ERPNext) -> Approve
 quote (app) -> draft Sales Order -> UniformAI submits it (ERPNext) ->
 Delivery Note -> Delivered.
 
-The Orders screen has a guided assistant with three buttons: My orders, Stock
-availability and Last price paid. It is model-free: each button is one fixed
-read of ERPNext, and every answer links the records it read.
+The assistant is on every screen: a guided account manager, in English and
+formal Arabic, with no language model. Each button is one fixed read or one
+insert-only write: request a quotation, approve it, send the size run, see
+invoices (Paid / Unpaid / Overdue, worked out from what is owed and the due
+date) and ask the team to get in touch (an ERPNext Issue, named CASE-...). The
+minimum order is 10 sets, with 5% spares recommended (`lib/policy.ts`).
 
 Still stand-ins: the kit catalogue and the brief-to-kit generation (below).
 
@@ -45,37 +48,34 @@ npm run seed:erp            # safe to run again
 npm run seed:erp -- --reset # back to the demo's starting point
 ```
 
-`--reset` removes only the current demo orders and anything made from them,
-and puts stock back with its own reconciliation. It keeps history, orders made
-in the app and documents made by hand.
+`--reset` removes the current demo orders, everything the app made (app-
+references, including app-made orders), their size runs and `[UniformAI assistant]` contact cases, and
+puts stock back with its own reconciliation. It keeps history, staff-created
+BrainWise cases and other documents made by hand.
 
-If the dev server cannot fetch Google Fonts (Turbopack failed here), run it
-with `npx next dev --webpack`.
+`npm run dev` runs webpack on 127.0.0.1:3100 (Turbopack cannot fetch Google
+Fonts here).
 
 ### Demo script
 
-`npm run seed:erp -- --reset` first. The demo starts with Technicians at
-Quote ready. UniformAI's side is done in ERPNext as the team.
+`npm run seed:erp -- --reset && npm run demo:check` first. UniformAI's side is played in ERPNext's
+desk or with `npm run team -- issue|confirm|deliver <document>`.
 
-1. Orders: one order in every state. Open Technicians: ERPNext's quoted price
-   sits beside the app's estimate.
-2. Request a quote for a kit in the app. ERPNext gets a draft Quotation with
-   the kit design and a matching total. The app shows Quote requested.
-3. In ERPNext, change a rate and submit the Quotation. Back in the app: Quote
-   ready, ERPNext's price beside the estimate, and Approve quote.
-4. Approve quote. ERPNext has a draft Sales Order linked to the Quotation. The
-   app shows Awaiting confirmation.
-5. In ERPNext, submit the Sales Order. The app shows Collecting sizes or In
-   progress, with the order number on the timeline.
-6. In ERPNext, make and submit a Delivery Note from the Sales Order. The app
-   shows Delivered, with the delivery note number.
-7. Assistant, My orders: the new order is listed with its state.
-8. Assistant, Stock availability, Polo, Navy, XL: 260 pcs in Stores.
-9. In ERPNext, submit a Stock Reconciliation setting that item to 40. In the
-   app, press Check again: the card shows 260 -> 40.
-10. Assistant, Last price paid, Blazer: EGP 1,480, from the August invoice.
-11. `npm run seed:erp -- --reset` and reload: Technicians is back at Quote
-    ready, Navy XL is back at 260, and the orders you made stay listed.
+1. Open the assistant on Home: a greeting, and the Technicians quotation
+   waiting for review.
+2. Start a new uniform request: Front Office, 6 people. The minimum order
+   (10 sets) is explained, not applied silently. Change to 18 people and
+   request the quotation for 19 sets.
+3. As the team, issue that quotation. In the assistant: review it, view the
+   quotation (names and money only), approve. ERPNext has a draft Sales Order.
+4. As the team, confirm the order. The assistant asks for sizes; use the
+   proposed split, review, send. The order moves to In progress.
+5. As the team, deliver. The order reads Delivered; Invoices shows the new
+   one Unpaid, one Overdue and the history Paid.
+6. Discuss with our team: a CASE-... reference, visible in ERPNext as an Issue.
+7. Switch to Arabic and ask again: the same conversation, formal Arabic.
+8. Stock and last price still work from More: Polo, Navy, XL is 260 in Stores.
+9. `npm run seed:erp -- --reset && npm run demo:check` to start over.
 
 If ERPNext is down, Orders shows "We couldn't load your orders" with a retry.
 

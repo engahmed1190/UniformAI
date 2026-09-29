@@ -3,10 +3,12 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --webpack -H 127.0.0.1 -p 3100",
     "build": "next build",
     "start": "next start",
     "seed:erp": "tsx scripts/seed-erp.ts",
+    "team": "tsx scripts/team.ts",
+    "demo:check": "tsx scripts/demo-check.ts",
     "test": "for f in lib/*.test.ts; do npx tsx \"$f\" || exit 1; done"
   },
   "dependencies": {

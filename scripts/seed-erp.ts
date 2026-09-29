@@ -538,6 +538,19 @@ async function reset(stock: Awaited<ReturnType<typeof masters>>, company: string
     await remove('Issue', issue.name);
     console.log(`reset: removed case ${issue.name}`);
   }
+  // A payment made in Desk against a rehearsal invoice carries no ref of its
+  // own; it would block cancelling the invoice or linger as an advance.
+  const invoices = (await byRefs('Sales Invoice')).map((i) => i.name);
+  if (invoices.length) {
+    for (const entry of await list('Payment Entry', [
+      ['Payment Entry Reference', 'reference_doctype', '=', 'Sales Invoice'],
+      ['Payment Entry Reference', 'reference_name', 'in', invoices],
+      ['docstatus', '=', 1],
+    ], ['name', 'docstatus'])) {
+      await discard('Payment Entry', entry);
+      console.log(`reset: removed Payment Entry ${entry.name}`);
+    }
+  }
   for (const doctype of ['Sales Invoice', 'Delivery Note', 'Sales Order', 'Quotation']) {
     for (const doc of await byRefs(doctype)) {
       await discard(doctype, doc);

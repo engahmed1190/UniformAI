@@ -7,6 +7,7 @@ import { type Locale, LOCALES, LOCALE_CODES, LOCALE_NAMES, dir, kitName, formatC
 import { ConceptCard } from '@/components/concept';
 import { Select } from '@/components/select';
 import { colourName } from '@/lib/refine';
+import { POLICY } from '@/lib/policy';
 
 /** colourName() answers in English -- it is shared with the parser -- so the
  *  screen turns its answer into the buyer's language. */
@@ -187,7 +188,8 @@ export default function Page() {
     setGrades([]);
     setSizePlan({ mode: 'collect_later', allocation: {} });
   }, [active?.id]);
-  const sets = Math.ceil(staff * (1 + spare));
+  // Never below the minimum order; the quote dialog shows the final count.
+  const sets = Math.max(Math.ceil(staff * (1 + spare)), POLICY.minimumSets);
 
   /* Computed here, beside the price bar, because the button there carries the
      count -- a badge that disagrees with the panel is worse than no badge. */
@@ -308,7 +310,7 @@ export default function Page() {
                 <div className={s.briefSide}>
                   <div className={s.field}>
                     <label htmlFor="people">{t(locale, 'design.peopleLabel')}</label>
-                    <input id="people" type="number" min={1} value={staff}
+                    <input id="people" type="number" min={1} max={500} value={staff}
                       onChange={(e) => setStaff(Math.max(1, +e.target.value || 1))} />
                   </div>
                   <div className={s.field}>

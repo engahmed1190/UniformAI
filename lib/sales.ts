@@ -3,6 +3,7 @@
 // a quote and approve one. Everything priced comes from kitLines, never from
 // the request body.
 
+import { acceptsSets } from './policy';
 import { call, get, insert, list } from './erp';
 import { type Kit, type DeliveryRow, type QuoteRow, type SalesOrderRow, kitEstimate, kitLines, toOrders } from './orders';
 import type { Order } from './order';
@@ -102,7 +103,7 @@ export function parseKit(input: unknown): Kit {
   if (!isObject(input)) throw bad('request');
   const { concept: c, staff, sets, grades, sizePlan: plan } = input;
   if (!count(staff)) throw bad('staff');
-  if (!count(sets) || sets < staff || sets > staff * 2) throw bad('sets');
+  if (!count(sets) || !acceptsSets(staff, sets)) throw bad('sets');
   if (!isObject(c) || !text(c.name) || !c.name.trim() || !text(c.id, 80)) throw bad('concept');
   if (!Array.isArray(c.garments) || c.garments.length < 1 || c.garments.length > TYPES.length) throw bad('garments');
   if (!isObject(c.logo) || !POSITIONS.includes(c.logo.position as string) || !METHODS.includes(c.logo.method as string)) {

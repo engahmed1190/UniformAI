@@ -74,6 +74,14 @@ async function main() {
   const filters = erp.seen[0].url.searchParams.get('filters') ?? '';
   assert.match(filters, /BrainWise Technology/);
   assert.match(filters, /is_return/);
+  // One row per item line: folded back to one invoice, carrying its order.
+  mockErp({ '/api/resource/Sales Invoice': () => ({ data: [
+    { ...row, outstanding_amount: 9000, sales_order: null },
+    { ...row, outstanding_amount: 9000, sales_order: 'SAL-ORD-1' },
+  ] }) });
+  const folded = await listInvoices();
+  assert.equal(folded.length, 1);
+  assert.equal(folded[0].order, 'SAL-ORD-1');
 
   console.log('sales-reads: all assertions passed');
 }

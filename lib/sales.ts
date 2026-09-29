@@ -131,15 +131,23 @@ export async function quoteDetail(name: string): Promise<QuoteView> {
   return toQuoteView(doc);
 }
 
-/** The customer's submitted invoices, newest first, with a derived status. */
+/** The customer's submitted invoices, newest first, with a derived status and
+ *  the order each bills. Frappe returns one row per item line for a child
+ *  field, so rows are folded back to one per invoice (as listOrders does). */
 export async function listInvoices(): Promise<Invoice[]> {
   const rows = await list<InvoiceRow>('Sales Invoice', {
-    fields: ['name', 'posting_date', 'due_date', 'grand_total', 'outstanding_amount'],
+    fields: ['name', 'posting_date', 'due_date', 'grand_total', 'outstanding_amount', 'items.sales_order'],
     filters: [['customer', '=', CUSTOMER], ['docstatus', '=', 1], ['is_return', '=', 0]],
-    orderBy: 'posting_date desc', limit: 50,
+    orderBy: 'posting_date desc', limit: 500,
   });
+  const byName = new Map<string, InvoiceRow>();
+  for (const r of rows) {
+    const seen = byName.get(r.name);
+    if (!seen) byName.set(r.name, { ...r });
+    else if (!seen.sales_order && r.sales_order) seen.sales_order = r.sales_order;
+  }
   const today = isoDay();
-  return rows.map((r) => toInvoice(r, today));
+  return [...byName.values()].slice(0, 50).map((r) => toInvoice(r, today));
 }
 
 // ---- request a quote ---------------------------------------------------------

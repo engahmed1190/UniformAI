@@ -79,12 +79,17 @@ import { timeline as tl } from './order';
   const d = new Date('2026-09-02T10:00:00Z');
   const base = placeOrder(CONCEPTS[0], 40, 42, [], 500, d);
   const shape = (o: typeof base) => tl(o).map((x) => (x.reached ? 'R' : x.now ? 'N' : '-')).join('');
-  assert.equal(shape(base), 'RRRRN', 'collecting sizes: four reached, delivery is Now');
-  assert.equal(shape(placeOrder(CONCEPTS[0], 40, 42, [], 500, d, 'delivered')), 'RRRRR');
-  assert.equal(shape(placeOrder(CONCEPTS[0], 40, 42, [], 500, d, 'quote_ready')), 'RRN--');
-  assert.equal(shape(placeOrder(CONCEPTS[0], 40, 42, [], 500, d, 'quote_closed')), 'RR---', 'a closed quote has no Now');
+  assert.equal(shape(base), 'RRRRN-', 'collecting sizes: four reached, sizes are Now');
+  assert.equal(shape(placeOrder(CONCEPTS[0], 40, 42, [], 500, d, 'in_progress')), 'RRRRRN', 'sizes received');
+  assert.equal(shape(placeOrder(CONCEPTS[0], 40, 42, [], 500, d, 'delivered')), 'RRRRRR');
+  assert.equal(shape(placeOrder(CONCEPTS[0], 40, 42, [], 500, d, 'quote_ready')), 'RRN---');
+  assert.equal(shape(placeOrder(CONCEPTS[0], 40, 42, [], 500, d, 'quote_closed')), 'RR----', 'a closed quote has no Now');
+  // An older order with no size run on record still shows sizes as received.
+  const { sized: _, ...undated } = placeOrder(CONCEPTS[0], 40, 42, [], 500, d, 'in_progress').dates;
+  assert.equal(shape({ ...placeOrder(CONCEPTS[0], 40, 42, [], 500, d, 'in_progress'), dates: undated }), 'RRRRRN');
   const part = tl({ ...base, state: 'in_progress', perDelivered: 60, salesOrder: 'SAL-ORD-2026-00016' });
-  assert.equal(part[4].reached, false);
-  assert.equal(part[4].partial, 60);
+  assert.equal(part[4].reached, true);
+  assert.equal(part[5].reached, false);
+  assert.equal(part[5].partial, 60);
   assert.equal(part[3].doc, 'SAL-ORD-2026-00016');
 }

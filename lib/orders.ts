@@ -6,6 +6,7 @@ import {
   type Concept, type GarmentCut, type GarmentType, type LogoMethod, type SizePlan,
   LOGO_PRICE, allocatedSizeCount, conceptPriceAt, gradeName, gradesFor,
 } from './spec';
+import { cutsOf } from './size-run';
 import { colourName } from './refine';
 import { type Order, type Workflow, LEAD_DAYS, orderLines } from './order';
 
@@ -78,14 +79,18 @@ function parseKit(json?: string | null): Kit | undefined {
 
 const sizesComplete = (kit?: Kit) => {
   if (!kit || kit.sizePlan?.mode !== 'allocate_now') return false;
-  const cuts = kit.concept.cuts?.length ? kit.concept.cuts : ['men', 'women'] as GarmentCut[];
-  return allocatedSizeCount(kit.sizePlan.allocation, cuts) === kit.sets;
+  return allocatedSizeCount(kit.sizePlan.allocation, cutsOf(kit.concept)) === kit.sets;
 };
 
 /** Each Sales Order, and each Quotation still waiting for one, becomes an
  *  order, newest first. Cancelled documents and draft Delivery Notes are
  *  not part of the story. */
-export function toOrders(quotes: QuoteRow[], orders: SalesOrderRow[], deliveries: DeliveryRow[]): Order[] {
+export function toOrders(
+  quotes: QuoteRow[], orders: SalesOrderRow[], deliveries: DeliveryRow[],
+  /** Sales Orders with a size run on record (their sizes are complete), and
+   *  the day it was received. */
+  sized: ReadonlyMap<string, string> = new Map(),
+): Order[] {
   const liveQuotes = quotes.filter((q) => q.docstatus !== 2);
   const liveOrders = orders.filter((o) => o.docstatus !== 2);
   const submitted = deliveries.filter((d) => d.docstatus === 1);
@@ -105,7 +110,7 @@ export function toOrders(quotes: QuoteRow[], orders: SalesOrderRow[], deliveries
     if (o) {
       state = o.docstatus === 0 ? 'awaiting'
         : perDelivered >= 100 ? 'delivered'
-        : sizesComplete(kit) ? 'in_progress' : 'collecting_sizes';
+        : sizesComplete(kit) || sized.has(o.name) ? 'in_progress' : 'collecting_sizes';
     } else {
       state = q!.docstatus === 0 ? 'quote_requested'
         : q!.status === 'Lost' || q!.status === 'Expired' || (q!.valid_till && q!.valid_till < today) ? 'quote_closed'
@@ -121,6 +126,9 @@ export function toOrders(quotes: QuoteRow[], orders: SalesOrderRow[], deliveries
     if (o) {
       dates.approved = day(o.transaction_date);
       if (o.docstatus === 1) dates.confirmed = day(o.transaction_date);
+      const run = sized.get(o.name);
+      if (o.docstatus === 1 && run) dates.sized = day(run);
+      else if (o.docstatus === 1 && sizesComplete(kit)) dates.sized = day(o.transaction_date);
     }
     if (last) dates.delivered = day(last.posting_date);
 

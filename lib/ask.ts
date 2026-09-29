@@ -3,6 +3,7 @@ import { MAX_CARDS, type Source, type Step } from './evidence';
 import { INTENTS, type Intent, type OrderRow, warehouseName as warehouse } from './answers';
 import type { Order } from './order';
 import { listOrders } from './sales';
+import { SIZED_PREFIX } from './sized';
 
 export type { Source } from './evidence';
 
@@ -67,7 +68,13 @@ export async function orders(id?: string): Promise<ToolResult> {
 
 type ItemRow = Row & { name: string };
 
-async function variantsFor(itemInput: unknown): Promise<ItemRow[]> {
+/** The garment word the item codes use: "Cargo Trouser" -> CARGO. */
+const garmentWord = (item: unknown) => text(item).split(/\s+/)[0].toUpperCase();
+
+/** The ready-stock template the customer named, and its variants. With
+ *  `sized`, also the variants of the same garment made to order by size
+ *  (UA-SIZED-<word>), which a sized order's invoice bills. */
+async function variantsFor(itemInput: unknown, sized = false): Promise<ItemRow[]> {
   const wanted = text(itemInput).toLowerCase();
   if (!wanted) return [];
   const templates = await list<ItemRow>('Item', {
@@ -75,13 +82,14 @@ async function variantsFor(itemInput: unknown): Promise<ItemRow[]> {
     filters: [['has_variants', '=', 1]],
     limit: 100,
   });
-  const template = templates.find((row) =>
+  const template = templates.find((row) => !row.name.startsWith(SIZED_PREFIX) &&
     [row.name, row.item_name].some((v) => String(v ?? '').toLowerCase().includes(wanted)));
   if (!template) return [];
+  const names = sized ? [template.name, `${SIZED_PREFIX}${garmentWord(itemInput)}`] : [template.name];
   const joined = await list<ItemRow>('Item', {
     fields: ['name', 'item_name', 'variant_of', 'attributes.attribute', 'attributes.attribute_value'],
-    filters: [['variant_of', '=', template.name]],
-    limit: 500,
+    filters: [['variant_of', 'in', names]],
+    limit: 2000,
   });
   return groupJoined(joined, ['attribute', 'attribute_value'], 'attributes') as ItemRow[];
 }
@@ -128,11 +136,12 @@ export async function checkStock(input: Row): Promise<ToolResult> {
 }
 
 export async function lastPrice(input: Row): Promise<ToolResult> {
-  const variants = await variantsFor(input.item);
+  const variants = await variantsFor(input.item, true);
   if (!variants.length) return { rows: [], sources: [] };
-  // What the customer paid for a garment was billed either as a ready-stock
-  // variant or as the garment made to order (UA-MTO-<first word of the name>).
-  const codes = [...variants.map((row) => row.name), `UA-MTO-${text(input.item).split(/\s+/)[0].toUpperCase()}`];
+  // What the customer paid for a garment was billed as a ready-stock variant,
+  // as the garment made to order (UA-MTO-<word>), or, once sizes were
+  // applied, as its sized variants (UA-SIZED-<word>-…), all at one rate.
+  const codes = [...variants.map((row) => row.name), `UA-MTO-${garmentWord(input.item)}`];
   const garment = text(input.item);
   const joined = await list<Row>('Sales Invoice', {
     fields: ['name', 'posting_date', 'currency', 'items.item_code', 'items.rate', 'items.qty'],
@@ -173,12 +182,13 @@ export type Option = { item: string; colours: string[]; sizes: string[] };
 
 /** What the buttons offer: the ready-stock garments with the colours and
  *  sizes their variants really have, so no button leads to a missing item.
- *  Made-to-order items are not variants and never appear. */
+ *  Made-to-order templates and the sized templates that carry a customer's
+ *  size run are not ready stock and are left out. */
 export async function options(): Promise<Option[]> {
   const templates = await list<ItemRow>('Item', {
     fields: ['name', 'item_name'], filters: [['has_variants', '=', 1]], limit: 100,
   });
-  const ready = templates.filter((row) => !row.name.startsWith('UA-MTO-'));
+  const ready = templates.filter((row) => !row.name.startsWith('UA-MTO-') && !row.name.startsWith(SIZED_PREFIX));
   if (!ready.length) return [];
   const joined = await list<Row>('Item', {
     fields: ['name', 'variant_of', 'attributes.attribute', 'attributes.attribute_value'],

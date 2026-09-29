@@ -7,6 +7,8 @@ import { type Locale, LOCALES, LOCALE_CODES, LOCALE_NAMES, dir, kitName, formatC
 import { ConceptCard } from '@/components/concept';
 import { Select } from '@/components/select';
 import { colourName } from '@/lib/refine';
+import { cutsOf } from '@/lib/size-run';
+import { POLICY } from '@/lib/policy';
 
 /** colourName() answers in English -- it is shared with the parser -- so the
  *  screen turns its answer into the buyer's language. */
@@ -23,7 +25,7 @@ import {
   type Concept, type GarmentCut, type SizePlan, LABELS, allocatedSizeCount,
   asSavedKit, conceptPrice, conceptPriceAt, gradeName, gradesFor, sameKit,
 } from '@/lib/spec';
-import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
+import { GROUPS, greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
 import { suggestions } from '@/lib/suggest';
 import { type Order, type Workflow, fromJson, status, timeline } from '@/lib/order';
 import { ManagerNote } from '@/components/manager';
@@ -187,7 +189,8 @@ export default function Page() {
     setGrades([]);
     setSizePlan({ mode: 'collect_later', allocation: {} });
   }, [active?.id]);
-  const sets = Math.ceil(staff * (1 + spare));
+  // Never below the minimum order; the quote dialog shows the final count.
+  const sets = Math.max(Math.ceil(staff * (1 + spare)), POLICY.minimumSets);
 
   /* Computed here, beside the price bar, because the button there carries the
      count -- a badge that disagrees with the panel is worse than no badge. */
@@ -308,7 +311,7 @@ export default function Page() {
                 <div className={s.briefSide}>
                   <div className={s.field}>
                     <label htmlFor="people">{t(locale, 'design.peopleLabel')}</label>
-                    <input id="people" type="number" min={1} value={staff}
+                    <input id="people" type="number" min={1} max={500} value={staff}
                       onChange={(e) => setStaff(Math.max(1, +e.target.value || 1))} />
                   </div>
                   <div className={s.field}>
@@ -424,15 +427,11 @@ export default function Page() {
           )}
 
           {page === 'orders' && (
-            <>
-              <Orders orders={orders} loadState={loadState} onReload={() => void loadOrders()}
-                onApproved={(id) => { setFocusOrder({ id, n: Date.now() }); return loadOrders(); }} onHome={() => setPage('home')}
-                locale={locale} money={money} shortDay={shortDay}
-                focus={focusOrder}
-                onAsk={(id) => setErpRequest({ orderId: id, id: Date.now() })} />
-              <AskErp locale={locale} request={erpRequest}
-                onOpenOrder={(id) => setFocusOrder({ id, n: Date.now() })} />
-            </>
+            <Orders orders={orders} loadState={loadState} onReload={() => void loadOrders()}
+              onApproved={(id) => { setFocusOrder({ id, n: Date.now() }); return loadOrders(); }} onHome={() => setPage('home')}
+              locale={locale} money={money} shortDay={shortDay}
+              focus={focusOrder}
+              onAsk={(id) => setErpRequest({ orderId: id, id: Date.now() })} />
           )}
           {page === 'settings' && (
             <Settings profile={{ ...profile, staff }} locale={locale} onLocale={changeLocale}
@@ -540,6 +539,11 @@ export default function Page() {
       )}
 
       {toast && <div className={s.toast} role="status">{toast}</div>}
+      {/* The account manager, on every screen. */}
+      <AskErp locale={locale} request={erpRequest}
+        raised={page === 'configure' || (page === 'design' && !!concepts && !busy)}
+        onOpenOrder={(id) => { setFocusOrder({ id, n: Date.now() }); setPage('orders'); }}
+        onChanged={() => void loadOrders()} />
       {dialog}
     </div>
   );
@@ -561,10 +565,11 @@ function Home({
   onOrders: () => void;
 }) {
   const [text, setText] = useState('');
-  const inState = (...w: Workflow[]) => orders.filter((o) => w.includes(status(o)));
-  const waiting = inState('quote_ready');
-  const withUs = inState('quote_requested', 'awaiting');
-  const making = inState('collecting_sizes', 'in_progress');
+  const inState = (...w: readonly Workflow[]) => orders.filter((o) => w.includes(status(o)));
+  // The greeting's groups: a quote to approve and sizes to send both wait on you.
+  const waiting = inState(...GROUPS.waitingYou, ...GROUPS.waitingSizes);
+  const withUs = inState(...GROUPS.withUs);
+  const making = inState(...GROUPS.makingNow);
   const done = orders.filter((o) => status(o) === 'delivered');
   return (
     <>
@@ -586,7 +591,7 @@ function Home({
           />
         ) : <p className={s.muted}>{t(locale, 'common.loading')}</p>
       ) : (
-        <ManagerNote locale={locale} tone="panel" intro note={greeting(locale, 'Ahmed', orders)} />
+        <ManagerNote locale={locale} tone="panel" intro note={greeting(locale, orders)} />
       )}
 
       {/* The primary job, first thing on the page. */}
@@ -1117,7 +1122,7 @@ function Quote({
   const garments = concept.garments.reduce((a, g) => a + g.unitPrice, 0);
   const branding = concept.logo.position === 'none' ? 0 : conceptPrice(concept) - garments;
   const spareSets = sets - staff;
-  const cuts = concept.cuts?.length ? concept.cuts : ['men', 'women'] as GarmentCut[];
+  const cuts = cutsOf(concept);
   const cutKey = cuts.includes('men') && cuts.includes('women') ? 'mixed' : cuts[0];
   const assigned = allocatedSizeCount(sizePlan.allocation, cuts);
   return (

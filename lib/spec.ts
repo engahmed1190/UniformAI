@@ -6,6 +6,10 @@ export type GarmentType = 'polo' | 'shirt' | 'chino' | 'blazer' | 'cargo';
 export type GarmentFit = 'slim' | 'regular' | 'relaxed';
 export type GarmentCut = 'men' | 'women' | 'unisex';
 export type GarmentSize = 'XS' | 'S' | 'M' | 'L' | 'XL' | '2XL' | '3XL';
+/** The cuts a concept is made in; older kits without any are men and women. */
+export const cutsOf = (concept?: { cuts?: GarmentCut[] }): GarmentCut[] =>
+  concept?.cuts?.length ? concept.cuts : ['men', 'women'];
+
 export type SizingMode = 'collect_later' | 'allocate_now';
 
 export type SizeAllocation = Partial<
@@ -204,7 +208,7 @@ export function colourFingerprint(c: Concept): string {
 export function kitKey(c: Concept): string {
   const { position, method, colour = '' } = c.logo;
   const make = c.garments.map((g) => `${g.type}:${g.fit ?? 'regular'}`).join(',');
-  const cuts = (c.cuts?.length ? c.cuts : ['men', 'women']).join(',');
+  const cuts = cutsOf(c).join(',');
   return `${c.id}|${colourFingerprint(c)}|${position}/${method}/${colour}|${make}|${cuts}`;
 }
 

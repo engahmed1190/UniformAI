@@ -26,6 +26,8 @@ async function main() {
   replies = [[], [], []];
   await run('orders', { customer: 'Delta Hotels' });
   for (const call of seen) {
+    // The size-run read is scoped by the customer's own sales orders, not a customer filter.
+    if (call.url.pathname.includes('UniformAI%20Size%20Run')) continue;
     assert.ok(JSON.stringify(JSON.parse(call.url.searchParams.get('filters')!)).includes('BrainWise Technology'));
   }
   let filters: unknown[][];
@@ -123,8 +125,11 @@ async function main() {
   // de-duplicated, skipping made-to-order templates and templates without variants.
   replies = [
     [{ name: 'UA-POLO', item_name: 'Polo' }, { name: 'UA-BLAZER', item_name: 'Blazer' },
-     { name: 'UA-MTO-POLO', item_name: 'Made Polo' }, { name: 'UA-EMPTY', item_name: 'Empty' }],
+     { name: 'UA-MTO-POLO', item_name: 'Made Polo' }, { name: 'UA-EMPTY', item_name: 'Empty' },
+     { name: 'UA-SIZED-POLO', item_name: 'Polo (sized to order)' }],
     [
+      { name: 'SP1', variant_of: 'UA-SIZED-POLO', attribute: 'Uniform Colour', attribute_value: 'Olive' },
+      { name: 'SP1', variant_of: 'UA-SIZED-POLO', attribute: 'Uniform Size', attribute_value: '3XL' },
       { name: 'P1', variant_of: 'UA-POLO', attribute: 'Uniform Colour', attribute_value: 'Sand' },
       { name: 'P1', variant_of: 'UA-POLO', attribute: 'Uniform Size', attribute_value: 'XL' },
       { name: 'P2', variant_of: 'UA-POLO', attribute: 'Uniform Colour', attribute_value: 'Navy' },
@@ -189,6 +194,21 @@ async function main() {
   assert.deepEqual([price.sources[0].rate, price.sources[0].detail], [1480, 'Blazer']);
   const codes = JSON.parse(seen.at(-1)!.url.searchParams.get('filters')!).at(-1).at(-1);
   assert.ok(codes.includes('UA-MTO-BLAZER') && codes.includes('UA-BLAZER-NAVY-M'));
+
+// 9. Once sizes are applied, an invoice bills UA-SIZED-<garment>-… variants:
+  // the last price reads those too, and the stock check stays on ready stock
+  // even when a sized template is listed first.
+  replies = [
+    [{ name: 'Blazer', item_name: 'Blazer' }, { name: 'UA-SIZED-BLAZER', item_name: 'Blazer (sized to order)' }],
+    [{ name: 'UA-BLAZER-NAVY-M' }, { name: 'UA-SIZED-BLAZER-NAVY-MEN-M' }],
+    [{ name: 'INV-9', posting_date: '2026-09-20', currency: 'EGP', item_code: 'UA-SIZED-BLAZER-NAVY-MEN-M', rate: 1500, qty: 7 }],
+  ];
+  const sizedPrice = await run('price', { item: 'Blazer' });
+  assert.deepEqual([(sizedPrice.rows[0] as { name: string }).name, sizedPrice.sources[0].rate], ['INV-9', 1500]);
+  assert.ok(seen.at(-2)!.url.searchParams.get('filters')!.includes('UA-SIZED-BLAZER'));
+  replies = [[{ name: 'UA-SIZED-POLO', item_name: 'Polo (sized to order)' }, { name: 'Polo', item_name: 'Polo' }], []];
+  await checkStock({ item: 'Polo' });
+  assert.equal(JSON.parse(seen.at(-1)!.url.searchParams.get('filters')!).at(-1).join('|'), 'variant_of|in|Polo');
 
 // 5. A timeout escapes as an ErpError for the route to turn into a 502.
   globalThis.fetch = (() => Promise.reject(new DOMException('aborted', 'AbortError'))) as typeof fetch;

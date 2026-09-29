@@ -3,7 +3,7 @@
 import { Check } from './check';
 import s from '@/app/ui.module.css';
 import { GarmentSvg, logoGarmentIndex } from './garments';
-import { type Concept, conceptPrice } from '@/lib/spec';
+import { type Concept, conceptPrice, cutsOf } from '@/lib/spec';
 import { type Locale, kitName, t } from '@/lib/i18n';
 
 export function ConceptCard({
@@ -19,7 +19,7 @@ export function ConceptCard({
 }) {
   const per = conceptPrice(concept);
   const logoAt = logoGarmentIndex(concept.garments);
-  const cuts = concept.cuts?.length ? concept.cuts : ['men', 'women'];
+  const cuts = cutsOf(concept);
   const cutKey = cuts.includes('men') && cuts.includes('women') ? 'mixed' : cuts[0];
   const fits = [...new Set(concept.garments.map((g) => g.fit ?? 'regular'))]
     .map((fit) => t(locale, `fits.${fit}`)).join(' / ');

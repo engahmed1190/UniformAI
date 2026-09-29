@@ -28,7 +28,7 @@ export type Workflow =
   | 'awaiting' | 'collecting_sizes' | 'in_progress' | 'delivered';
 
 /** The five steps of the timeline. A step is reached when its document exists. */
-export const STEPS = ['requested', 'issued', 'approved', 'confirmed', 'delivered'] as const;
+export const STEPS = ['requested', 'issued', 'approved', 'confirmed', 'sized', 'delivered'] as const;
 
 export type Order = {
   id: string;
@@ -79,7 +79,11 @@ export type TimelineStep = {
 export function timeline(o: Order): TimelineStep[] {
   const done = o.state === 'delivered' || o.perDelivered >= 100;
   const over = done || o.state === 'quote_closed';
-  const reached = STEPS.map((k) => (k === 'delivered' ? done : o.dates[k] !== undefined));
+  // Sizes are in once the order is in progress, even when an older order
+  // has no size run on record to date it.
+  const reached = STEPS.map((k) => (k === 'delivered' ? done
+    : k === 'sized' ? o.dates.sized !== undefined || o.state === 'in_progress' || done
+      : o.dates[k] !== undefined));
   const nowAt = over ? -1 : reached.indexOf(false);
   const docs = { requested: o.quote, issued: o.quote, confirmed: o.salesOrder, delivered: o.deliveryNote } as const;
   return STEPS.map((key, i) => ({

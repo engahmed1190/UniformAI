@@ -8,7 +8,7 @@
 
 import { type Concept, type LogoPosition, type SizingMode, conceptPrice } from './spec';
 import { briefWishes, swatchWord } from './refine';
-import { type Order } from './order';
+import { type Order, type Workflow } from './order';
 import { type Locale, formatCurrency, formatDate, kitName, spareMessage, t } from './i18n';
 
 /** Colour words that describe a family, not a specific cloth. */
@@ -194,9 +194,19 @@ export function orderNote(locale: Locale, o: Order): string {
   }
 }
 
+/** Which open states make up each group, for the greeting and Home's cards
+ *  alike, so the two never count differently. Both "waiting" groups need the
+ *  customer; sizes are not production yet. */
+export const GROUPS = {
+  waitingYou: ['quote_ready'], withUs: ['quote_requested', 'awaiting'],
+  waitingSizes: ['collecting_sizes'], makingNow: ['in_progress'],
+} as const satisfies Record<string, readonly Workflow[]>;
+
 /** The greeting: what is open right now. Delivered and closed orders need nobody. */
-export function greeting(locale: Locale, name: string, orders: Order[]): string {
+export function greeting(locale: Locale, orders: Order[]): string {
   const hour = new Date().getHours();
+  // The same professional voice as the assistant: "Good afternoon, Mr. Ahmed".
+  const name = t(locale, 'manager.you');
   const part = t(locale, hour < 12 ? 'manager.morning' : hour < 18 ? 'manager.afternoon' : 'manager.evening');
   const open = orders.filter((o) => o.state !== 'delivered' && o.state !== 'quote_closed');
   if (open.length === 0) return t(locale, 'manager.greetNothing', { part, name });
@@ -210,11 +220,9 @@ export function greeting(locale: Locale, name: string, orders: Order[]): string 
     return t(locale, `manager.${key}`, { part, name, kit, id: o.id, date: formatDate(locale, o.due) });
   }
   // Home's own groups, the one waiting on the buyer first.
-  const n = (...s: Order['state'][]) => open.filter((o) => s.includes(o.state)).length;
-  const list = ([
-    ['waitingYou', n('quote_ready')], ['withUs', n('quote_requested', 'awaiting')],
-    ['waitingSizes', n('collecting_sizes')], ['makingNow', n('in_progress')],
-  ] as const).filter(([, c]) => c > 0)
+  const n = (states: readonly Workflow[]) => open.filter((o) => states.includes(o.state)).length;
+  const list = (Object.entries(GROUPS) as [keyof typeof GROUPS, readonly Workflow[]][])
+    .map(([k, states]) => [k, n(states)] as const).filter(([, c]) => c > 0)
     .map(([k, c]) => t(locale, `manager.${k}`, { n: c })).join(locale === 'ar' ? '، ' : ', ');
   return t(locale, 'manager.greetMany', { part, name, list });
 }

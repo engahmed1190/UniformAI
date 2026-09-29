@@ -3,7 +3,10 @@
 // a quote and approve one. Everything priced comes from kitLines, never from
 // the request body.
 
-import { call, get, insert, list } from './erp';
+import { acceptsSets } from './policy';
+import { ErpError, call, get, insert, list } from './erp';
+import { type Invoice, type InvoiceRow, toInvoice } from './invoices';
+import { type QuoteView, toQuoteView } from './quote-view';
 import { type Kit, type DeliveryRow, type QuoteRow, type SalesOrderRow, kitEstimate, kitLines, toOrders } from './orders';
 import type { Order } from './order';
 import {
@@ -11,6 +14,7 @@ import {
   GARMENT_CATALOG, SIZES, allocatedSizeCount,
 } from './spec';
 import { CONCEPTS } from './concepts';
+import { cutsOf, parseRun } from './size-run';
 
 export const CUSTOMER = 'BrainWise Technology';
 const MAKE_SALES_ORDER = 'erpnext.selling.doctype.quotation.quotation.make_sales_order';
@@ -38,8 +42,23 @@ function isoDay(offset = 0): string {
 type SalesOrderListRow = Omit<SalesOrderRow, 'quotation'> & { prevdoc_docname?: string | null };
 type DeliveryListRow = Omit<DeliveryRow, 'against_sales_order'> & { against_sales_order?: string | null };
 
+export const SIZE_RUN = 'UniformAI Size Run';
+
+type StoredRun = { sales_order: string; allocation: unknown; creation?: string };
+
+/** Orders with stored size-run data. A site seeded before the doctype existed
+ *  answers 403 or 404: that is "no runs yet", not an outage. */
+async function sizeRuns(): Promise<StoredRun[]> {
+  try {
+    return await list<StoredRun>(SIZE_RUN, { fields: ['sales_order', 'allocation', 'creation'], orderBy: 'creation desc', limit: 2000 });
+  } catch (error) {
+    if (error instanceof ErpError && (error.status === 403 || error.status === 404)) return [];
+    throw error;
+  }
+}
+
 export async function listOrders(): Promise<Order[]> {
-  const [quotes, orderRows, noteRows] = await Promise.all([
+  const [quotes, orderRows, noteRows, runs] = await Promise.all([
     list<QuoteRow>('Quotation', {
       fields: ['name', 'party_name', 'status', 'docstatus', 'transaction_date', 'valid_till',
         'grand_total', 'uniformai_kit', 'uniformai_ref'],
@@ -57,6 +76,7 @@ export async function listOrders(): Promise<Order[]> {
       filters: [['customer', '=', CUSTOMER], ['docstatus', '=', 1]],
       orderBy: 'posting_date desc', limit: 2000,
     }),
+    sizeRuns(),
   ]);
 
   // Frappe returns one row per item line: fold them back to one per document.
@@ -75,13 +95,51 @@ export async function listOrders(): Promise<Order[]> {
     noted.add(key);
     notes.push({ ...row, against_sales_order: row.against_sales_order });
   }
-  return toOrders(quotes, [...orders.values()], notes);
+  // Rebuilt once more on purpose: stored runs are validated against the set
+  // count read from the customer's order, so malformed or manual records do
+  // not advance its state.
+  const base = toOrders(quotes, [...orders.values()], notes);
+  const bySalesOrder = new Map(base.flatMap((o) => o.salesOrder ? [[o.salesOrder, o] as const] : []));
+  const sized = new Map(runs.flatMap((run) => {
+    const order = bySalesOrder.get(run.sales_order);
+    if (!order?.concept) return [];
+    let stored: unknown;
+    try { stored = typeof run.allocation === 'string' ? JSON.parse(run.allocation) : run.allocation; } catch { return []; }
+    return parseRun(stored, cutsOf(order.concept), order.sets)
+      ? [[run.sales_order, String(run.creation ?? order.dates.confirmed?.toISOString() ?? '').slice(0, 10)] as const] : [];
+  })); // ERPNext lists newest first, so the first run's day is the one kept
+  return toOrders(quotes, [...orders.values()], notes, sized);
 }
 
 async function chainOf(quote: string): Promise<Order> {
   const order = (await listOrders()).find((o) => o.quote === quote);
   if (!order) throw new SalesError('Quote not found', 404);
   return order;
+}
+
+/** An issued quotation of the customer's. Missing, another customer's and
+ *  not yet issued all read as not found. */
+export async function quoteDetail(name: string): Promise<QuoteView> {
+  let doc: Record<string, unknown>;
+  try {
+    doc = await get<Record<string, unknown>>('Quotation', name);
+  } catch (error) {
+    if ((error as { status?: number }).status === 404) throw new SalesError('Quote not found', 404);
+    throw error;
+  }
+  if (doc.party_name !== CUSTOMER || doc.docstatus !== 1) throw new SalesError('Quote not found', 404);
+  return toQuoteView(doc);
+}
+
+/** The customer's submitted invoices, newest first, with a derived status. */
+export async function listInvoices(): Promise<Invoice[]> {
+  const rows = await list<InvoiceRow>('Sales Invoice', {
+    fields: ['name', 'posting_date', 'due_date', 'grand_total', 'outstanding_amount'],
+    filters: [['customer', '=', CUSTOMER], ['docstatus', '=', 1], ['is_return', '=', 0]],
+    orderBy: 'posting_date desc', limit: 50,
+  });
+  const today = isoDay();
+  return rows.map((r) => toInvoice(r, today));
 }
 
 // ---- request a quote ---------------------------------------------------------
@@ -102,7 +160,7 @@ export function parseKit(input: unknown): Kit {
   if (!isObject(input)) throw bad('request');
   const { concept: c, staff, sets, grades, sizePlan: plan } = input;
   if (!count(staff)) throw bad('staff');
-  if (!count(sets) || sets < staff || sets > staff * 2) throw bad('sets');
+  if (!count(sets) || !acceptsSets(staff, sets)) throw bad('sets');
   if (!isObject(c) || !text(c.name) || !c.name.trim() || !text(c.id, 80)) throw bad('concept');
   if (!Array.isArray(c.garments) || c.garments.length < 1 || c.garments.length > TYPES.length) throw bad('garments');
   if (!isObject(c.logo) || !POSITIONS.includes(c.logo.position as string) || !METHODS.includes(c.logo.method as string)) {
@@ -149,7 +207,7 @@ export function parseKit(input: unknown): Kit {
   const kit: Kit = { concept, staff, sets, grades: grades as number[], sizePlan: plan as SizePlan };
   try {
     kitLines(kit); kitEstimate(kit);
-    allocatedSizeCount(kit.sizePlan.allocation, concept.cuts.length ? concept.cuts : ['men', 'women']);
+    allocatedSizeCount(kit.sizePlan.allocation, cutsOf(concept));
   } catch { throw bad('kit'); }
   return kit;
 }
@@ -223,4 +281,55 @@ async function approve(name: string): Promise<Order> {
   };
   await insert('Sales Order', doc, 'write');
   return chainOf(name);
+}
+
+// ---- size run and contact --------------------------------------------------
+
+const findOrder = async (name: string) => (await listOrders()).find((o) => o.salesOrder === name);
+const recordingSizes = new Set<string>();
+
+/** Record the customer's size run for a confirmed order. Insert-only: the
+ *  Sales Order itself is never written. */
+export async function sendSizes(name: string, input: unknown): Promise<Order> {
+  if (recordingSizes.has(name)) throw new SalesError('Sizes are already being recorded', 409);
+  recordingSizes.add(name);
+  try {
+    const order = await findOrder(name);
+    if (!order) throw new SalesError('Order not found', 404);
+    if (order.state !== 'collecting_sizes') throw new SalesError('This order is not waiting for sizes', 409);
+    const run = parseRun(input, cutsOf(order.concept), order.sets);
+    if (!run) throw bad('size run');
+    await insert(SIZE_RUN, { sales_order: name, allocation: JSON.stringify(run) }, 'write');
+    return (await findOrder(name)) ?? order;
+  } finally {
+    recordingSizes.delete(name);
+  }
+}
+
+export const TOPICS = ['general', 'order', 'billing'] as const;
+export type Topic = typeof TOPICS[number];
+const ABOUT: Record<Topic, string> = { general: 'a general question', order: 'an order', billing: 'billing' };
+const CUSTOMER_EMAIL = 'ahmed.osama@brainwise.example'; // seeded primary contact
+
+/** Contact our team: one Issue for the team, about one of the customer's own
+ *  documents or a topic. The transcript is never sent. */
+export async function openCase(input: unknown): Promise<{ name: string }> {
+  if (!isObject(input) || !TOPICS.includes(input.topic as Topic)) throw bad('request');
+  const topic = input.topic as Topic;
+  const doc = input.document;
+  if (doc !== undefined) {
+    // An order or quote of the customer's, or for billing one of their invoices.
+    const mine = typeof doc === 'string' && ((await listOrders()).some((o) => o.quote === doc || o.salesOrder === doc)
+      || (topic === 'billing' && (await listInvoices()).some((i) => i.name === doc)));
+    if (!mine) throw new SalesError('Order not found', 404);
+  }
+  const about = typeof doc === 'string' ? doc : ABOUT[topic];
+  const created = await insert<{ name: string }>('Issue', {
+    subject: `[UniformAI assistant] Please contact ${CUSTOMER} about ${about}`,
+    customer: CUSTOMER,
+    raised_by: CUSTOMER_EMAIL,
+    via_customer_portal: 0,
+    description: `Asked from the UniformAI assistant. Topic: ${topic}.${typeof doc === 'string' ? ` Document: ${doc}.` : ''}`,
+  }, 'write');
+  return { name: created.name };
 }

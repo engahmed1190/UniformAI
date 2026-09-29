@@ -427,15 +427,11 @@ export default function Page() {
           )}
 
           {page === 'orders' && (
-            <>
-              <Orders orders={orders} loadState={loadState} onReload={() => void loadOrders()}
-                onApproved={(id) => { setFocusOrder({ id, n: Date.now() }); return loadOrders(); }} onHome={() => setPage('home')}
-                locale={locale} money={money} shortDay={shortDay}
-                focus={focusOrder}
-                onAsk={(id) => setErpRequest({ orderId: id, id: Date.now() })} />
-              <AskErp locale={locale} request={erpRequest}
-                onOpenOrder={(id) => setFocusOrder({ id, n: Date.now() })} />
-            </>
+            <Orders orders={orders} loadState={loadState} onReload={() => void loadOrders()}
+              onApproved={(id) => { setFocusOrder({ id, n: Date.now() }); return loadOrders(); }} onHome={() => setPage('home')}
+              locale={locale} money={money} shortDay={shortDay}
+              focus={focusOrder}
+              onAsk={(id) => setErpRequest({ orderId: id, id: Date.now() })} />
           )}
           {page === 'settings' && (
             <Settings profile={{ ...profile, staff }} locale={locale} onLocale={changeLocale}
@@ -543,6 +539,11 @@ export default function Page() {
       )}
 
       {toast && <div className={s.toast} role="status">{toast}</div>}
+      {/* The account manager, on every screen. */}
+      <AskErp locale={locale} request={erpRequest}
+        raised={page === 'configure' || (page === 'design' && !!concepts && !busy)}
+        onOpenOrder={(id) => { setFocusOrder({ id, n: Date.now() }); setPage('orders'); }}
+        onChanged={() => void loadOrders()} />
       {dialog}
     </div>
   );

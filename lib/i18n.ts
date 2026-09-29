@@ -179,7 +179,7 @@ const en = {
     },
   },
   erpAsk: {
-    launcher: 'Your account manager', title: 'Your account manager', close: 'Close',
+    launcher: 'Ask your assistant', title: 'Your account manager', close: 'Close',
     typing: 'Your account manager is typing',
     news: 'News from your account manager',
     live: 'UniformAI · replies from your live account', offline: 'Your account records are unavailable right now', probing: 'Connecting',
@@ -717,7 +717,7 @@ const ar: Dict<typeof en> = {
     },
   },
   erpAsk: {
-    launcher: 'مدير حسابكم', title: 'مدير حسابكم', close: 'إغلاق',
+    launcher: 'اسأل مساعدك', title: 'مدير حسابكم', close: 'إغلاق',
     typing: 'مدير حسابكم يكتب الآن',
     news: 'أخبار جديدة من مدير حسابكم',
     live: 'UniformAI · من بيانات حسابكم مباشرة', offline: 'بيانات حسابك غير متاحة الآن', probing: 'جارٍ الاتصال',

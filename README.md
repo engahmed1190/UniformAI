@@ -27,6 +27,14 @@ invoices (Paid / Unpaid / Overdue, worked out from what is owed and the due
 date) and ask the team to get in touch (an ERPNext Issue, named CASE-...). The
 minimum order is 10 sets, with 5% spares recommended (`lib/policy.ts`).
 
+Sizes follow ERPNext's standard for variants. Quotations and orders are
+priced on one made-to-order line per garment (`UA-MTO-…`), since sizes are
+not known yet. The customer's sizes arrive as a UniformAI Size Run; the team
+applies them with the Sales Order's Update Items (`npm run team -- sizes
+<order>`), which replaces each garment line with its colour, cut and size
+variants (`UA-SIZED-…`, non-stock) at the same rate, so the total is
+unchanged. Delivery notes and invoices then list each size.
+
 Still stand-ins: the kit catalogue and the brief-to-kit generation (below).
 
 ### Setup
@@ -59,7 +67,7 @@ Fonts here).
 ### Demo script
 
 `npm run seed:erp -- --reset && npm run demo:check` first. UniformAI's side is played in ERPNext's
-desk or with `npm run team -- issue|confirm|deliver <document>`.
+desk or with `npm run team -- issue|confirm|sizes|deliver <document>`.
 
 1. Open the assistant on Home: a greeting, and the Technicians quotation
    waiting for review.
@@ -70,12 +78,14 @@ desk or with `npm run team -- issue|confirm|deliver <document>`.
    quotation (names and money only), approve. ERPNext has a draft Sales Order.
 4. As the team, confirm the order. The assistant asks for sizes; use the
    proposed split, review, send. The order moves to In progress.
-5. As the team, deliver. The order reads Delivered; Invoices shows the new
+5. As the team, apply the sizes. In ERPNext the order now lists each garment
+   by colour, cut and size, at the same total; the customer sees no change.
+6. As the team, deliver. The order reads Delivered; Invoices shows the new
    one Unpaid, one Overdue and the history Paid.
-6. Discuss with our team: a CASE-... reference, visible in ERPNext as an Issue.
-7. Switch to Arabic and ask again: the same conversation, formal Arabic.
-8. Stock and last price still work from More: Polo, Navy, XL is 260 in Stores.
-9. `npm run seed:erp -- --reset && npm run demo:check` to start over.
+7. Discuss with our team: a CASE-… reference, visible in ERPNext as an Issue.
+8. Switch to Arabic and ask again: the same conversation, formal Arabic.
+9. Stock and last price still work from More: Polo, Navy, XL is 260 in Stores.
+10. `npm run seed:erp -- --reset && npm run demo:check` to start over.
 
 If ERPNext is down, Orders shows "We couldn't load your orders" with a retry.
 

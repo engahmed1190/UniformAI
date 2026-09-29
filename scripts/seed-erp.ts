@@ -15,7 +15,8 @@
 
 import { loadEnvConfig } from '@next/env';
 import { CONCEPTS } from '../lib/concepts';
-import { type GarmentType, type SizePlan, LABELS, allocatedSizeCount } from '../lib/spec';
+import { type GarmentType, type SizePlan, LABELS, SIZES as SIZE_RUN_SIZES, allocatedSizeCount } from '../lib/spec';
+import { COLOUR_NAMES, CUT_ATTRIBUTE, CUT_VALUE, garmentColour, sizedTemplate, sizedVariants } from '../lib/sized';
 import { type Kit, LOGO_ITEM, MTO_ITEM, kitEstimate, kitLines } from '../lib/orders';
 
 loadEnvConfig(process.cwd());
@@ -128,11 +129,6 @@ const COLOUR = 'Uniform Colour';
 const SIZE = 'Uniform Size';
 const SIZES = ['S', 'M', 'L', 'XL'];
 const code = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-const COLOURS: Record<string, string> = {
-  '#1b2a4a': 'Navy', '#ffffff': 'White', '#2f3640': 'Charcoal',
-  '#dfe6ef': 'Pale Blue', '#3d4a3a': 'Olive', '#c8b393': 'Sand',
-  '#7a6a4f': 'Khaki', '#6a5c44': 'Khaki',
-};
 const TEMPLATES: Record<GarmentType, string> = {
   polo: 'Polo', cargo: 'Cargo Trouser', shirt: 'Shirt', chino: 'Chino', blazer: 'Blazer',
 };
@@ -162,6 +158,27 @@ const SIZE_RUN = 'UniformAI Size Run';
 
 /** Insert-only record of the size breakdown a customer sent for an order.
  *  The app never writes the Sales Order; the team reads size runs here. */
+/** Create the attribute, or add the values an older seed's copy lacks. The
+ *  whole child table is sent back, existing rows included, so none is lost. */
+async function ensureAttribute(attribute_name: string, values: string[]) {
+  const row = (attribute_value: string, idx: number) =>
+    ({ attribute_value, abbr: code(attribute_value).slice(0, 8), idx });
+  const found = await find('Item Attribute', [['attribute_name', '=', attribute_name]]);
+  if (!found) {
+    await create('Item Attribute', { attribute_name, item_attribute_values: values.map((v, i) => row(v, i + 1)) });
+    return;
+  }
+  const path = `/api/resource/Item%20Attribute/${encodeURIComponent(found.name)}`;
+  const have = (await api<{ data: { item_attribute_values: { attribute_value: string }[] } }>(path))
+    .data.item_attribute_values;
+  const missing = values.filter((v) => !have.some((h) => h.attribute_value === v));
+  if (!missing.length) return;
+  await api(path, { method: 'PUT', body: JSON.stringify({
+    item_attribute_values: [...have, ...missing.map((v, i) => row(v, have.length + i + 1))],
+  }) });
+  console.log(`${attribute_name}: added ${missing.join(', ')}`);
+}
+
 async function ensureSizeRunDoctype() {
   if (await find('DocType', [['name', '=', SIZE_RUN]])) return;
   await create('DocType', {
@@ -243,19 +260,14 @@ async function masters(company: string) {
   const stockGroup = (await ensure('Item Group', [['item_group_name', '=', 'Uniforms']], {
     item_group_name: 'Uniforms', parent_item_group: 'All Item Groups', is_group: 0,
   })).name;
-  const colourValues = ['Navy', 'Sand', 'Olive', 'White', 'Pale Blue', 'Charcoal', 'Khaki'];
-  for (const [name, values] of [[COLOUR, colourValues], [SIZE, SIZES]] as const) {
-    await ensure('Item Attribute', [['attribute_name', '=', name]], {
-      attribute_name: name,
-      item_attribute_values: values.map((attribute_value, i) => ({
-        attribute_value, abbr: code(attribute_value).slice(0, 8), idx: i + 1,
-      })),
-    });
-  }
+  const colourValues = [...new Set(Object.values(COLOUR_NAMES))];
+  await ensureAttribute(COLOUR, colourValues);
+  await ensureAttribute(SIZE, SIZE_RUN_SIZES);
+  await ensureAttribute(CUT_ATTRIBUTE, Object.values(CUT_VALUE));
   const colours = new Map<string, Set<string>>();
   for (const concept of CONCEPTS) for (const g of concept.garments) {
     const set = colours.get(TEMPLATES[g.type]) ?? new Set<string>();
-    set.add(COLOURS[g.parts.body ?? g.parts.leg ?? Object.values(g.parts)[0]] ?? 'Navy');
+    set.add(garmentColour(g) ?? 'Navy');
     colours.set(TEMPLATES[g.type], set);
   }
   for (const [template, set] of colours) {
@@ -282,6 +294,28 @@ async function masters(company: string) {
       item_code, item_name: `${LABELS[type]} (made to order)`, item_group: mtoGroup,
       stock_uom: 'Nos', is_stock_item: 0,
       description: `${LABELS[type]} made to the customer's design: colours, cloth and fit on each line.`,
+    });
+  }
+  // Made to order, by size: what a garment line becomes once the team applies
+  // the customer's size run (npm run team -- sizes). Non-stock like UA-MTO-*,
+  // so delivery needs no stock. Separate templates, because ERPNext will not
+  // turn an item that has transactions into a template.
+  for (const type of Object.keys(MTO_ITEM) as GarmentType[]) {
+    await ensure('Item', [['item_code', '=', sizedTemplate(type)]], {
+      item_code: sizedTemplate(type), item_name: `${TEMPLATES[type]} (sized to order)`, item_group: mtoGroup,
+      stock_uom: 'Nos', is_stock_item: 0, has_variants: 1,
+      attributes: [{ attribute: COLOUR }, { attribute: CUT_ATTRIBUTE }, { attribute: SIZE }],
+    });
+  }
+  for (const v of sizedVariants(CONCEPTS)) {
+    await ensure('Item', [['item_code', '=', v.item_code]], {
+      item_code: v.item_code, item_name: `${TEMPLATES[v.type]} ${v.colour} ${CUT_VALUE[v.cut]} ${v.size}`,
+      item_group: mtoGroup, stock_uom: 'Nos', is_stock_item: 0, variant_of: v.template,
+      attributes: [
+        { attribute: COLOUR, attribute_value: v.colour },
+        { attribute: CUT_ATTRIBUTE, attribute_value: CUT_VALUE[v.cut] },
+        { attribute: SIZE, attribute_value: v.size },
+      ],
     });
   }
   for (const [method, item_code] of Object.entries(LOGO_ITEM)) {

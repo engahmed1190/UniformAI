@@ -4,9 +4,13 @@
 //
 //   npm run team -- issue SAL-QTN-2026-00032     submit the quotation (price confirmed)
 //   npm run team -- confirm SAL-ORD-2026-00015   submit the sales order
+//   npm run team -- sizes SAL-ORD-2026-00015     apply the customer's size run (Update Items)
 //   npm run team -- deliver SAL-ORD-2026-00015   deliver in full and invoice, due in 30 days
 
 import { loadEnvConfig } from '@next/env';
+import { type Kit } from '../lib/orders';
+import { cutsOf, parseRun } from '../lib/size-run';
+import { type SoItem, sizedItems } from '../lib/sized';
 
 loadEnvConfig(process.cwd());
 const ERP_URL = process.env.ERP_URL?.replace(/\/$/, '');
@@ -45,6 +49,43 @@ const call = async <T>(method: string, args: Record<string, unknown>) =>
 const submit = (doc: Doc) => call<Doc>('frappe.client.submit', { doc });
 const SO = 'erpnext.selling.doctype.sales_order.sales_order';
 
+type OrderDoc = Doc & {
+  docstatus: number; per_delivered: number; per_billed: number; grand_total: number;
+  uniformai_kit?: string | null; items: SoItem[];
+};
+
+/** The team applies a confirmed order's sizes the way the desk's Update
+ *  Items does: each made-to-order garment line is replaced by its colour,
+ *  cut and size variants at the same rate, so the total does not move. The
+ *  customer's newest Size Run wins; a kit sized at quote time is used when
+ *  there is none. ERPNext refuses to delete a delivered, billed or ordered
+ *  line, so this runs before `deliver`. */
+async function applySizes(name: string): Promise<string> {
+  const order = await get('Sales Order', name) as OrderDoc;
+  if (order.docstatus !== 1) throw new Error(`${name} is not confirmed yet`);
+  if (order.per_delivered > 0 || order.per_billed > 0) throw new Error(`${name} is already delivered or billed in part`);
+  const kit = order.uniformai_kit ? JSON.parse(order.uniformai_kit) as Kit : null;
+  if (!kit) throw new Error(`${name} was not made by the app`);
+  const runs = await api<{ data: { allocation: unknown }[] }>(`${resource('UniformAI Size Run')}?${new URLSearchParams({
+    fields: JSON.stringify(['allocation']), filters: JSON.stringify([['sales_order', '=', name]]),
+    order_by: 'creation desc', limit_page_length: '1',
+  })}`);
+  const stored = runs.data[0]?.allocation
+    ?? (kit.sizePlan?.mode === 'allocate_now' ? kit.sizePlan.allocation : undefined);
+  const run = parseRun(typeof stored === 'string' ? JSON.parse(stored) : stored, cutsOf(kit.concept), kit.sets);
+  if (!run) throw new Error(`${name} has no complete size run yet`);
+  const trans = sizedItems(order.items, kit, run);
+  await call('erpnext.controllers.accounts_controller.update_child_qty_rate', {
+    parent_doctype: 'Sales Order', parent_doctype_name: name, child_docname: 'items',
+    trans_items: JSON.stringify(trans),
+  });
+  const after = await get('Sales Order', name);
+  if (Number(after.grand_total) !== Number(order.grand_total)) {
+    throw new Error(`${name}: the total moved from ${order.grand_total} to ${after.grand_total}`);
+  }
+  return `sized ${name}: ${trans.filter((t) => !t.docname).length} size lines, total ${after.grand_total}`;
+}
+
 async function main() {
   const [verb, name] = process.argv.slice(2);
   if (verb === 'issue' && name) {
@@ -59,8 +100,10 @@ async function main() {
       ...clean(await call<Doc>(`${SO}.make_sales_invoice`, { source_name: name })), due_date: due.toISOString().slice(0, 10),
     }));
     console.log(`delivered ${note.name}, invoiced ${invoice.name}`);
+  } else if (verb === 'sizes' && name) {
+    console.log(await applySizes(name));
   } else {
-    console.log('usage: npm run team -- issue <quotation> | confirm <sales order> | deliver <sales order>');
+    console.log('usage: npm run team -- issue <quotation> | confirm <sales order> | sizes <sales order> | deliver <sales order>');
     process.exit(1);
   }
 }

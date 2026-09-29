@@ -1574,6 +1574,41 @@
   font-size: var(--t-base);
 }
 
+/* The conversation's own controls: one primary per turn, small forms. */
+.evSuggest button.evPrimary,
+.evPrimary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.evSuggest button.evPrimary:hover,
+.evPrimary:hover:not(:disabled) { background: var(--accent-hover); color: #fff; }
+.evPrimary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.evPanel { display: grid; gap: var(--s3); padding: var(--s3); border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
+.evPanel input { width: 100%; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: var(--r-sm); font: inherit; }
+.evPanel button:not(.evPrimary) { padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); font: inherit; cursor: pointer; }
+.evRow { display: flex; gap: var(--s2); flex-wrap: wrap; }
+.evRun { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--s1); margin: 0; padding: 0; border: 0; }
+.evRun legend { font-weight: 600; margin-bottom: var(--s1); }
+.evRun label { display: grid; gap: 2px; text-align: center; font-size: var(--t-xs); color: var(--text-2); }
+.evRun input { padding: 6px 2px; text-align: center; }
+.evRunLeft { margin: 0; color: var(--text-2); font-size: var(--t-sm); }
+
+.evLines { list-style: none; margin: var(--s2) 0; padding: 0; display: grid; gap: var(--s1); font-size: var(--t-sm); }
+.evLines li { display: flex; flex-wrap: wrap; gap: var(--s2); justify-content: space-between; align-items: baseline; }
+.evTotal { display: flex; justify-content: space-between; margin: var(--s2) 0 0; padding-top: var(--s2); border-top: 1px solid var(--line); }
+.evChip { padding: 1px 8px; border-radius: 999px; font-size: var(--t-xs); }
+.evChip_paid { background: var(--good-soft); color: var(--good); }
+.evChip_unpaid { background: var(--sunken); color: var(--text-2); }
+.evChip_overdue { background: var(--warn-soft); color: var(--warn); }
+
+/* Above the fixed action and price bars on Design and Configure. */
+.evLauncherRaised { inset-block-end: calc(88px + var(--s4)); }
+@media (max-width: 760px) {
+  .evLauncherRaised { inset-block-end: calc(64px + 88px + var(--s3) + env(safe-area-inset-bottom)); }
+}
+
 .evReply {
   display: flex;
   flex-direction: column;

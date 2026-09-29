@@ -1587,7 +1587,9 @@
 
 .evPanel { display: grid; gap: var(--s3); padding: var(--s3); border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); }
 .evPanel input { width: 100%; padding: 8px 10px; border: 1px solid var(--line-2); border-radius: var(--r-sm); font: inherit; }
-.evPanel button:not(.evPrimary) { padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); font: inherit; cursor: pointer; }
+.evPanel button { padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); font: inherit; cursor: pointer; }
+.evPanel button.evPrimary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.evPanel button.evPrimary:hover:not(:disabled) { background: var(--accent-hover); }
 .evRow { display: flex; gap: var(--s2); flex-wrap: wrap; }
 .evRun { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--s1); margin: 0; padding: 0; border: 0; }
 .evRun legend { font-weight: 600; margin-bottom: var(--s1); }
@@ -1606,7 +1608,7 @@
 /* Above the fixed action and price bars on Design and Configure. */
 .evLauncherRaised { inset-block-end: calc(88px + var(--s4)); }
 @media (max-width: 760px) {
-  .evLauncherRaised { inset-block-end: calc(64px + 88px + var(--s3) + env(safe-area-inset-bottom)); }
+  .evLauncher.evLauncherRaised { inset-block-end: calc(64px + 130px + var(--s3) + env(safe-area-inset-bottom)); }
 }
 
 .evReply {

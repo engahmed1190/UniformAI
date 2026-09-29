@@ -39,7 +39,7 @@ export function PeopleForm({ locale, kit, initial = 20, onRequest }: {
           setPeople(n);
           if (Number.isInteger(n) && n >= 1 && n <= 500) setValid(n);
         }} />
-      <p className={s.evRunLeft} aria-live="polite"><Rich text={plan.say} /></p>
+      <p className={s.evRunLeft}><Rich text={plan.say} /></p>
       <button type="submit" className={s.evPrimary} disabled={!ok}><Rich text={request.label} /></button>
     </form>
   );

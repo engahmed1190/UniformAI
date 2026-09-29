@@ -571,8 +571,10 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
   // A language switch restarts the conversation in the new language: the
   // log holds sentences and labels already written in the old one.
   useEffect(() => {
-    if (!turns.length) return;
+    // Bumped first: the first greeting, still being typed into an empty log,
+    // is in the old language too.
     langEpoch.current += 1;
+    if (!turns.length) return;
     setTurns([]);
     seen.current.clear();
     setGarments([]);

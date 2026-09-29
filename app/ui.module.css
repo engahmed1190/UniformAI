@@ -1644,15 +1644,15 @@
   border-radius: var(--r);
   background: var(--surface);
 }
-.evTyping span {
+.evTyping span[aria-hidden] {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: var(--text-3);
   animation: evBlink 0.6s ease-in-out infinite alternate;
 }
-.evTyping span:nth-child(2) { animation-delay: 0.2s; }
-.evTyping span:nth-child(3) { animation-delay: 0.4s; }
+.evTyping span[aria-hidden]:nth-child(2) { animation-delay: 0.2s; }
+.evTyping span[aria-hidden]:nth-child(3) { animation-delay: 0.4s; }
 
 .evSources h3 {
   margin: 0 0 var(--s2);
@@ -1722,9 +1722,9 @@
 /* A read still running shows only the typing dots, not an empty gap. */
 .evTurn:has(> .evReply:empty) { display: none; }
 /* Read out by screen readers, not shown. */
-.srOnly, .evTyping .srOnly {
-  position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
-  animation: none; background: none;
+.srOnly {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
 }
 
 @media (max-width: 760px) {

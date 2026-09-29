@@ -219,7 +219,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
 }) {
   const [open, setOpen] = useState(false);
   const [turns, setTurns] = useState<Turn[]>([]);
-  const [stage, setStage] = useState<Stage>({ k: 'turn', buttons: [] });
+  const [stage, setStage] = useState<Stage>({ k: 'turn', buttons: [], home: true });
   const [garments, setGarments] = useState<Option[]>([]);
   const [busy, setBusy] = useState(false);
   const [health, setHealth] = useState<Health>('probing');

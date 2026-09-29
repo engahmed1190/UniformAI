@@ -4,12 +4,14 @@
 // document links to the one before it.
 //
 //   npm run seed:erp              create whatever is missing (safe to rerun)
-//   npm run seed:erp -- --reset   put the live-demo orders and stock back to
-//                                 their starting point, then seed
+//   npm run seed:erp -- --reset   put the demo orders, stock, size runs,
+//                                 assistant-created cases and everything the
+//                                 app made back to the starting point, then seed
 //
-// Seeded documents carry uniformai_ref "demo-...". Reset only touches the
-// CURRENT refs below, never the fixed-date history, the app's own orders
-// ("app-...") or anything made by hand in ERPNext.
+// Seeded documents carry uniformai_ref "demo-...". Reset touches the CURRENT
+// refs below, every app-made document ("app-..."), size runs and the
+// assistant's own cases. It never touches the fixed-date history or anything
+// made by hand in ERPNext, staff-created cases included.
 
 import { loadEnvConfig } from '@next/env';
 import { CONCEPTS } from '../lib/concepts';
@@ -156,6 +158,30 @@ async function ensureCustomField(dt: string, fieldname: string, props: Record<st
   }
 }
 
+const SIZE_RUN = 'UniformAI Size Run';
+
+/** Insert-only record of the size breakdown a customer sent for an order.
+ *  The app never writes the Sales Order; the team reads size runs here. */
+async function ensureSizeRunDoctype() {
+  if (await find('DocType', [['name', '=', SIZE_RUN]])) return;
+  await create('DocType', {
+    name: SIZE_RUN, module: 'Selling', custom: 1,
+    autoname: 'format:SIZE-RUN-{#####}', naming_rule: 'Expression',
+    fields: [
+      { fieldname: 'sales_order', fieldtype: 'Link', options: 'Sales Order', label: 'Sales Order',
+        reqd: 1, in_list_view: 1, in_standard_filter: 1 },
+      { fieldname: 'allocation', fieldtype: 'JSON', label: 'Size run', reqd: 1 },
+    ],
+    permissions: [
+      { role: 'System Manager', read: 1, write: 1, create: 1, delete: 1 },
+      { role: 'Sales User', read: 1 },
+      { role: 'UniformAI Portal', read: 1, create: 1 },
+      { role: 'API Reader', read: 1 },
+    ],
+  });
+  console.log(`created DocType ${SIZE_RUN}`);
+}
+
 async function ensureUser(email: string, first: string, role: string) {
   await ensure('Role', [['role_name', '=', role]], { role_name: role, desk_access: 0 });
   await ensure('User', [['email', '=', email]], {
@@ -183,6 +209,16 @@ async function masters(company: string) {
   // asked for when probed against a live site: the customer's address is
   // filled in, and the receivable account decides the currency.
   for (const dt of ['Customer', 'Item', 'Address', 'Account']) await grant(dt, 'UniformAI Portal');
+  await ensureSizeRunDoctype();
+  // Contact our team: the Portal opens a case, nothing more.
+  await grant('Issue', 'UniformAI Portal', ['create']);
+  // Cases read as CASE-2026-00007, not ERPNext's ISS- prefix.
+  for (const [property, value] of [['options', 'CASE-.YYYY.-'], ['default', 'CASE-.YYYY.-']]) {
+    await ensure('Property Setter', [['name', '=', `Issue-naming_series-${property}`]], {
+      doctype_or_field: 'DocField', doc_type: 'Issue', field_name: 'naming_series',
+      property, property_type: 'Text', value,
+    });
+  }
 
   // A customer needs a leaf group and territory; the "All ..." roots are groups.
   const customer_group = (await find('Customer Group', [['is_group', '=', 0]]))?.name;
@@ -420,14 +456,56 @@ async function chain(c: Chain, company: string) {
   }
 }
 
+/** History invoices left open on purpose: hist-06 is past due, hist-07 is
+ *  not due yet. Every other history invoice is paid, once. */
+const UNPAID = new Set(['demo-hist-06', 'demo-hist-07']);
+
+async function pay(ref: string, company: Doc) {
+  const invoice = await find('Sales Invoice', [['uniformai_ref', '=', ref], ['docstatus', '=', 1]]);
+  if (!invoice || Number(invoice.outstanding_amount) <= 0) return;
+  const mapped = await call<Doc>('erpnext.accounts.doctype.payment_entry.payment_entry.get_payment_entry',
+    { dt: 'Sales Invoice', dn: invoice.name });
+  const paid = plus(String(invoice.posting_date), 14);
+  const day = paid > TODAY ? TODAY : paid;
+  const entry = await submit(await create('Payment Entry', {
+    ...mapped,
+    paid_to: mapped.paid_to || company.default_cash_account,
+    posting_date: day, reference_no: ref, reference_date: day,
+  }));
+  console.log(`${ref}: payment ${entry.name}`);
+}
+
 // ---------- Reset ----------
 
 async function reset(stock: Awaited<ReturnType<typeof masters>>, company: string) {
   const refs = CURRENT.map((c) => c.ref);
-  // Children before parents. Documents the app made from a seeded quote carry
-  // the same ref (ERPNext's mapping copies it), so they go too.
+  // Rehearsals leave app- documents behind (the mapping copies the ref onto
+  // the order, delivery and invoice). They go too, so every run starts clean.
+  const byRefs = async (doctype: string) => {
+    const found = [
+      ...await list(doctype, [['uniformai_ref', 'in', refs]], ['name', 'docstatus']),
+      ...await list(doctype, [['uniformai_ref', 'like', 'app-%']], ['name', 'docstatus']),
+    ];
+    return [...new Map(found.map((doc) => [doc.name, doc])).values()];
+  };
+  // A size run links to its order and would block deleting it.
+  const orders = (await byRefs('Sales Order')).map((o) => o.name);
+  if (orders.length) {
+    for (const run of await list(SIZE_RUN, [['sales_order', 'in', orders]])) {
+      await remove(SIZE_RUN, run.name);
+      console.log(`reset: removed size run ${run.name}`);
+    }
+  }
+  // Only the assistant's tagged cases are disposable. Staff-created BrainWise
+  // cases are account history and must survive a rehearsal reset.
+  for (const issue of await list('Issue', [
+    ['customer', '=', BRAINWISE], ['subject', 'like', '[UniformAI assistant]%'],
+  ])) {
+    await remove('Issue', issue.name);
+    console.log(`reset: removed case ${issue.name}`);
+  }
   for (const doctype of ['Sales Invoice', 'Delivery Note', 'Sales Order', 'Quotation']) {
-    for (const doc of await list(doctype, [['uniformai_ref', 'in', refs], ['docstatus', '<', 2]], ['name', 'docstatus'])) {
+    for (const doc of await byRefs(doctype)) {
       await discard(doctype, doc);
       console.log(`reset: removed ${doctype} ${doc.name}`);
     }
@@ -466,6 +544,7 @@ async function seed() {
   await removeFirstSeed();
   if (RESET) await reset(stock, companyName);
   for (const c of [...HISTORY, ...CURRENT]) await chain(c, companyName);
+  for (const c of HISTORY) if (!UNPAID.has(c.ref)) await pay(c.ref, company);
   console.log(`Seeded ${HISTORY.length} completed orders and ${CURRENT.length} current ones in ${companyName}.`);
 }
 

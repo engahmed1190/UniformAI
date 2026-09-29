@@ -10,7 +10,7 @@ import type { Invoice } from './invoices';
 import { LOCALES, type Locale } from './i18n';
 import {
   type Turn, approveTurn, approvedTurn, caseTurn, contactTurn, failTurn, invoicesTurn, menuTurn, moreTurn,
-  movedTurn, orderTurn, quoteShownTurn, refusedId, planTurn, quoteSentTurn, sizeConfirmTurn, sizesSentTurn, teamTurn, waitingButtons, holdsWrite,
+  movedTurn, orderTurn, quoteShownTurn, refusedId, planTurn, quoteSentTurn, sizesSentTurn, teamTurn, waitingButtons, holdsWrite,
 } from './journey';
 
 const QUOTE_STATES: Workflow[] = ['quote_requested', 'quote_ready', 'quote_closed'];
@@ -66,8 +66,8 @@ for (const locale of LOCALES as readonly Locale[]) {
   turn = keep(orderTurn(locale, order('quote_requested')));
   assert.ok(!turn.buttons.some((b) => b.act.k === 'approve'), 'a draft quote is never approvable');
   turn = keep(orderTurn(locale, order('quote_ready')));
-  assert.deepEqual(primary(turn), { k: 'approve', quote: 'SAL-QTN-2026-00031', total: 27300 });
-  assert.ok(turn.buttons.some((b) => b.act.k === 'viewQuote'));
+  assert.deepEqual(turn.card?.k === 'order' && turn.card.view.action?.act, { k: 'approve', quote: 'SAL-QTN-2026-00031', total: 27300 });
+  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['viewQuote', 'contact']);
   // After the card: the review sentence and View are not repeated.
   turn = keep(quoteShownTurn(locale, order('quote_ready')));
   assert.ok(!turn.buttons.some((b) => b.act.k === 'viewQuote'));
@@ -77,10 +77,9 @@ for (const locale of LOCALES as readonly Locale[]) {
   assert.ok(turn.buttons.some((b) => b.act.k === 'viewQuote'), 'the greeting skips the quote turn, so View is here');
   assert.deepEqual(primary(turn), { k: 'approveNow', quote: 'SAL-QTN-2026-00031' });
   // A double tap on Approve must not land on the confirmation.
-  const first = orderTurn(locale, order('quote_ready')).buttons.findIndex((b) => b.primary);
-  const confirm = turn.buttons.findIndex((b) => b.primary);
-  assert.notEqual(confirm, first, 'the confirmation sits where Approve was');
-  assert.notEqual(turn.buttons[confirm].label, orderTurn(locale, order('quote_ready')).buttons[first].label);
+  const cardApprove = orderTurn(locale, order('quote_ready')).card;
+  assert.notEqual(turn.buttons.find((b) => b.primary)?.label, cardApprove?.k === 'order' ? cardApprove.view.action?.label : '');
+  assert.notEqual(turn.buttons.findIndex((b) => b.primary), 0, 'the confirmation is not where the greeting\'s Approve was');
   turn = keep(approvedTurn(locale, order('awaiting')));
   assert.ok(turn.say.includes('SAL-ORD-2026-00011'));
 
@@ -90,24 +89,22 @@ for (const locale of LOCALES as readonly Locale[]) {
 
   // 3. Sizes.
   turn = keep(orderTurn(locale, order('collecting_sizes')));
-  assert.deepEqual(primary(turn), { k: 'sizes', order: 'SAL-ORD-2026-00011' });
-  const run = { men: { M: 21 }, women: { S: 21 } };
-  turn = keep(sizeConfirmTurn(locale, order('collecting_sizes'), run));
-  assert.deepEqual(primary(turn), { k: 'sendSizes', order: 'SAL-ORD-2026-00011', run });
-  // Adjust keeps what was entered.
-  assert.deepEqual(turn.buttons.find((b) => b.act.k === 'sizes')?.act, { k: 'sizes', order: 'SAL-ORD-2026-00011', run });
+  assert.deepEqual(turn.card?.k === 'order' && turn.card.view.action?.act, { k: 'sizes', order: 'SAL-ORD-2026-00011' });
+  assert.equal(primary(turn), undefined, 'the card holds the one primary');
   keep(sizesSentTurn(locale, order('in_progress')));
 
   // 4. Delivery and invoices.
   keep(orderTurn(locale, order('in_progress')));
   keep(orderTurn(locale, order('in_progress', { perDelivered: 50 })));
   turn = keep(orderTurn(locale, order('delivered')));
-  assert.ok(turn.buttons.some((b) => b.act.k === 'invoices'));
+  assert.ok(turn.buttons.some((b) => b.act.k === 'contact'));
   turn = keep(invoicesTurn(locale, invoices));
-  assert.ok(turn.say.includes('ACC-SINV-2026-00007'));
-  assert.deepEqual(turn.buttons[0].act, { k: 'contact', topic: 'billing', doc: 'ACC-SINV-2026-00007' }, 'the case names the invoice');
-  assert.deepEqual(invoicesTurn(locale, [invoices[2]]).buttons[0].act, { k: 'contact', topic: 'billing' });
-  keep(invoicesTurn(locale, [invoices[2]]));
+  assert.equal(turn.card?.k, 'invoices');
+  assert.deepEqual(turn.card?.k === 'invoices' && turn.card.view.action?.act, { k: 'contact', topic: 'billing', doc: 'ACC-SINV-2026-00006' },
+    'the case names the overdue invoice');
+  turn = keep(invoicesTurn(locale, [invoices[2]]));
+  assert.equal(turn.card?.k === 'invoices' && turn.card.view.action, undefined);
+  assert.equal(invoicesTurn(locale, []).card, undefined);
 
   // 5. Contact our team.
   turn = keep(contactTurn(locale, 'order', 'SAL-ORD-2026-00011'));
@@ -133,7 +130,6 @@ assert.equal(refusedId({ k: 'menu' }), undefined);
 // News waits behind a turn that holds a write; it may replace a plain turn.
 for (const locale of LOCALES as readonly Locale[]) {
   assert.ok(holdsWrite(approveTurn(locale, 'Q', 27300).buttons));
-  assert.ok(holdsWrite(sizeConfirmTurn(locale, order('collecting_sizes'), { men: { M: 1 } }).buttons));
   assert.ok(holdsWrite(planTurn(locale, 'technicians', 40).buttons));
   assert.ok(holdsWrite(contactTurn(locale, 'general').buttons));
   assert.ok(!holdsWrite(menuTurn(locale, [order('quote_ready')], 15).buttons));
@@ -144,8 +140,10 @@ for (const locale of LOCALES as readonly Locale[]) {
 assert.match(approveTurn('en', 'Q', 27300).buttons[1].label, /^Yes, approve EGP.27,300$/);
 assert.match(movedTurn('en', order('awaiting')).say, /^This has already moved on, so I have made no change\. Order SAL-ORD-2026-00011 is with our team;/);
 assert.match(planTurn('en', 'technicians', 6).say, /minimum .* 10 sets/);
-assert.match(invoicesTurn('en', invoices).say, /not yet paid.*Open invoices: 2.*Past due: 1/);
-assert.equal(invoicesTurn('en', [invoices[2]]).say, 'Your latest invoice, ACC-SINV-2026-00005, is paid. You have no unpaid invoices.');
+assert.equal(invoicesTurn('en', invoices).say, 'One invoice is past due. The rest are on time.');
+assert.equal(invoicesTurn('en', [invoices[1]]).say, 'One invoice is past due.');
+assert.equal(invoicesTurn('en', [invoices[0]]).say, 'All your open invoices are on time.');
+assert.equal(invoicesTurn('en', [invoices[2]]).say, 'You have no unpaid invoices.');
 
 // Every reply says who acts next and when.
 const bill: Invoice = { name: 'ACC-SINV-2026-00010', date: '2026-09-29', due: '2026-10-29', total: 14345,
@@ -153,6 +151,13 @@ const bill: Invoice = { name: 'ACC-SINV-2026-00010', date: '2026-09-29', due: '2
 assert.match(orderTurn('en', order('delivered'), [bill]).say,
   /Invoice ACC-SINV-2026-00010 for EGP.14,345 is attached to this delivery, due on 29 Oct\.$/);
 assert.match(orderTurn('en', order('delivered')).say, /accounts team will send the invoice within one working day\.$/);
+// A refused write on a delivered order names its invoice, like the card does.
+{
+  const moved = movedTurn('en', order('delivered'), [bill]);
+  assert.ok(moved.say.includes('ACC-SINV-2026-00010'));
+  assert.deepEqual(moved.card?.k === 'order' && moved.card.view.action?.act, { k: 'invoices' });
+  all.push(moved);
+}
 for (const state of ['quote_requested', 'quote_ready', 'awaiting'] as Workflow[]) {
   assert.match(orderTurn('en', order(state)).say, /within one working day/, state);
 }
@@ -172,7 +177,11 @@ assert.ok(caseTurn('ar', 'CASE-2026-00007').say.includes('أحلت طلب الت
 for (const turn of all) {
   assert.ok(turn.buttons.filter((b) => b.act.k !== 'more').length <= 4, `too many buttons: ${turn.say}`);
   assert.ok(turn.buttons.filter((b) => b.primary).length <= 1, `two primaries: ${turn.say}`);
-  for (const text of [turn.say, ...turn.buttons.map((b) => b.label)]) {
+  const card = turn.card?.k === 'order'
+    ? [turn.card.view.title, turn.card.view.meta, turn.card.view.next, turn.card.view.date ?? 'x', turn.card.view.action?.label ?? 'x']
+    : turn.card ? [turn.card.view.outstanding, turn.card.view.open, turn.card.view.paid ?? 'x', turn.card.view.action?.label ?? 'x',
+      ...turn.card.view.rows.flatMap((r) => [r.label, r.note])] : [];
+  for (const text of [turn.say, ...turn.buttons.map((b) => b.label), ...card]) {
     assert.ok(text.trim(), 'empty text');
     assert.doesNotMatch(text, /ERPNext|UA-|https?:|journey\.|\{\w+\}|Draft|To Deliver|Based on \d+ records?|Records checked|found in|Checked at/, text);
   }

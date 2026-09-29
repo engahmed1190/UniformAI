@@ -1,18 +1,17 @@
 'use client';
 
 // The few things the conversation asks the customer to fill in or look at:
-// a number of people, a quotation, invoices, and the size run.
+// a number of people, a quotation, an order's progress, invoices, and the size run.
 
 import { useState } from 'react';
 import s from '@/app/ui.module.css';
-import { type Locale, formatCurrency, formatDate, formatNumber, t } from '@/lib/i18n';
+import { type Locale, formatCurrency, formatDay, formatNumber, t } from '@/lib/i18n';
 import type { Order } from '@/lib/order';
 import type { QuoteView } from '@/lib/quote-view';
-import type { Invoice } from '@/lib/invoices';
+import type { Button } from '@/lib/journey';
+import type { InvoicesCardView, OrderCardView } from '@/lib/cards';
 import { type GarmentCut, type GarmentSize, type SizeAllocation, SIZES } from '@/lib/spec';
 import { cutsOf, proposedSplit, runTotal } from '@/lib/size-run';
-
-const day = (locale: Locale, iso: string) => formatDate(locale, new Date(`${iso}T12:00:00`));
 
 export function PeopleForm({ locale, initial = 20, onSubmit }: {
   locale: Locale; initial?: number; onSubmit: (people: number) => void;
@@ -50,33 +49,69 @@ export function QuoteCard({ view, locale }: { view: QuoteView; locale: Locale })
       </ul>
       {view.discountPct > 0 && <p>{t(locale, 'journey.quote.discount', { pct: view.discountPct })}</p>}
       <p className={s.evTotal}><span>{t(locale, 'journey.quote.total')}</span><b>{money(view.total)}</b></p>
-      {view.validTill && <p>{t(locale, 'journey.quote.valid', { date: day(locale, view.validTill) })}</p>}
+      {view.validTill && <p>{t(locale, 'journey.quote.valid', { date: formatDay(locale, view.validTill) })}</p>}
     </section>
   );
 }
 
-export function InvoiceList({ rows, locale }: { rows: Invoice[]; locale: Locale }) {
-  if (!rows.length) return null;
+export function OrderCard({ view, live, onAct }: { view: OrderCardView; live: boolean; onAct: (b: Button) => void }) {
   return (
-    <ul className={s.evLines}>
-      {rows.slice(0, 6).map((r) => (
-        <li key={r.name}>
-          <span className={s.evId}>{r.name}</span>
-          <span>{formatCurrency(locale, r.total)}</span>
-          <span className={`${s.evChip} ${s[`evChip_${r.status}`]}`}>{t(locale, `journey.inv.${r.status}`)}</span>
-          <small>{t(locale, 'journey.invDue', { date: day(locale, r.due) })}</small>
-        </li>
-      ))}
-    </ul>
+    <section className={s.evCard} aria-label={`${view.title} ${view.id}`}>
+      <div className={s.evTop}>
+        <span className={s.evName} dir="auto">{view.title}</span>
+        <bdi className={s.evId}>{view.id}</bdi>
+      </div>
+      <p className={s.evMeta}>{view.meta}</p>
+      <ol className={s.evSteps}>
+        {view.steps.map((step) => (
+          <li key={step.key} aria-current={step.state === 'now' ? 'step' : undefined}
+            className={step.state === 'done' ? s.evStepDone : step.state === 'now' ? s.evStepNow : undefined}>
+            <span>{step.label}</span>
+          </li>
+        ))}
+      </ol>
+      <p className={s.evNext}>
+        {view.nowLabel && <b>{view.nowLabel} · </b>}{view.next}{view.date && <> · {view.date}</>}
+      </p>
+      {view.action && (
+        <button type="button" className={s.evPrimary} disabled={!live} onClick={() => onAct(view.action!)}>{view.action.label}</button>
+      )}
+    </section>
   );
 }
 
-export function SizeRunForm({ order, initial, locale, onReview }: {
-  order: Order; initial?: SizeAllocation; locale: Locale; onReview: (run: SizeAllocation) => void;
-}) {
+export function InvoicesCard({ view, live, onAct }: { view: InvoicesCardView; live: boolean; onAct: (b: Button) => void }) {
+  return (
+    <section className={s.evCard} aria-label={view.outstanding}>
+      <div className={s.evTop}><b className={s.evBig}>{view.outstanding}</b><span>{view.open}</span></div>
+      {view.rows.length > 0 && (
+        <ul className={s.evLines}>
+          {view.rows.map((r) => (
+            <li key={r.id}>
+              <bdi className={s.evId}>{r.id}</bdi>
+              <span>{r.amount}</span>
+              <span className={`${s.evChip} ${s[`evChip_${r.status}`]}`}>{r.label}</span>
+              <small>{r.note}</small>
+            </li>
+          ))}
+        </ul>
+      )}
+      {view.paid && <p className={s.evMeta}>{view.paid}</p>}
+      {view.action && (
+        <button type="button" className={s.evPrimary} disabled={!live} onClick={() => onAct(view.action!)}>{view.action.label}</button>
+      )}
+    </section>
+  );
+}
+
+/** Opens on the proposed split; the customer adjusts or simply sends. */
+export function SizeRunCard({ order, locale, onSend }: { order: Order; locale: Locale; onSend: (run: SizeAllocation) => void }) {
   const cuts = cutsOf(order.concept);
-  const [run, setRun] = useState<SizeAllocation>(initial ?? {});
+  const [proposed] = useState(() => proposedSplit(cuts, order.sets));
+  const [run, setRun] = useState<SizeAllocation>(proposed);
   const done = runTotal(run);
+  // By value: a size typed back to its proposed number is not a change.
+  const changed = cuts.some((cut) => SIZES.some((z) => (run[cut]?.[z] ?? 0) !== (proposed[cut]?.[z] ?? 0)));
   const set = (cut: GarmentCut, size: GarmentSize, n: number) =>
     setRun((r) => ({ ...r, [cut]: { ...r[cut], [size]: Math.max(0, Math.floor(n) || 0) } }));
   return (
@@ -99,11 +134,9 @@ export function SizeRunForm({ order, initial, locale, onReview }: {
           : t(locale, 'journey.sizesLeft', { done, left: order.sets - done })}
       </p>
       <div className={s.evRow}>
-        <button type="button" onClick={() => setRun(proposedSplit(cuts, order.sets))}>
-          {t(locale, 'journey.btnSplit')}
-        </button>
-        <button type="button" className={s.evPrimary} disabled={done !== order.sets} onClick={() => onReview(run)}>
-          {t(locale, 'journey.btnReviewRun')}
+        {changed && <button type="button" onClick={() => setRun(proposed)}>{t(locale, 'journey.btnSplit')}</button>}
+        <button type="button" className={s.evPrimary} disabled={done !== order.sets} onClick={() => onSend(run)}>
+          {t(locale, 'journey.btnSendRun')}
         </button>
       </div>
     </div>

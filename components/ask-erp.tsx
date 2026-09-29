@@ -2,22 +2,22 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import s from '@/app/ui.module.css';
-import { type Locale, countOf, formatCurrency, formatDate, formatNumber, t } from '@/lib/i18n';
+import { type Locale, countOf, formatCurrency, formatDay, formatNumber, t } from '@/lib/i18n';
 import { type Intent, answer } from '@/lib/answers';
 import { MAX_CARDS, type Change, type Source, type Step, changesSince, remember, sourceKey } from '@/lib/evidence';
 import { CONCEPTS } from '@/lib/concepts';
 import { type Order, fromJson } from '@/lib/order';
 import type { QuoteView } from '@/lib/quote-view';
 import type { Invoice } from '@/lib/invoices';
-import type { SizeAllocation } from '@/lib/spec';
+import type { Card } from '@/lib/cards';
 import {
   type Act, type Button, type Turn as JourneyTurn, approveTurn, approvedTurn, caseTurn, contactTurn, failTurn,
   holdsWrite, invoicesTurn, menuTurn, moreTurn, movedTurn, newsTurn, noOrderTurn, orderTurn, planTurn, quoteSentTurn, quoteShownTurn, refusedId,
-  sizeConfirmTurn, sizesSentTurn, teamTurn,
+  sizesSentTurn, teamTurn,
 } from '@/lib/journey';
 import { type News, type Seen, UPDATE_MS, newsSince, withOrder } from '@/lib/updates';
 import { typingMs } from '@/lib/pace';
-import { InvoiceList, PeopleForm, QuoteCard, SizeRunForm } from './chat-actions';
+import { InvoicesCard, OrderCard, PeopleForm, QuoteCard, SizeRunCard } from './chat-actions';
 
 type Health = 'probing' | 'live' | 'offline';
 type Params = Record<string, string>;
@@ -35,14 +35,14 @@ type Answer = {
 };
 /** `prompt` is the assistant asking which garment, colour or size. */
 type Turn = { role: 'user'; content: string } | { role: 'prompt'; content: string } | Answer
-  | { role: 'quote'; view: QuoteView } | { role: 'invoices'; rows: Invoice[] };
+  | { role: 'quote'; view: QuoteView } | { role: 'card'; card: Card };
 
 /** Where the guided flow is, which decides the buttons on offer. A journey
  *  `turn` carries its own buttons; `home` means it already is the menu. */
 type Stage =
   | { k: 'turn'; buttons: Button[]; home?: boolean }
   | { k: 'people'; kit: string; people?: number }
-  | { k: 'sizes'; order: Order; run?: SizeAllocation }
+  | { k: 'sizes'; order: Order }
   | { k: 'garment'; intent: 'stock' | 'price'; from?: number }
   | { k: 'colour'; item: string }
   | { k: 'size'; item: string; colour: string }
@@ -64,8 +64,6 @@ const isOrderDoc = (doctype: string) => doctype === 'Sales Order' || doctype ===
 /** An order card's fact is the app's own workflow state, in the words the
  *  Orders screen uses. */
 const status = (locale: Locale, value: string | number) => t(locale, `orders.state.${value}`);
-
-const day = (locale: Locale, iso?: string) => (iso ? formatDate(locale, new Date(`${iso}T12:00:00`)) : '');
 
 /** One record the answer was read from. The quantity leads because it is
  *  what a stock question is about, and it is the value that visibly moves
@@ -105,7 +103,7 @@ function RecordCard({ source, changes, locale, onOpenOrder }: {
           )}
           {source.date && (
             <span>{t(locale, source.doctype === 'Sales Invoice' ? 'erpAsk.invoiced' : 'erpAsk.delivery',
-              { date: day(locale, source.date) })}</span>
+              { date: formatDay(locale, source.date) })}</span>
           )}
         </div>
       )}
@@ -302,6 +300,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
       ...all,
       ...(told.length ? [{ role: 'prompt' as const, content: newsTurn(locale, told).say }] : []),
       { role: 'prompt', content: turn.say },
+      ...(turn.card ? [{ role: 'card' as const, card: turn.card }] : []),
     ]);
     setStage({ k: 'turn', buttons: turn.buttons, home });
   };
@@ -391,16 +390,14 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
         setTurns((all) => [...all, { role: 'quote', view }]);
         say(o ? quoteShownTurn(locale, o) : noOrderTurn(locale));
       } else if (a.k === 'invoices') {
-        const rows = await api<Invoice[]>('/api/invoices');
-        await beat('', started);
-        setTurns((all) => [...all, { role: 'invoices', rows }]);
-        say(invoicesTurn(locale, rows));
+        await reply(invoicesTurn(locale, await api<Invoice[]>('/api/invoices')));
       } else if (a.k === 'sizes') {
-        const o = findIn(await myOrders(), a.order);
-        if (!o || o.state !== 'collecting_sizes') await reply(o ? orderTurn(locale, o) : noOrderTurn(locale));
+        const { orders, invoices } = await myAccount();
+        const o = findIn(orders, a.order);
+        if (!o || o.state !== 'collecting_sizes') await reply(o ? orderTurn(locale, o, invoices ?? []) : noOrderTurn(locale));
         else {
           await ask(t(locale, 'journey.sizesAsk', { id: a.order, sets: countOf(locale, 'set', o.sets) }));
-          setStage({ k: 'sizes', order: o, ...(a.run ? { run: a.run } : {}) });
+          setStage({ k: 'sizes', order: o });
         }
       } else if (a.k === 'requestQuote') {
         const concept = CONCEPTS.find((c) => c.id === a.kit) ?? CONCEPTS[0];
@@ -431,7 +428,8 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
       const id = refusedId(a);
       if (id && (status === 409 || status === 404)) {
         try {
-          return await reply(movedTurn(locale, findIn(await myOrders(), id)));
+          const { orders, invoices } = await myAccount();
+          return await reply(movedTurn(locale, findIn(orders, id), invoices ?? []));
         } catch { /* the re-read failed too: that is an outage */ }
       }
       // A failed menu is the menu: its Try again is the only way on.
@@ -664,8 +662,12 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
           <p key={index} className={s.evAnswer} dir="auto">{turn.content}</p>
         ) : turn.role === 'quote' ? (
           <QuoteCard key={index} view={turn.view} locale={locale} />
-        ) : turn.role === 'invoices' ? (
-          <InvoiceList key={index} rows={turn.rows} locale={locale} />
+        ) : turn.role === 'card' ? (
+          // Live only while it is the last thing said: an older card further
+          // up the log never offers a second Approve.
+          turn.card.k === 'order'
+            ? <OrderCard key={index} view={turn.card.view} live={!busy && index === turns.length - 1} onAct={(b) => void act(b.act, b.label)} />
+            : <InvoicesCard key={index} view={turn.card.view} live={!busy && index === turns.length - 1} onAct={(b) => void act(b.act, b.label)} />
         ) : (
           <Reply key={index} turn={turn} locale={locale} busy={busy && index === turns.length - 1}
             onRetry={() => void read(turn.intent, turn.params, undefined, true)} onOpenOrder={onOpenOrder} />
@@ -675,8 +677,8 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
             onSubmit={(people) => void act({ k: 'plan', kit: stage.kit, people }, t(locale, 'journey.peopleEcho', { count: people }))} />
         )}
         {!busy && stage.k === 'sizes' && (
-          <SizeRunForm key={stage.order.id} order={stage.order} initial={stage.run} locale={locale}
-            onReview={(run) => { echo(t(locale, 'journey.btnReviewRun')); say(sizeConfirmTurn(locale, stage.order, run)); }} />
+          <SizeRunCard key={stage.order.id} order={stage.order} locale={locale}
+            onSend={(run) => void act({ k: 'sendSizes', order: stage.order.salesOrder ?? stage.order.id, run }, t(locale, 'journey.btnSendRun'))} />
         )}
         {busy && (
           <p className={s.evTyping} role="status" aria-label={t(locale, 'erpAsk.typing')}>

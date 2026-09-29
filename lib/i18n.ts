@@ -242,19 +242,22 @@ const en = {
     sizesAsk: 'Here is a proposed size split for order {id}, {sets} in total. Adjust any number, then send it; it becomes the production plan.',
     sizesLeft: '{done} assigned, {left} left.',
     sizesOver: '{done} assigned, {over} too many.',
-    confirmSizes: 'Please confirm the size run for {id}: {run}. It becomes the production plan for this order.',
     sizesSent: 'Thank you, Mr. Ahmed. I have received the sizes for all {sets} of order {id}. Production starts now; expected delivery {date}. Nothing else is needed from you.',
     cut: { men: 'Men', women: 'Women', unisex: 'Unisex' },
     contactAbout: 'I will ask the team to contact you about {id}.',
     contactBilling: 'I will ask our accounts team to contact you about your invoices.',
     contactGeneral: 'I will ask a member of our team to contact you to hear the details.',
     caseSent: 'Thank you. I have passed your request to our team (reference {id}); someone will contact you within one working day.',
-    invLatest: 'Your latest invoice, {id}, is {status}.',
     invNone: 'You have no unpaid invoices.',
-    invOpen: 'Open invoices: {count}, with {total} outstanding in total.',
-    invLate: 'Past due: {count}, the oldest since {date}.',
+    invLateOne: 'One invoice is past due.', invLateMany: '{count} invoices are past due.',
+    invRest: 'The rest are on time.', invOnTime: 'All your open invoices are on time.',
     invDue: 'Due {date}',
-    invWord: { paid: 'paid', unpaid: 'not yet paid', overdue: 'past due' },
+    card: {
+      production: 'In production', invoiced: 'Invoiced', you: 'Waiting on you',
+      team: 'With our team · usually within one working day', done: 'Complete', closed: 'Closed',
+      due: 'Expected delivery {date}', deliveredOn: 'Delivered {date}',
+    },
+    invCard: { outstanding: '{total} outstanding', open: 'Open invoices: {count}', paid: 'Paid invoices: {count}', lateSince: 'Overdue since {date}' },
     inv: { paid: 'Paid', unpaid: 'Unpaid', overdue: 'Overdue' },
     noOrder: 'I could not find that order on your account.',
     moved: 'This has already moved on, so I have made no change.',
@@ -276,9 +279,10 @@ const en = {
     },
     btnApprove: 'Approve {total}', btnConfirmApprove: 'Yes, approve {total}',
     btnView: 'View quotation', btnShow: 'Show order', btnSizes: 'Enter the sizes', btnSendRun: 'Send the size run',
-    btnAdjust: 'Adjust', btnRetry: 'Try again', btnRequest: 'Request a quotation for {sets}',
-    btnChangePeople: 'Change the number', btnContinue: 'Continue', btnReviewRun: 'Review the size run',
-    btnSplit: 'Use a proposed split', btnMoreGarments: 'More garments',
+    btnRetry: 'Try again', btnRequest: 'Request a quotation for {sets}',
+    btnChangePeople: 'Change the number', btnContinue: 'Continue',
+    btnSplit: 'Reset to the proposed split', btnMoreGarments: 'More garments',
+    btnDiscussInvoice: 'Discuss invoice {id}',
   },
   kits: {
     title: 'Saved kits', subtitle: 'Reorder these without starting again.',
@@ -767,19 +771,22 @@ const ar: Dict<typeof en> = {
     sizesAsk: 'هذا توزيع مقترح لمقاسات الطلب {id}، وإجماليه {sets}. عدّلوا أي رقم ثم أرسلوه، وسيُعتمد خطةً للإنتاج.',
     sizesLeft: 'تم توزيع {done}، ويتبقى {left}.',
     sizesOver: 'تم توزيع {done}، بزيادة {over} عن العدد المطلوب.',
-    confirmSizes: 'أرجو تأكيد توزيع المقاسات للطلب {id}: {run}. وسيُعتمد خطةً للإنتاج في هذا الطلب.',
     sizesSent: 'شكرًا لكم أستاذ أحمد. استلمت مقاسات الطلب {id} كاملةً ({sets}). يبدأ الإنتاج الآن، والتسليم متوقع في {date}. لا نحتاج منكم شيئًا آخر.',
     cut: { men: 'رجالي', women: 'نسائي', unisex: 'للجنسين' },
     contactAbout: 'سأطلب من الفريق التواصل معكم بشأن {id}.',
     contactBilling: 'سأطلب من فريق الحسابات التواصل معكم بشأن فواتيركم.',
     contactGeneral: 'سأطلب من أحد أعضاء فريقنا التواصل معكم للاستماع إلى التفاصيل.',
     caseSent: 'شكرًا لكم. أحلت طلب التواصل إلى فريقنا برقم مرجعي {id}، وسيتواصل معكم أحد أعضاء الفريق خلال يوم عمل واحد.',
-    invLatest: 'فاتورتكم الأخيرة {id} {status}.',
     invNone: 'لا توجد لديكم فواتير غير مسدّدة.',
-    invOpen: 'عدد الفواتير المفتوحة {count}، بإجمالي مستحق {total}.',
-    invLate: 'منها {count} تجاوزت موعد استحقاقها، أقدمها منذ {date}.',
+    invLateOne: 'فاتورة واحدة تجاوزت موعد استحقاقها.', invLateMany: 'عدد الفواتير التي تجاوزت موعد استحقاقها: {count}.',
+    invRest: 'والباقي في موعده.', invOnTime: 'جميع فواتيركم المفتوحة في موعدها.',
     invDue: 'تستحق في {date}',
-    invWord: { paid: 'مسدّدة', unpaid: 'لم تُسدَّد بعد', overdue: 'تجاوزت موعد استحقاقها' },
+    card: {
+      production: 'قيد الإنتاج', invoiced: 'صدرت الفاتورة', you: 'بانتظاركم',
+      team: 'لدى فريقنا · عادةً خلال يوم عمل واحد', done: 'مكتمل', closed: 'مغلق',
+      due: 'التسليم المتوقع {date}', deliveredOn: 'تم التسليم {date}',
+    },
+    invCard: { outstanding: 'المستحق {total}', open: 'الفواتير المفتوحة: {count}', paid: 'الفواتير المسدّدة: {count}', lateSince: 'متأخرة منذ {date}' },
     inv: { paid: 'مسدّدة', unpaid: 'غير مسدّدة', overdue: 'متأخرة' },
     noOrder: 'لم أجد هذا الطلب في حسابكم.',
     moved: 'سبق أن تقدّم هذا الإجراء، لذا لم أُجرِ أي تغيير.',
@@ -801,9 +808,10 @@ const ar: Dict<typeof en> = {
     },
     btnApprove: 'الموافقة على {total}', btnConfirmApprove: 'نعم، أوافق على {total}',
     btnView: 'عرض تفاصيل عرض السعر', btnShow: 'عرض الطلب', btnSizes: 'إدخال المقاسات', btnSendRun: 'إرسال توزيع المقاسات',
-    btnAdjust: 'تعديل', btnRetry: 'المحاولة مرة أخرى', btnRequest: 'طلب عرض سعر لـ {sets}',
-    btnChangePeople: 'تغيير العدد', btnContinue: 'متابعة', btnReviewRun: 'مراجعة توزيع المقاسات',
-    btnSplit: 'استخدام توزيع مقترح', btnMoreGarments: 'ملابس أخرى',
+    btnRetry: 'المحاولة مرة أخرى', btnRequest: 'طلب عرض سعر لـ {sets}',
+    btnChangePeople: 'تغيير العدد', btnContinue: 'متابعة',
+    btnSplit: 'العودة إلى التوزيع المقترح', btnMoreGarments: 'ملابس أخرى',
+    btnDiscussInvoice: 'الاستفسار عن الفاتورة {id}',
   },
 
   kits: {
@@ -1104,6 +1112,9 @@ export function formatCurrency(locale: Locale, n: number): string {
 export const formatDate = (locale: Locale, d: Date): string =>
   new Intl.DateTimeFormat(locale === 'ar' ? 'ar-EG' : 'en-GB',
     { day: 'numeric', month: 'short', ...NUM }).format(d);
+
+/** A calendar day stored as "2026-10-29". Read at noon, so no timezone moves it a day. */
+export const formatDay = (locale: Locale, iso: string): string => formatDate(locale, new Date(`${iso}T12:00:00`));
 
 /** Arabic counts in five categories, not two. Written out rather than
  *  templated because the noun itself changes case and form: طقم / طقمان /

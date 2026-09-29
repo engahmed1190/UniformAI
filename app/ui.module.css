@@ -1596,6 +1596,23 @@
 .evChip_unpaid { background: var(--sunken); color: var(--text-2); }
 .evChip_overdue { background: var(--warn-soft); color: var(--warn); }
 
+/* The order card: a seven-step bar, who acts next, one action. */
+.evMeta { margin: 0; font-size: var(--t-sm); color: var(--text-2); }
+.evBig { font-size: 20px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.evSteps { list-style: none; margin: var(--s1) 0 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
+.evSteps li { display: grid; gap: 4px; align-content: start; font-size: var(--t-xs); line-height: 1.3; color: var(--text-3); }
+.evSteps li::before { content: ''; height: 4px; border-radius: 2px; background: var(--line); }
+.evSteps .evStepDone::before { background: var(--accent); }
+.evSteps .evStepNow::before { background: var(--warn); }
+.evSteps .evStepNow { color: var(--text); font-weight: 600; }
+.evNext { margin: 0; font-size: var(--t-sm); color: var(--text-2); }
+.evCard > button { justify-self: start; padding: 10px 14px; border: 1px solid var(--accent); border-radius: var(--r); font: inherit; cursor: pointer; }
+.evCard > button:disabled { opacity: 0.5; cursor: default; }
+@media (max-width: 760px) {
+  /* Seven labels do not fit a phone; the "next" line names the current step. */
+  .evSteps li span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+}
+
 /* Above the fixed action and price bars on Design and Configure. */
 .evLauncherRaised { inset-block-end: calc(88px + var(--s4)); }
 @media (max-width: 760px) {

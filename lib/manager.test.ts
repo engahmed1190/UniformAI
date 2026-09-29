@@ -85,6 +85,12 @@ const placed = placeOrder(c, 40, 42, [], 500, new Date('2026-09-02T10:00:00Z'));
 const sewing = placeOrder(c, 40, 42, [], 500, new Date('2026-08-20T10:00:00Z'), 'in_progress');
 assert.match(greeting('en', [placed]), /Front Office/, 'the greeting names the real order');
 assert.match(greeting('en', [placed, sewing]), /1 in production/, 'the greeting counts states');
+// Home's cards count from the same groups, so sizes are never "in production".
+import { GROUPS } from './manager';
+assert.match(greeting('en', [placed, sewing]), /1 waiting on sizes, 1 in production/);
+assert.deepEqual(Object.values(GROUPS).flat().sort(),
+  ['awaiting', 'collecting_sizes', 'in_progress', 'quote_ready', 'quote_requested'], 'every open state in one group');
+assert.ok(!(GROUPS.makingNow as readonly string[]).includes('collecting_sizes'));
 assert.match(orderNote('en', placed), /23 Sep/, 'the note states the real due date');
 assert.match(orderNote('en', sewing), /In production/, 'the note says where a production order is');
 assert.match(orderNote('en', { ...sewing, state: 'delivered' as const }), /Delivered/);

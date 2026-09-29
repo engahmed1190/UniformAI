@@ -25,7 +25,7 @@ import {
   type Concept, type GarmentCut, type SizePlan, LABELS, allocatedSizeCount,
   asSavedKit, conceptPrice, conceptPriceAt, gradeName, gradesFor, sameKit,
 } from '@/lib/spec';
-import { greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
+import { GROUPS, greeting, whyTheseKits, quoteNote, orderNote } from '@/lib/manager';
 import { suggestions } from '@/lib/suggest';
 import { type Order, type Workflow, fromJson, status, timeline } from '@/lib/order';
 import { ManagerNote } from '@/components/manager';
@@ -565,10 +565,11 @@ function Home({
   onOrders: () => void;
 }) {
   const [text, setText] = useState('');
-  const inState = (...w: Workflow[]) => orders.filter((o) => w.includes(status(o)));
-  const waiting = inState('quote_ready');
-  const withUs = inState('quote_requested', 'awaiting');
-  const making = inState('collecting_sizes', 'in_progress');
+  const inState = (...w: readonly Workflow[]) => orders.filter((o) => w.includes(status(o)));
+  // The greeting's groups: a quote to approve and sizes to send both wait on you.
+  const waiting = inState(...GROUPS.waitingYou, ...GROUPS.waitingSizes);
+  const withUs = inState(...GROUPS.withUs);
+  const making = inState(...GROUPS.makingNow);
   const done = orders.filter((o) => status(o) === 'delivered');
   return (
     <>

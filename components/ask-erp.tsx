@@ -186,9 +186,12 @@ function Reply({ turn, busy, locale, onRetry, onOpenOrder }: {
 
       {content && (sources.length ? (
         <section className={s.evSources} aria-label={t(locale, 'erpAsk.evidence')}>
-          <h3>{sources.length === 1
-            ? t(locale, 'erpAsk.evidenceOne')
-            : t(locale, 'erpAsk.evidenceMany', { count: sources.length })}</h3>
+          {/* The answer counts every order; the cards stop at MAX_CARDS. */}
+          <h3>{turn.intent === 'orders' && (turn.rows?.length ?? 0) > sources.length
+            ? t(locale, 'erpAsk.evidenceSome', { shown: sources.length, count: turn.rows!.length })
+            : sources.length === 1
+              ? t(locale, 'erpAsk.evidenceOne')
+              : t(locale, 'erpAsk.evidenceMany', { count: sources.length })}</h3>
           <ul>
             {sources.map((src) => (
               <RecordCard key={sourceKey(src)} source={src} locale={locale} onOpenOrder={onOpenOrder}

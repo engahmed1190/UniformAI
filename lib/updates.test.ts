@@ -6,7 +6,7 @@ import { CONCEPTS } from './concepts';
 import { sampleOrder } from './order-fixture';
 import type { Order, Workflow } from './order';
 import type { Invoice } from './invoices';
-import { type Seen, newsSince, orderKey, stillTrue, withOrder } from './updates';
+import { type Seen, newsSince, notAbout, orderKey, stillTrue, withOrder } from './updates';
 import { mergeButtons, newsTurn, orderTurn } from './journey';
 
 const QUOTE_STATES: Workflow[] = ['quote_requested', 'quote_ready', 'quote_closed'];
@@ -94,6 +94,9 @@ assert.deepEqual(turn.buttons.map((b) => b.act), [{ k: 'invoices' }]);
   const issued = newsSince(noInv, [order('in_progress')], [inv()]);
   const paid = newsSince(issued.seen, [order('in_progress')], [inv({ status: 'paid', outstanding: 0 })]);
   assert.deepEqual(stillTrue([...issued.news, ...paid.news], paid.seen).map((n) => n.k), ['paid']);
+  // The orders the customer was just shown are not news later; invoice news stays.
+  assert.deepEqual(notAbout([...held.news, ...paid.news], [order('quote_ready')]).map((n) => n.k), ['paid']);
+  assert.equal(notAbout(held.news, [order('quote_ready', { quote: 'SAL-QTN-2026-00099' })]).length, 1);
 
   // Told inside another reply, the news keeps its buttons, within four and one primary.
   const told = newsTurn('en', held.news);

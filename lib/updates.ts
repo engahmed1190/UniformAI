@@ -62,5 +62,9 @@ export function stillTrue(news: News[], seen: Seen | null): News[] {
     : !seen.invoices || seen.invoices[n.invoice.name] === n.invoice.status);
 }
 
+/** News about orders the customer has just been shown is not news. */
+export const notAbout = (news: News[], orders: Order[]): News[] =>
+  news.filter((n) => !('order' in n) || !orders.some((o) => orderKey(o) === orderKey(n.order)));
+
 /** The customer's own write: seen as it is now, so it is never news. */
 export const withOrder = (seen: Seen, o: Order): Seen => ({ ...seen, orders: { ...seen.orders, [orderKey(o)]: o.state } });

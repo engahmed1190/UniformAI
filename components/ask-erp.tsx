@@ -15,7 +15,7 @@ import {
   holdsWrite, invoicesTurn, menuTurn, mergeButtons, moreTurn, movedTurn, newsOverCard, newsTurn, noOrderTurn, orderTurn, quoteSentTurn, quoteShownTurn, refusedId,
   sizesSentTurn, teamTurn,
 } from '@/lib/journey';
-import { type News, type Seen, UPDATE_MS, newsSince, stillTrue, withOrder } from '@/lib/updates';
+import { type News, type Seen, UPDATE_MS, newsSince, notAbout, stillTrue, withOrder } from '@/lib/updates';
 import { typingMs } from '@/lib/pace';
 import { InvoicesCard, OrderCard, PeopleForm, QuoteCard, Rich, SizeRunCard } from './chat-actions';
 
@@ -272,6 +272,9 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
     setBusy(true);
     const started = Date.now();
     const lang = langEpoch.current;
+    // The orders read updates what the chat knows too, so the orders the
+    // customer is about to see are never told later as news.
+    const shown = intent === 'orders' ? myOrders().catch(() => undefined) : undefined;
     try {
       const response = await fetch('/api/ask', {
         method: 'POST',
@@ -285,6 +288,8 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
       const data = await response.json() as { rows: unknown[]; sources: Source[]; step: Step };
       const changes = Object.fromEntries(changesSince(seen.current, data.sources));
       remember(seen.current, data.sources);
+      const listed = await shown;
+      if (listed) news.current = notAbout(news.current, listed);
       await beat('', started);
       if (langEpoch.current !== lang) return;
       patchLast((a) => ({ ...a, steps: [data.step], rows: data.rows, sources: data.sources, changes }));
@@ -427,7 +432,9 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
         setTurns((all) => [...all, { role: 'quote', view }]);
         say(o ? quoteShownTurn(locale, o) : noOrderTurn(locale));
       } else if (a.k === 'invoices') {
-        await reply(invoicesTurn(locale, await api<Invoice[]>('/api/invoices')));
+        const { invoices } = await myAccount();
+        if (!invoices) throw new Error('invoices unavailable');
+        await reply(invoicesTurn(locale, invoices));
       } else if (a.k === 'sizes') {
         const { orders, invoices } = await myAccount();
         const o = findIn(orders, a.order);

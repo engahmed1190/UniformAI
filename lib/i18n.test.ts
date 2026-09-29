@@ -77,6 +77,16 @@ assert.match(formatDate('en', d), /Sep/);
 assert.match(formatDate('ar', d), ARABIC);
 assert.doesNotMatch(formatDate('ar', d), /[٠-٩]/, 'dates keep Western digits too');
 
+// 9. The chat's error lines speak as the account manager, never "the
+// assistant", and the Arabic addresses the customer in the formal plural.
+for (const key of ['erpAsk.errorUnreachable', 'erpAsk.errorConfig']) {
+  assert.doesNotMatch(t('en', key), /assistant/i, key);
+  assert.doesNotMatch(t('ar', key), /المساعد|اسأل /, key);
+}
+assert.match(t('ar', 'erpAsk.errorUnreachable'), /تسألوا/);
+assert.equal(t('en', 'erpAsk.launcher'), 'Ask your assistant');
+assert.equal(t('ar', 'erpAsk.launcher'), 'اسأل مساعدك');
+
 console.log('i18n: all assertions passed');
 
 // 9. Kit names are stored data used as display text. The id stays stable and

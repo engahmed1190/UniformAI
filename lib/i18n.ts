@@ -193,8 +193,8 @@ const en = {
     pieces: '{count} pcs', delivery: 'Delivery {date}', invoiced: 'Invoiced {date}', perPiece: '{price} a piece',
     showOrder: 'Show order', updated: 'Updated since you last asked', was: '· was',
     askAboutOrder: 'Ask about this order',
-    errorUnreachable: 'The assistant did not respond. Ask again in a moment.',
-    errorConfig: 'The assistant is not set up yet.',
+    errorUnreachable: 'I could not reach your account just now. Please ask again in a moment.',
+    errorConfig: 'I cannot read your account yet, as we are still setting it up.',
     retry: 'Ask again',
     a: {
       ordersOne: 'You have 1 order: {parts}.', ordersMany: 'You have {count} orders: {parts}.',
@@ -727,8 +727,8 @@ const ar: Dict<typeof en> = {
     pieces: '{count} قطعة', delivery: 'التسليم {date}', invoiced: 'الفاتورة {date}', perPiece: '{price} للقطعة',
     showOrder: 'عرض الطلب', updated: 'تغيّر منذ سؤالكم الأخير', was: '· كان:',
     askAboutOrder: 'اسأل عن هذا الطلب',
-    errorUnreachable: 'لم يستجب المساعد. اسأل مرة أخرى بعد قليل.',
-    errorConfig: 'المساعد غير مُعدّ بعد.',
+    errorUnreachable: 'تعذّر عليّ الوصول إلى حسابكم الآن. أرجو أن تسألوا مرة أخرى بعد قليل.',
+    errorConfig: 'لا أستطيع قراءة حسابكم بعد، فما زلنا نُعدّه.',
     retry: 'اسأل مرة أخرى',
     a: {
       ordersOne: 'لديك طلب واحد: {parts}.', ordersMany: 'عدد طلباتك {count}: {parts}.',

@@ -21,7 +21,7 @@ The account manager leads the conversation. It notices what changed, speaks like
 ## B. Pacing, voice, Arabic
 
 - **Typing indicator.** Before every assistant reply, the dock shows three dots (`role="status"`, labelled "Your account manager is typing"). The wait is `min(1000, 600 + 4 × characters)` ms, counted from the tap, so time spent fetching counts toward it. With `prefers-reduced-motion: reduce` the wait is 150 ms and the dots do not animate. Every branch of `act`, including the replies that need no data, runs under `busy`, so buttons cannot be tapped during the wait.
-- **One voice.** The launcher, header and subtitle speak as "Your account manager" / "مدير حسابكم". The greeting uses the time of day (from A).
+- **One voice.** The header and subtitle speak as "Your account manager" / "مدير حسابكم"; the launcher keeps "Ask your assistant" / "اسأل مساعدك" at the user's request. The greeting uses the time of day (from A).
 - **No system wording in the customer's view.** The trace rail ("Looking up your orders · 12 found in 0.1s"), "Checked at hh:mm:ss", "Based on N records" and "Records checked" are removed. When a list is cut short it says "Your latest 10 of 12 orders".
 - **Every reply ends with who acts next and when.** Quote requested: "our team prices it within one working day". Approved: "the team confirms within one working day, then I ask for sizes". Sizes sent: "Production starts now; expected delivery {date}. Nothing else is needed from you." Delivered: "Invoice {id} for {total} is attached to this delivery, due on {date}", or "our accounts team will send the invoice". Contact: "within one working day". The delivered sentence needs the invoice-to-order link: `/api/invoices` now also reads `items.sales_order` and returns `order?`. That is the same route with one more field.
 - **Arabic counts.** A new `countOf(locale, 'set' | 'person', n)` picks the Arabic form: طقم واحد / طقمان / 3–10 أطقم / 11–99 طقمًا / 100 طقم, and the same forms of موظف. The fixes: "19 طقمًا", "لفريق من 18 موظفًا", and "أحلت طلب التواصل" in the case receipt. The unreadable size-run sentence is removed by C's size card.
@@ -44,7 +44,8 @@ The account manager leads the conversation. It notices what changed, speaks like
 
 | Key | English | Arabic (formal) |
 |---|---|---|
-| erpAsk.launcher / title | Your account manager | مدير حسابكم |
+| erpAsk.launcher | Ask your assistant (kept at the user's request) | اسأل مساعدك |
+| erpAsk.title | Your account manager | مدير حسابكم |
 | erpAsk.live | UniformAI · replies from your live account | UniformAI · من بيانات حسابكم مباشرة |
 | erpAsk.typing | Your account manager is typing | مدير حسابكم يكتب الآن |
 | erpAsk.news | News from your account manager | أخبار جديدة من مدير حسابكم |
@@ -80,8 +81,12 @@ The account manager leads the conversation. It notices what changed, speaks like
 | journey.sizesSent | Thank you, Mr. Ahmed. I have received the sizes for all {sets} of order {id}. Production starts now; expected delivery {date}. Nothing else is needed from you. | شكرًا لكم أستاذ أحمد. استلمت مقاسات الطلب {id} كاملةً ({sets}). يبدأ الإنتاج الآن، والتسليم متوقع في {date}. لا نحتاج منكم شيئًا آخر. |
 | journey.caseSent | Thank you. I have passed your request to our team (reference {id}); someone will contact you within one working day. | شكرًا لكم. أحلت طلب التواصل إلى فريقنا برقم مرجعي {id}، وسيتواصل معكم أحد أعضاء الفريق خلال يوم عمل واحد. |
 | journey.caseAbout | Thank you. I have asked our team to contact you about {doc} (reference {id}); someone will be in touch within one working day. | شكرًا لكم. أحلت طلب التواصل بشأن {doc} إلى فريقنا برقم مرجعي {id}، وسيتواصل معكم أحد أعضاء الفريق خلال يوم عمل واحد. |
-| journey.card.production / invoiced | In production / Invoiced | قيد الإنتاج / صدرت الفاتورة |
-| journey.card.you / team | Waiting on you / With our team · usually within one working day | بانتظاركم / لدى فريقنا · عادةً خلال يوم عمل واحد |
+| journey.card.past.quote / approved / confirmed / sizes | Quote issued / Approved by you / Order confirmed / Sizes received | صدر عرض السعر / تمت موافقتكم / تم تأكيد الطلب / تم استلام المقاسات |
+| journey.card.past.production / delivered / invoiced | Produced / Delivered / Invoiced | اكتمل الإنتاج / تم التسليم / صدرت الفاتورة |
+| journey.card.await.quote / approved / confirmed / sizes | Pricing by our team / Your approval / Confirmation by our team / Your sizes | التسعير لدى فريقنا / موافقتكم / التأكيد من فريقنا / مقاساتكم |
+| journey.card.await.production / delivered / invoiced | In production / Delivery / Invoice | قيد الإنتاج / التسليم / الفاتورة |
+| journey.card.step | Step {n} of {total} · {name} | الخطوة {n} من {total} · {name} |
+| journey.card.you / team / making | Waiting on you / With our team · usually within one working day / With our team | بانتظاركم / لدى فريقنا · عادةً خلال يوم عمل واحد / لدى فريقنا |
 | journey.card.done / closed | Complete / Closed | مكتمل / مغلق |
 | journey.card.due / deliveredOn | Expected delivery {date} / Delivered {date} | التسليم المتوقع {date} / تم التسليم {date} |
 | journey.invCard.outstanding / open / paid / lateSince | {total} outstanding / Open invoices: {count} / Paid invoices: {count} / Overdue since {date} | المستحق {total} / الفواتير المفتوحة: {count} / الفواتير المسدّدة: {count} / متأخرة منذ {date} |

@@ -87,8 +87,9 @@ const sizesComplete = (kit?: Kit) => {
  *  not part of the story. */
 export function toOrders(
   quotes: QuoteRow[], orders: SalesOrderRow[], deliveries: DeliveryRow[],
-  /** Sales Orders with a size run on record: their sizes are complete. */
-  sized: ReadonlySet<string> = new Set(),
+  /** Sales Orders with a size run on record (their sizes are complete), and
+   *  the day it was received. */
+  sized: ReadonlyMap<string, string> = new Map(),
 ): Order[] {
   const liveQuotes = quotes.filter((q) => q.docstatus !== 2);
   const liveOrders = orders.filter((o) => o.docstatus !== 2);
@@ -125,6 +126,9 @@ export function toOrders(
     if (o) {
       dates.approved = day(o.transaction_date);
       if (o.docstatus === 1) dates.confirmed = day(o.transaction_date);
+      const run = sized.get(o.name);
+      if (o.docstatus === 1 && run) dates.sized = day(run);
+      else if (o.docstatus === 1 && sizesComplete(kit)) dates.sized = day(o.transaction_date);
     }
     if (last) dates.delivered = day(last.posting_date);
 

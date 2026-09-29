@@ -13,7 +13,7 @@ export function sampleOrder(
     total: perPerson * sets, estimate: perPerson * sets, sizePlan,
     placed: now, due, state, lines: orderLines(concept, sets, grades),
     dates: Object.fromEntries(STEPS.slice(0, {
-      quote_requested: 1, quote_ready: 2, quote_closed: 2, awaiting: 3, collecting_sizes: 4, in_progress: 4, delivered: 5,
+      quote_requested: 1, quote_ready: 2, quote_closed: 2, awaiting: 3, collecting_sizes: 4, in_progress: 5, delivered: 6,
     }[state]).map((k) => [k, now])),
     perDelivered: state === 'delivered' ? 100 : 0,
   };

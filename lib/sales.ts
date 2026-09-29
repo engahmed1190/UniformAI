@@ -44,13 +44,13 @@ type DeliveryListRow = Omit<DeliveryRow, 'against_sales_order'> & { against_sale
 
 export const SIZE_RUN = 'UniformAI Size Run';
 
-type StoredRun = { sales_order: string; allocation: unknown };
+type StoredRun = { sales_order: string; allocation: unknown; creation?: string };
 
 /** Orders with stored size-run data. A site seeded before the doctype existed
  *  answers 403 or 404: that is "no runs yet", not an outage. */
 async function sizeRuns(): Promise<StoredRun[]> {
   try {
-    return await list<StoredRun>(SIZE_RUN, { fields: ['sales_order', 'allocation'], orderBy: 'creation desc', limit: 2000 });
+    return await list<StoredRun>(SIZE_RUN, { fields: ['sales_order', 'allocation', 'creation'], orderBy: 'creation desc', limit: 2000 });
   } catch (error) {
     if (error instanceof ErpError && (error.status === 403 || error.status === 404)) return [];
     throw error;
@@ -100,13 +100,14 @@ export async function listOrders(): Promise<Order[]> {
   // not advance its state.
   const base = toOrders(quotes, [...orders.values()], notes);
   const bySalesOrder = new Map(base.flatMap((o) => o.salesOrder ? [[o.salesOrder, o] as const] : []));
-  const sized = new Set(runs.flatMap((run) => {
+  const sized = new Map(runs.flatMap((run) => {
     const order = bySalesOrder.get(run.sales_order);
     if (!order?.concept) return [];
     let stored: unknown;
     try { stored = typeof run.allocation === 'string' ? JSON.parse(run.allocation) : run.allocation; } catch { return []; }
-    return parseRun(stored, cutsOf(order.concept), order.sets) ? [run.sales_order] : [];
-  }));
+    return parseRun(stored, cutsOf(order.concept), order.sets)
+      ? [[run.sales_order, String(run.creation ?? order.dates.confirmed?.toISOString() ?? '').slice(0, 10)] as const] : [];
+  })); // ERPNext lists newest first, so the first run's day is the one kept
   return toOrders(quotes, [...orders.values()], notes, sized);
 }
 

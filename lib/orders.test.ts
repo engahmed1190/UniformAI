@@ -54,6 +54,14 @@ const allocated = (n: number): Kit => ({
   ...K, sizePlan: { mode: 'allocate_now', allocation: { men: { M: n } } },
 });
 
+// A size run on record moves the order on and dates the "Sizes received" step.
+{
+  const [r] = toOrders([quote({ docstatus: 1, status: 'Ordered' })], [so()], [], new Map([['SO-1', '2026-09-05']]));
+  assert.equal(r.state, 'in_progress');
+  assert.equal(r.dates.sized?.getDate(), 5);
+  assert.equal(one([quote({ docstatus: 1, status: 'Ordered' })], [so()]).dates.sized, undefined);
+}
+
 // The States table, one row each.
 assert.equal(one([quote()]).state, 'quote_requested');
 assert.equal(one([quote({ docstatus: 1, status: 'Open' })]).state, 'quote_ready');

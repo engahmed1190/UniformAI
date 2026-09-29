@@ -170,7 +170,7 @@ const en = {
     errGeneric: 'Something went wrong. Please try again.',
     step: {
       requested: 'Quote requested', issued: 'Quote issued', approved: 'Approved by you',
-      confirmed: 'Order confirmed', delivered: 'Delivered',
+      confirmed: 'Order confirmed', sized: 'Sizes received', delivered: 'Delivered',
     },
     state: {
       quote_requested: 'Quote requested', quote_ready: 'Quote ready', quote_closed: 'Quote closed',
@@ -682,6 +682,7 @@ const ar: Dict<typeof en> = {
       issued: 'صدور عرض السعر',
       approved: 'تمت موافقتك',
       confirmed: 'تأكيد الطلب',
+      sized: 'استلام المقاسات',
       delivered: 'التسليم',
     },
     state: {

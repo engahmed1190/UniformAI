@@ -2097,3 +2097,506 @@ Add repeatable team and readiness scripts for the account-manager demo
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
 EOF
 ```
+
+---
+
+### Task 10: Standard variant lines: sized items and the team's apply-sizes step
+
+ERPNext sells an item with variants one variant per line (its sales item query filters `has_variants = 0`, so a template cannot be sold) and changes a submitted order's lines with the standard Update Items (`erpnext.controllers.accounts_controller.update_child_qty_rate`). This task follows that. Quotes and the Sales Order keep one made-to-order line per garment (`UA-MTO-POLO × 42`), because sizes are unknown when the price is agreed. The customer's sizes still arrive as a `UniformAI Size Run`, and the Portal user still never writes a Sales Order. The team then applies the run with Update Items: each garment line is replaced by its colour × cut × size variant lines (`UA-SIZED-…`). Those lines add up to the old quantity at the old rate, so the grand total does not move. The branding line stays. Nothing new reaches the customer.
+
+Cuts map to a third attribute, `Uniform Cut` (Men / Women / Unisex). The size run is keyed by cut, so one template per garment covers every cut, the way colour and size are covered, with no template per cut.
+
+Verified against `apps/erpnext` v15 (`controllers/accounts_controller.py`):
+- `update_child_qty_rate(parent_doctype, trans_items, parent_doctype_name, child_docname="items")`, where `trans_items` is a JSON **string** of rows. A row with `docname` updates that line (only qty, rate, uom, conversion factor and delivery date). A row without one adds a line, and the item's name, description and group come from the Item master (`set_order_defaults`). A line left out of `trans_items` is **deleted** (`validate_and_delete_children`).
+- Deleting a line is refused if it has `delivered_qty`, `ordered_qty`, `work_order_qty` or `billed_amt`, so sizes must be applied before `deliver`. A new Sales Order line needs a warehouse (`is_warehouse_required_for_new_child_item` is always true for Sales Order Item), so each row passes the old line's.
+- New lines get no `prevdoc_docname` (quotation link). `listOrders` finds an order's quotation, and hides the quote, through `items.prevdoc_docname`, and so does `approveQuote`'s "already approved" check. The branding line keeps the link. So `sizes` refuses an order that has no branding line.
+- `SalesOrder.update_prevdoc_status` only re-runs the quotation's `set_status` and does not recompute `Quotation Item.ordered_qty`, so the quotation stays "Ordered".
+
+Checked and left unchanged: `toOrders`/`listOrders` (state comes from `docstatus`, `per_delivered` and size runs, and lines and sets come from `uniformai_kit`, never from item codes). The delivery reads (`items.against_sales_order`, which is on every mapped line). The invoice reads (header fields only). `toQuoteView` (it reads the Quotation, which is never touched). `seed-erp.ts:400` (it sets rates on the *quotation's* MTO lines when the seed creates one). `make_delivery_note`/`make_sales_invoice` map line by line, so they now map one line per variant, and non-stock items need no stock. `lib/ask.ts` does need changes: `options()` and `variantsFor` pick templates by `has_variants`, and the new sized templates would enter the stock menu and could win the "polo" name match. `lastPrice` only knows `UA-MTO-*` and ready-stock codes, but a sized order's invoice carries `UA-SIZED-*`.
+
+**Files:**
+- Create: `lib/sized.ts`
+- Create: `lib/sized.test.ts`
+- Modify: `scripts/seed-erp.ts` (imports; `COLOURS` moves to `lib/sized.ts`; the attribute loop in `masters`; new sized templates and variants after the made-to-order items)
+- Modify: `scripts/team.ts` (new `sizes` verb)
+- Modify: `lib/ask.ts` (`variantsFor`, `lastPrice`, `options`), `lib/ask.test.ts` (cases 6 and 9)
+- Modify: `README.md` (the "Orders run on ERPNext" paragraph and the "Demo script" Task 9 wrote)
+
+**Interfaces:**
+- Consumes: `MTO_ITEM`, `LOGO_ITEM`, `type Kit`, `kitLines` from `lib/orders.ts`; `parseRun(input, cuts, sets): SizeAllocation | null`, `cutsOf`, `proposedSplit` from `lib/size-run.ts`; `SIZES` (XS…3XL), `type GarmentCut`, `type GarmentSize`, `type GarmentType`, `type Garment`, `type Concept`, `type SizeAllocation` from `lib/spec.ts`; from Task 9's `scripts/team.ts`: `api`, `resource`, `get`, `call`, `type Doc`.
+- Produces: `SIZED_PREFIX = 'UA-SIZED-'`; `CUT_ATTRIBUTE = 'Uniform Cut'`; `CUT_VALUE: Record<GarmentCut, string>`; `COLOUR_NAMES: Record<string, string>` (hex → Uniform Colour value); `sizedTemplate(type: GarmentType): string` (`UA-SIZED-POLO`); `garmentColour(g: Garment): string | undefined`; `sizedCode(type, colour, cut, size): string` (`UA-SIZED-POLO-SAND-WOMEN-3XL`); `type SizedVariant = { item_code; template; type; colour; cut; size }`; `sizedVariants(concepts: Concept[]): SizedVariant[]`; `type SoItem`, `type TransItem`; `sizedItems(items: SoItem[], kit: Kit, run: SizeAllocation): TransItem[]`; the command `npm run team -- sizes <sales order>`.
+
+- [ ] **Step 1: Write the failing test**
+
+```ts
+// lib/sized.test.ts
+// Run: npx tsx lib/sized.test.ts
+import assert from 'node:assert/strict';
+import { CONCEPTS } from './concepts';
+import { type Kit, kitLines } from './orders';
+import { cutsOf } from './size-run';
+import { type GarmentSize, type SizeAllocation, SIZES } from './spec';
+import { type SoItem, sizedItems, sizedVariants } from './sized';
+
+const concept = CONCEPTS.find((c) => c.id === 'technicians')!; // Sand polo, Khaki cargo, printed logo
+const kit: Kit = { concept, staff: 40, sets: 42, grades: [], sizePlan: { mode: 'collect_later', allocation: {} } };
+const soItems = (k: Kit): SoItem[] => kitLines(k).map((l, i) => ({
+  name: `row-${i + 1}`, item_code: l.item_code, qty: l.qty, rate: l.rate,
+  uom: 'Nos', conversion_factor: 1, delivery_date: '2026-10-20', warehouse: 'Stores - UA',
+}));
+const items = soItems(kit);
+const run: SizeAllocation = { men: { S: 5, M: 10, L: 6 }, women: { XS: 3, M: 12, '3XL': 6 } };
+const rows = sizedItems(items, kit, run);
+
+// 1. The branding line stays, by its row name: it carries the quotation link.
+const kept = rows.filter((r) => r.docname);
+assert.deepEqual(kept.map((r) => [r.docname, r.item_code]),
+  items.filter((i) => i.item_code === 'UA-PRINT').map((i) => [i.name, 'UA-PRINT']));
+
+// 2. Each garment line becomes new variant lines: quantities add up to the
+//    line, the rate is the line's, and no line is empty.
+for (const line of items.filter((i) => i.item_code.startsWith('UA-MTO-'))) {
+  const type = line.item_code.slice('UA-MTO-'.length);
+  const variants = rows.filter((r) => r.item_code.startsWith(`UA-SIZED-${type}-`));
+  assert.equal(variants.length, 6, type);
+  assert.equal(variants.reduce((n, r) => n + r.qty, 0), line.qty, type);
+  assert.ok(variants.every((r) => !r.docname && r.rate === line.rate && r.qty > 0 && r.warehouse === 'Stores - UA'));
+}
+assert.ok(rows.some((r) => r.item_code === 'UA-SIZED-POLO-SAND-WOMEN-3XL' && r.qty === 6));
+assert.ok(rows.some((r) => r.item_code === 'UA-SIZED-CARGO-KHAKI-MEN-S' && r.qty === 5));
+assert.ok(!rows.some((r) => r.item_code.startsWith('UA-MTO-')), 'every garment line is replaced');
+
+// 3. The order's value does not move.
+const value = (xs: { qty: number; rate: number }[]) => xs.reduce((n, r) => n + r.qty * r.rate, 0);
+assert.equal(value(rows), value(items));
+
+// 4. Refused: a run that does not add up, a second apply, and an order
+//    without a branding line (nothing would keep the quotation link).
+assert.throws(() => sizedItems(items, kit, { men: { M: 41 } }), /size run has 41/);
+assert.throws(() => sizedItems(rows.map((r, i) => ({ ...r, name: r.docname ?? `new-${i}` })), kit, run), /already applied/);
+assert.throws(() => sizedItems(items.filter((i) => i.item_code !== 'UA-PRINT'), kit, run), /branding line/);
+
+// 5. The seed makes every variant a sample kit can need: each of its cuts in
+//    every size a size run accepts.
+const seeded = new Set(sizedVariants(CONCEPTS).map((v) => v.item_code));
+for (const c of CONCEPTS) {
+  const k: Kit = { ...kit, concept: c, sets: SIZES.length * cutsOf(c).length };
+  const every = Object.fromEntries(cutsOf(c).map((cut) =>
+    [cut, Object.fromEntries(SIZES.map((s) => [s, 1])) as Record<GarmentSize, number>]));
+  for (const r of sizedItems(soItems(k), k, every).filter((r) => !r.docname)) {
+    assert.ok(seeded.has(r.item_code), `${c.id}: ${r.item_code} is not seeded`);
+  }
+}
+
+console.log('sized: all assertions passed');
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `npx tsx lib/sized.test.ts`
+Expected: FAIL with `Cannot find module './sized'`.
+
+- [ ] **Step 3: Write `lib/sized.ts`**
+
+```ts
+// lib/sized.ts
+// Made-to-order garments by size, the way ERPNext sells anything with
+// variants: one Sales Order line per variant. Quotes and confirmed orders
+// carry one UA-MTO-* line per garment because sizes are unknown then; once
+// the customer's size run is in, the team replaces each of those lines with
+// its colour x cut x size variants through ERPNext's Update Items. Pure, so
+// the seed (which makes the variants) and the team script (which uses them)
+// share one naming rule.
+
+import {
+  type Concept, type Garment, type GarmentCut, type GarmentSize, type GarmentType, type SizeAllocation,
+  SIZES, cutsOf,
+} from './spec';
+import { type Kit, LOGO_ITEM, MTO_ITEM } from './orders';
+
+export const SIZED_PREFIX = 'UA-SIZED-';
+export const CUT_ATTRIBUTE = 'Uniform Cut';
+export const CUT_VALUE: Record<GarmentCut, string> = { men: 'Men', women: 'Women', unisex: 'Unisex' };
+/** The colour a garment is known by (body, else leg), as a Uniform Colour value. */
+export const COLOUR_NAMES: Record<string, string> = {
+  '#1b2a4a': 'Navy', '#ffffff': 'White', '#2f3640': 'Charcoal',
+  '#dfe6ef': 'Pale Blue', '#3d4a3a': 'Olive', '#c8b393': 'Sand',
+  '#7a6a4f': 'Khaki', '#6a5c44': 'Khaki',
+};
+
+const code = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+
+export const sizedTemplate = (type: GarmentType) => `${SIZED_PREFIX}${code(type)}`;
+export const garmentColour = (g: Garment): string | undefined =>
+  COLOUR_NAMES[(g.parts.body ?? g.parts.leg ?? Object.values(g.parts)[0] ?? '').toLowerCase()];
+export const sizedCode = (type: GarmentType, colour: string, cut: GarmentCut, size: GarmentSize) =>
+  `${sizedTemplate(type)}-${code(colour)}-${code(CUT_VALUE[cut])}-${size}`;
+
+export type SizedVariant = {
+  item_code: string; template: string; type: GarmentType; colour: string; cut: GarmentCut; size: GarmentSize;
+};
+
+/** Every variant the sample concepts can need: each garment's colour, in
+ *  each of the concept's cuts, in every size a size run accepts. */
+export function sizedVariants(concepts: Concept[]): SizedVariant[] {
+  const all = new Map<string, SizedVariant>();
+  for (const c of concepts) for (const g of c.garments) {
+    const colour = garmentColour(g);
+    if (!colour) continue;
+    for (const cut of cutsOf(c)) for (const size of SIZES) {
+      const item_code = sizedCode(g.type, colour, cut, size);
+      all.set(item_code, { item_code, template: sizedTemplate(g.type), type: g.type, colour, cut, size });
+    }
+  }
+  return [...all.values()];
+}
+
+/** A Sales Order line as ERPNext returns it: the fields Update Items reads. */
+export type SoItem = {
+  name: string; item_code: string; qty: number; rate: number;
+  uom: string; conversion_factor: number; delivery_date: string; warehouse?: string | null;
+};
+/** One row of Update Items' trans_items. With docname it keeps that line;
+ *  without, it adds one. A line left out is deleted. */
+export type TransItem = Omit<SoItem, 'name' | 'warehouse'> & { docname?: string; warehouse?: string };
+
+const MTO = new Set<string>(Object.values(MTO_ITEM));
+const LOGO = new Set<string>(Object.values(LOGO_ITEM));
+
+/** The order's lines with each made-to-order garment line replaced by its
+ *  size variants: same rate, quantities adding up to the line's. */
+export function sizedItems(items: SoItem[], kit: Kit, run: SizeAllocation): TransItem[] {
+  if (!items.some((i) => MTO.has(i.item_code))) throw new Error('sizes are already applied');
+  // New lines carry no quotation reference; the branding line keeps the link.
+  if (!items.some((i) => LOGO.has(i.item_code))) {
+    throw new Error('no branding line to keep the quotation link; apply these sizes in the desk');
+  }
+  const pending = [...kit.concept.garments];
+  return items.flatMap((line) => {
+    const keep: TransItem = {
+      item_code: line.item_code, qty: line.qty, rate: line.rate, uom: line.uom,
+      conversion_factor: line.conversion_factor, delivery_date: line.delivery_date,
+      ...(line.warehouse ? { warehouse: line.warehouse } : {}),
+    };
+    if (!MTO.has(line.item_code)) return [{ docname: line.name, ...keep }];
+    // Lines pair with garments in order, so a kit with two polos stays two lines.
+    const at = pending.findIndex((g) => MTO_ITEM[g.type] === line.item_code);
+    if (at < 0) throw new Error(`${line.item_code}: not a garment of this kit`);
+    const [garment] = pending.splice(at, 1);
+    const colour = garmentColour(garment);
+    if (!colour) throw new Error(`${line.item_code}: no Uniform Colour for ${garment.parts.body ?? garment.parts.leg}`);
+    const rows = cutsOf(kit.concept).flatMap((cut) => SIZES.flatMap((size) => {
+      const qty = run[cut]?.[size] ?? 0;
+      return qty > 0 ? [{ ...keep, item_code: sizedCode(garment.type, colour, cut, size), qty }] : [];
+    }));
+    const total = rows.reduce((n, r) => n + r.qty, 0);
+    if (total !== line.qty) throw new Error(`${line.item_code}: the size run has ${total}, the line ${line.qty}`);
+    return rows;
+  });
+}
+```
+
+- [ ] **Step 4: Run the test to verify it passes**
+
+Run: `npx tsx lib/sized.test.ts`
+Expected: `sized: all assertions passed`.
+
+- [ ] **Step 5: Seed the sized templates and variants**
+
+In `scripts/seed-erp.ts`, import the shared rule and drop the local colour map (the ready stock uses the same names):
+
+```ts
+import { type GarmentType, type SizePlan, LABELS, SIZES as SIZE_RUN_SIZES, allocatedSizeCount } from '../lib/spec';
+import { COLOUR_NAMES, CUT_ATTRIBUTE, CUT_VALUE, garmentColour, sizedTemplate, sizedVariants } from '../lib/sized';
+```
+
+Delete `const COLOURS: Record<string, string> = { … };`. In `masters`, change the colour pick to `set.add(garmentColour(g) ?? 'Navy');`, and make `colourValues` cover the shared map so the two can't drift: `const colourValues = [...new Set(Object.values(COLOUR_NAMES))];`.
+
+`ensure()` only creates. An older site's `Uniform Size` has S to XL, but a size run accepts XS to 3XL, so add a helper under `ensureCustomField` that also adds missing values:
+
+```ts
+/** Create the attribute, or add the values an older seed's copy lacks. The
+ *  whole child table is sent back, existing rows included, so none is lost. */
+async function ensureAttribute(attribute_name: string, values: string[]) {
+  const row = (attribute_value: string, idx: number) =>
+    ({ attribute_value, abbr: code(attribute_value).slice(0, 8), idx });
+  const found = await find('Item Attribute', [['attribute_name', '=', attribute_name]]);
+  if (!found) {
+    await create('Item Attribute', { attribute_name, item_attribute_values: values.map((v, i) => row(v, i + 1)) });
+    return;
+  }
+  const path = `/api/resource/Item%20Attribute/${encodeURIComponent(found.name)}`;
+  const have = (await api<{ data: { item_attribute_values: { attribute_value: string }[] } }>(path))
+    .data.item_attribute_values;
+  const missing = values.filter((v) => !have.some((h) => h.attribute_value === v));
+  if (!missing.length) return;
+  await api(path, { method: 'PUT', body: JSON.stringify({
+    item_attribute_values: [...have, ...missing.map((v, i) => row(v, have.length + i + 1))],
+  }) });
+  console.log(`${attribute_name}: added ${missing.join(', ')}`);
+}
+```
+
+Replace the attribute loop in `masters` (`for (const [name, values] of [[COLOUR, colourValues], [SIZE, SIZES]] as const) { await ensure('Item Attribute', …) }`) with:
+
+```ts
+  await ensureAttribute(COLOUR, colourValues);
+  await ensureAttribute(SIZE, SIZE_RUN_SIZES);
+  await ensureAttribute(CUT_ATTRIBUTE, Object.values(CUT_VALUE));
+```
+
+After the made-to-order `for (const [type, item_code] of Object.entries(MTO_ITEM) …)` loop, add:
+
+```ts
+  // Made to order, by size: what a garment line becomes once the team applies
+  // the customer's size run (npm run team -- sizes). Non-stock like UA-MTO-*,
+  // so delivery needs no stock. Separate templates, because ERPNext will not
+  // turn an item that has transactions into a template.
+  for (const type of Object.keys(MTO_ITEM) as GarmentType[]) {
+    await ensure('Item', [['item_code', '=', sizedTemplate(type)]], {
+      item_code: sizedTemplate(type), item_name: `${TEMPLATES[type]} (sized to order)`, item_group: mtoGroup,
+      stock_uom: 'Nos', is_stock_item: 0, has_variants: 1,
+      attributes: [{ attribute: COLOUR }, { attribute: CUT_ATTRIBUTE }, { attribute: SIZE }],
+    });
+  }
+  for (const v of sizedVariants(CONCEPTS)) {
+    await ensure('Item', [['item_code', '=', v.item_code]], {
+      item_code: v.item_code, item_name: `${TEMPLATES[v.type]} ${v.colour} ${CUT_VALUE[v.cut]} ${v.size}`,
+      item_group: mtoGroup, stock_uom: 'Nos', is_stock_item: 0, variant_of: v.template,
+      attributes: [
+        { attribute: COLOUR, attribute_value: v.colour },
+        { attribute: CUT_ATTRIBUTE, attribute_value: CUT_VALUE[v.cut] },
+        { attribute: SIZE, attribute_value: v.size },
+      ],
+    });
+  }
+```
+
+The local `SIZES` (S to XL) stays for ready stock. Run `npx tsc --noEmit`, then `npm run seed:erp`. Expected: `Uniform Size: added XS, 2XL, 3XL` on the first run, then the templates and 140 variants (10 garment colours × 2 cuts × 7 sizes). A second `npm run seed:erp` makes nothing new. In the desk, Item list filtered on `variant_of = UA-SIZED-POLO` shows 28 rows: Navy and Sand, Men and Women, XS to 3XL.
+
+- [ ] **Step 6: Write the failing assistant tests**
+
+In `lib/ask.test.ts`, case 6: add a sized template and a variant of it to the replies, and leave the expected `options()` result as it is. Olive must not appear under Polo:
+
+```ts
+  replies = [
+    [{ name: 'UA-POLO', item_name: 'Polo' }, { name: 'UA-BLAZER', item_name: 'Blazer' },
+     { name: 'UA-MTO-POLO', item_name: 'Made Polo' }, { name: 'UA-EMPTY', item_name: 'Empty' },
+     { name: 'UA-SIZED-POLO', item_name: 'Polo (sized to order)' }],
+    [
+      { name: 'SP1', variant_of: 'UA-SIZED-POLO', attribute: 'Uniform Colour', attribute_value: 'Olive' },
+      { name: 'SP1', variant_of: 'UA-SIZED-POLO', attribute: 'Uniform Size', attribute_value: '3XL' },
+      // … the existing P1, P2, P3 and B1 rows unchanged …
+    ],
+  ];
+```
+
+Before the `// 5. A timeout` block, add:
+
+```ts
+// 9. Once sizes are applied, an invoice bills UA-SIZED-<garment>-… variants:
+  // the last price reads those too, and the stock check stays on ready stock
+  // even when a sized template is listed first.
+  replies = [
+    [{ name: 'Blazer', item_name: 'Blazer' }, { name: 'UA-SIZED-BLAZER', item_name: 'Blazer (sized to order)' }],
+    [{ name: 'UA-BLAZER-NAVY-M' }, { name: 'UA-SIZED-BLAZER-NAVY-MEN-M' }],
+    [{ name: 'INV-9', posting_date: '2026-09-20', currency: 'EGP', item_code: 'UA-SIZED-BLAZER-NAVY-MEN-M', rate: 1500, qty: 7 }],
+  ];
+  const sizedPrice = await run('price', { item: 'Blazer' });
+  assert.deepEqual([sizedPrice.rows[0].name, sizedPrice.sources[0].rate], ['INV-9', 1500]);
+  assert.ok(seen.at(-2)!.url.searchParams.get('filters')!.includes('UA-SIZED-BLAZER'));
+  replies = [[{ name: 'UA-SIZED-POLO', item_name: 'Polo (sized to order)' }, { name: 'Polo', item_name: 'Polo' }], []];
+  await checkStock({ item: 'Polo' });
+  assert.equal(JSON.parse(seen.at(-1)!.url.searchParams.get('filters')!).at(-1).join('|'), 'variant_of|in|Polo');
+```
+
+Run: `npx tsx lib/ask.test.ts`
+Expected: FAIL. `options()` lists Olive and 3XL under a second "Polo (sized to order)" entry, and the price case finds no `UA-SIZED-BLAZER` in the variant filter.
+
+- [ ] **Step 7: Keep sized templates out of stock, and in the last price**
+
+In `lib/ask.ts`, add `import { SIZED_PREFIX } from './sized';` and replace `variantsFor`:
+
+```ts
+/** The garment word the item codes use: "Cargo Trouser" -> CARGO. */
+const garmentWord = (item: unknown) => text(item).split(/\s+/)[0].toUpperCase();
+
+/** The ready-stock template the customer named, and its variants. With
+ *  `sized`, also the variants of the same garment made to order by size
+ *  (UA-SIZED-<word>), which a sized order's invoice bills. */
+async function variantsFor(itemInput: unknown, sized = false): Promise<ItemRow[]> {
+  const wanted = text(itemInput).toLowerCase();
+  if (!wanted) return [];
+  const templates = await list<ItemRow>('Item', {
+    fields: ['name', 'item_name'],
+    filters: [['has_variants', '=', 1]],
+    limit: 100,
+  });
+  const template = templates.find((row) => !row.name.startsWith(SIZED_PREFIX) &&
+    [row.name, row.item_name].some((v) => String(v ?? '').toLowerCase().includes(wanted)));
+  if (!template) return [];
+  const names = sized ? [template.name, `${SIZED_PREFIX}${garmentWord(itemInput)}`] : [template.name];
+  const joined = await list<ItemRow>('Item', {
+    fields: ['name', 'item_name', 'variant_of', 'attributes.attribute', 'attributes.attribute_value'],
+    filters: [['variant_of', 'in', names]],
+    limit: 2000,
+  });
+  return groupJoined(joined, ['attribute', 'attribute_value'], 'attributes') as ItemRow[];
+}
+```
+
+In `lastPrice`, read both and reuse the word:
+
+```ts
+  const variants = await variantsFor(input.item, true);
+  if (!variants.length) return { rows: [], sources: [] };
+  // What the customer paid for a garment was billed as a ready-stock variant,
+  // as the garment made to order (UA-MTO-<word>), or, once sizes were
+  // applied, as its sized variants (UA-SIZED-<word>-…), all at one rate.
+  const codes = [...variants.map((row) => row.name), `UA-MTO-${garmentWord(input.item)}`];
+```
+
+In `options()`, keep sized templates out of the stock menu:
+
+```ts
+  const ready = templates.filter((row) => !row.name.startsWith('UA-MTO-') && !row.name.startsWith(SIZED_PREFIX));
+```
+
+Run: `npx tsx lib/ask.test.ts`
+Expected: `ask: all assertions passed`.
+
+- [ ] **Step 8: The team's apply-sizes command**
+
+In `scripts/team.ts`, add to the header's usage lines:
+
+```ts
+//   npm run team -- sizes SAL-ORD-2026-00015     apply the customer's size run (Update Items)
+```
+
+Add the imports under `@next/env`:
+
+```ts
+import { type Kit } from '../lib/orders';
+import { cutsOf, parseRun } from '../lib/size-run';
+import { type SoItem, sizedItems } from '../lib/sized';
+```
+
+Add, after `const SO = …`:
+
+```ts
+type OrderDoc = Doc & {
+  docstatus: number; per_delivered: number; per_billed: number; grand_total: number;
+  uniformai_kit?: string | null; items: SoItem[];
+};
+
+/** The team applies a confirmed order's sizes the way the desk's Update
+ *  Items does: each made-to-order garment line is replaced by its colour,
+ *  cut and size variants at the same rate, so the total does not move. The
+ *  customer's newest Size Run wins; a kit sized at quote time is used when
+ *  there is none. ERPNext refuses to delete a delivered, billed or ordered
+ *  line, so this runs before `deliver`. */
+async function applySizes(name: string): Promise<string> {
+  const order = await get('Sales Order', name) as OrderDoc;
+  if (order.docstatus !== 1) throw new Error(`${name} is not confirmed yet`);
+  if (order.per_delivered > 0 || order.per_billed > 0) throw new Error(`${name} is already delivered or billed in part`);
+  const kit = order.uniformai_kit ? JSON.parse(order.uniformai_kit) as Kit : null;
+  if (!kit) throw new Error(`${name} was not made by the app`);
+  const runs = await api<{ data: { allocation: unknown }[] }>(`${resource('UniformAI Size Run')}?${new URLSearchParams({
+    fields: JSON.stringify(['allocation']), filters: JSON.stringify([['sales_order', '=', name]]),
+    order_by: 'creation desc', limit_page_length: '1',
+  })}`);
+  const stored = runs.data[0]?.allocation
+    ?? (kit.sizePlan?.mode === 'allocate_now' ? kit.sizePlan.allocation : undefined);
+  const run = parseRun(typeof stored === 'string' ? JSON.parse(stored) : stored, cutsOf(kit.concept), kit.sets);
+  if (!run) throw new Error(`${name} has no complete size run yet`);
+  const trans = sizedItems(order.items, kit, run);
+  await call('erpnext.controllers.accounts_controller.update_child_qty_rate', {
+    parent_doctype: 'Sales Order', parent_doctype_name: name, child_docname: 'items',
+    trans_items: JSON.stringify(trans),
+  });
+  const after = await get('Sales Order', name);
+  if (Number(after.grand_total) !== Number(order.grand_total)) {
+    throw new Error(`${name}: the total moved from ${order.grand_total} to ${after.grand_total}`);
+  }
+  return `sized ${name}: ${trans.filter((t) => !t.docname).length} size lines, total ${after.grand_total}`;
+}
+```
+
+In `main`, before the `else` usage branch:
+
+```ts
+  } else if (verb === 'sizes' && name) {
+    console.log(await applySizes(name));
+```
+
+and change the usage line to `'usage: npm run team -- issue <quotation> | confirm <sales order> | sizes <sales order> | deliver <sales order>'`.
+
+Run: `npx tsc --noEmit`. Expected: no errors. Then, against the clean seed (`npm run seed:erp -- --reset`):
+- `npm run team -- sizes <the seeded Collecting sizes SAL-ORD>`. Expected: exits 1 with `… has no complete size run yet`.
+- `npm run team -- sizes <the seeded In progress SAL-ORD>`. Expected: exits 1 with `… is already delivered or billed in part`.
+
+- [ ] **Step 9: Re-run the live journey with sizes applied**
+
+`npm run seed:erp -- --reset && npm run demo:check`, then Task 9 Step 2's steps 1 to 3 as written: request 19 sets for Front Office, issue, approve, confirm, send the proposed split. Then:
+
+1. `npm run team -- sizes <that SAL-ORD>`. Expected: `sized SAL-ORD-…: N size lines, total …` with the same total as before. In the desk, the Sales Order's items are `UA-SIZED-SHIRT-WHITE-…`, `UA-SIZED-CHINO-NAVY-…` and `UA-SIZED-BLAZER-NAVY-…` lines plus the unchanged embroidery line. Each garment's lines add up to 19 at the old rate, and the grand total is unchanged. The quotation still reads Ordered.
+2. In the app, Menu, and the Orders screen. Expected: the order still reads In progress, [Review quotation …] does not come back for its quotation, and the chat shows no item code.
+3. `npm run team -- sizes <that SAL-ORD>` again. Expected: exits 1 with `sizes are already applied`.
+4. Continue with Task 9 Step 2's steps 4 to 8. At step 4, `deliver` makes a Delivery Note and a Sales Invoice with one line per size variant, and the invoice total equals the order's. Then: "All 19 sets … were delivered", the new invoice Unpaid. At More, "Last price paid, Blazer" answers from the new invoice at the blazer's quoted rate. "Stock availability, Polo, Navy, XL" still reads 260 in Stores.
+
+Fix anything that fails in the step that owns it, rerun `npm test`, and repeat.
+
+- [ ] **Step 10: The README**
+
+In "Orders run on ERPNext", after the paragraph Task 9 added ("The assistant is on every screen…"), add:
+
+```md
+Sizes follow ERPNext's standard for variants. Quotations and orders are
+priced on one made-to-order line per garment (`UA-MTO-…`), since sizes are
+not known yet. The customer's sizes arrive as a UniformAI Size Run; the team
+applies them with the Sales Order's Update Items (`npm run team -- sizes
+<order>`), which replaces each garment line with its colour, cut and size
+variants (`UA-SIZED-…`, non-stock) at the same rate, so the total is
+unchanged. Delivery notes and invoices then list each size.
+```
+
+Replace the "### Demo script" section Task 9 wrote with:
+
+```md
+### Demo script
+
+`npm run seed:erp -- --reset && npm run demo:check` first. UniformAI's side is played in ERPNext's
+desk or with `npm run team -- issue|confirm|sizes|deliver <document>`.
+
+1. Open the assistant on Home: a greeting, and the Technicians quotation
+   waiting for review.
+2. Start a new uniform request: Front Office, 6 people. The minimum order
+   (10 sets) is explained, not applied silently. Change to 18 people and
+   request the quotation for 19 sets.
+3. As the team, issue that quotation. In the assistant: review it, view the
+   quotation (names and money only), approve. ERPNext has a draft Sales Order.
+4. As the team, confirm the order. The assistant asks for sizes; use the
+   proposed split, review, send. The order moves to In progress.
+5. As the team, apply the sizes. In ERPNext the order now lists each garment
+   by colour, cut and size, at the same total; the customer sees no change.
+6. As the team, deliver. The order reads Delivered; Invoices shows the new
+   one Unpaid, one Overdue and the history Paid.
+7. Discuss with our team: a CASE-… reference, visible in ERPNext as an Issue.
+8. Switch to Arabic and ask again: the same conversation, formal Arabic.
+9. Stock and last price still work from More: Polo, Navy, XL is 260 in Stores.
+10. `npm run seed:erp -- --reset && npm run demo:check` to start over.
+```
+
+- [ ] **Step 11: Final check and commit**
+
+Run: `npm test && npx tsc --noEmit && npm run seed:erp -- --reset && npm run demo:check`
+Expected: every test file passes, including `sized: all assertions passed`. The reset leaves the sized items in place (they are masters, not app documents), and the final line is `demo: ready`.
+
+```bash
+git add lib/sized.ts lib/sized.test.ts lib/ask.ts lib/ask.test.ts scripts/seed-erp.ts scripts/team.ts README.md
+git commit -F - <<'EOF'
+Apply a customer's size run as standard variant lines with Update Items
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+EOF
+```

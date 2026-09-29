@@ -241,10 +241,21 @@ async function masters(company: string) {
   const customer_group = (await find('Customer Group', [['is_group', '=', 0]]))?.name;
   const territory = (await find('Territory', [['is_group', '=', 0]]))?.name;
   if (!customer_group || !territory) throw new Error('No leaf Customer Group or Territory; finish the setup wizard');
+  // Invoices made in Desk are due in 30 days, as the scripted ones are,
+  // rather than on the day they are made (Overdue the next morning).
+  const terms = (await ensure('Payment Terms Template', [['template_name', '=', '30 days']], {
+    template_name: '30 days',
+    terms: [{ invoice_portion: 100, due_date_based_on: 'Day(s) after invoice date', credit_days: 30 }],
+  })).name;
   for (const customer_name of [BRAINWISE, 'Delta Hotels', 'Nile Logistics']) {
-    await ensure('Customer', [['customer_name', '=', customer_name]], {
-      customer_name, customer_type: 'Company', customer_group, territory,
+    const customer = await ensure('Customer', [['customer_name', '=', customer_name]], {
+      customer_name, customer_type: 'Company', customer_group, territory, payment_terms: terms,
     });
+    if (customer.payment_terms !== terms) {
+      await api(`/api/resource/Customer/${encodeURIComponent(customer.name)}`, {
+        method: 'PUT', body: JSON.stringify({ payment_terms: terms }),
+      });
+    }
   }
   const link = [{ link_doctype: 'Customer', link_name: BRAINWISE }];
   await ensure('Contact', [['first_name', '=', 'Ahmed'], ['last_name', '=', 'Osama']], {

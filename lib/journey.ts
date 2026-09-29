@@ -9,10 +9,12 @@ import { CONCEPTS } from './concepts';
 import { type GarmentCut, type SizeAllocation, SIZES, conceptPriceAt } from './spec';
 import { POLICY, plan } from './policy';
 import { type Locale, formatCurrency, formatDate, kitName, t } from './i18n';
+import { greeting } from './manager';
+import type { News } from './updates';
 
 export type Topic = 'general' | 'order' | 'billing';
 export type Act =
-  | { k: 'menu' } | { k: 'more' } | { k: 'orders' } | { k: 'order'; id: string } | { k: 'show'; id: string }
+  | { k: 'menu' } | { k: 'more'; from?: number } | { k: 'orders' } | { k: 'order'; id: string } | { k: 'show'; id: string }
   | { k: 'stock' } | { k: 'price' } | { k: 'invoices' }
   | { k: 'new' } | { k: 'people'; kit: string; people?: number } | { k: 'plan'; kit: string; people: number }
   | { k: 'requestQuote'; kit: string; people: number; sets: number }
@@ -29,38 +31,54 @@ const btn = (locale: Locale, key: string, act: Act, values?: Record<string, stri
   ({ label: t(locale, `journey.${key}`, values), act, ...(primary ? { primary } : {}) });
 const discuss = (locale: Locale, doc: string) => btn(locale, 'btnDiscuss', { k: 'contact', topic: 'order', doc });
 
-/** The newest thing waiting on the customer (orders arrive newest first):
- *  a quote to approve or sizes to send. */
-function waiting(locale: Locale, orders: Order[]): Button | undefined {
-  const o = orders.find((x) => (x.state === 'quote_ready' && x.quote) || (x.state === 'collecting_sizes' && x.salesOrder));
-  if (!o) return undefined;
-  return o.state === 'quote_ready'
-    ? btn(locale, 'btnReview', { k: 'order', id: o.quote! }, { id: o.quote! }, true)
-    : btn(locale, 'btnSendSizes', { k: 'sizes', order: o.salesOrder! }, { id: o.salesOrder! }, true);
+const kitOf = (locale: Locale, o: Order) => (o.concept ? kitName(locale, o.concept.id) : docOf(o));
+
+/** Everything waiting on the customer, newest first: quotes to approve (straight
+ *  to the Yes / Not now confirmation) and sizes to send. The first is primary. */
+export function waitingButtons(locale: Locale, orders: Order[]): Button[] {
+  return orders.flatMap((o): Button[] =>
+    o.state === 'quote_ready' && o.quote
+      ? [btn(locale, 'btnApproveKit', { k: 'approve', quote: o.quote, total: o.total }, { kit: kitOf(locale, o), total: money(locale, o.total) })]
+      : o.state === 'collecting_sizes' && o.salesOrder
+        ? [btn(locale, 'btnSendSizesKit', { k: 'sizes', order: o.salesOrder }, { kit: kitOf(locale, o) })]
+        : [])
+    .map((b, i) => (i === 0 ? { ...b, primary: true } : b));
 }
 
-export function menuTurn(locale: Locale, orders: Order[], again = false): Turn {
-  const next = waiting(locale, orders);
+/** The greeting's choices: up to two waiting items, then a new request and our
+ *  team, then the orders if there is room. The rest wait behind More. */
+function homeButtons(locale: Locale, orders: Order[]): { shown: Button[]; rest: Button[] } {
+  const waiting = waitingButtons(locale, orders);
+  const lead = [
+    ...waiting.slice(0, 2),
+    btn(locale, 'btnNew', { k: 'new' }),
+    btn(locale, 'btnContact', { k: 'contact', topic: 'general' }),
+    btn(locale, 'btnOrders', { k: 'orders' }),
+  ];
+  return { shown: lead.slice(0, 4), rest: [...waiting.slice(2), ...lead.slice(4)] };
+}
+
+/** The home turn. The greeting is Home's own sentence, so the two never disagree. */
+export function menuTurn(locale: Locale, orders: Order[], hour: number, again = false): Turn {
   return {
-    say: t(locale, again ? 'journey.again' : 'journey.hello'),
-    buttons: [
-      ...(next ? [next] : []),
-      btn(locale, 'btnNew', { k: 'new' }),
-      btn(locale, 'btnOrders', { k: 'orders' }),
-      btn(locale, 'btnMore', { k: 'more' }),
-    ],
+    say: again ? t(locale, 'journey.again') : greeting(locale, orders, hour),
+    buttons: [...homeButtons(locale, orders).shown, btn(locale, 'btnMore', { k: 'more' })],
   };
 }
 
-export const moreTurn = (locale: Locale): Turn => ({
-  say: t(locale, 'journey.more'),
-  buttons: [
+/** What did not fit on the greeting, then the quieter tools; four at a time. */
+export function moreTurn(locale: Locale, orders: Order[], from = 0): Turn {
+  const all = [
+    ...homeButtons(locale, orders).rest.map(({ label, act }) => ({ label, act })),
     btn(locale, 'btnInvoices', { k: 'invoices' }),
     btn(locale, 'btnStock', { k: 'stock' }),
     btn(locale, 'btnPrice', { k: 'price' }),
-    btn(locale, 'btnContact', { k: 'contact', topic: 'general' }),
-  ],
-});
+  ];
+  const buttons = all.length - from > 4
+    ? [...all.slice(from, from + 3), btn(locale, 'btnMore', { k: 'more', from: from + 3 })]
+    : all.slice(from, from + 4);
+  return { say: t(locale, 'journey.more'), buttons };
+}
 
 export const teamTurn = (locale: Locale): Turn => ({
   say: t(locale, 'journey.team'),
@@ -133,8 +151,34 @@ export const approveTurn = (locale: Locale, quote: string, total: number): Turn 
   buttons: [
     btn(locale, 'btnNotNow', { k: 'menu' }),
     btn(locale, 'btnConfirmApprove', { k: 'approveNow', quote }, { total: money(locale, total) }, true),
+    btn(locale, 'btnView', { k: 'viewQuote', quote }),
   ],
 });
+
+/** "Since we last spoke: …": one clause per change, and a button for what
+ *  the customer can do about it (first one primary). */
+export function newsTurn(locale: Locale, news: News[]): Turn {
+  const line = (n: News): string => {
+    if (!('order' in n)) {
+      return n.k === 'paid' ? t(locale, 'journey.news.paid', { id: n.invoice.name })
+        : t(locale, 'journey.news.invoiced', { id: n.invoice.name, total: money(locale, n.invoice.total), date: day(locale, n.invoice.due) });
+    }
+    const id = n.k === 'quote_ready' ? n.order.quote ?? docOf(n.order) : docOf(n.order);
+    if (n.k === 'delivered' && n.invoice) {
+      return t(locale, 'journey.news.deliveredInvoice', { id, invoice: n.invoice.name, total: money(locale, n.invoice.total) });
+    }
+    return t(locale, `journey.news.${n.k}`, { id, total: money(locale, n.order.total), date: formatDate(locale, n.order.due) });
+  };
+  const offers = news.flatMap((n): Button[] =>
+    n.k === 'quote_ready' || n.k === 'confirmed' ? waitingButtons(locale, [n.order])
+      : n.k === 'delivered' || n.k === 'invoiced' ? [btn(locale, 'btnInvoices', { k: 'invoices' })] : []);
+  const key = (b: Button) => JSON.stringify(b.act);
+  const buttons = offers
+    .filter((b, i) => offers.findIndex((x) => key(x) === key(b)) === i)
+    .slice(0, 4)
+    .map(({ label, act }, i) => (i === 0 ? { label, act, primary: true } : { label, act }));
+  return { say: `${t(locale, 'journey.news.since')} ${news.map(line).join(locale === 'ar' ? '؛ ' : '; ')}.`, buttons };
+}
 
 /** "Men: S 4, M 10; Women: …", skipping empty cuts and sizes. */
 export function runText(locale: Locale, run: SizeAllocation): string {

@@ -10,7 +10,7 @@ import type { Invoice } from './invoices';
 import { LOCALES, type Locale } from './i18n';
 import {
   type Turn, approveTurn, approvedTurn, caseTurn, contactTurn, failTurn, invoicesTurn, menuTurn, moreTurn,
-  movedTurn, orderTurn, quoteShownTurn, refusedId, planTurn, quoteSentTurn, sizeConfirmTurn, sizesSentTurn, teamTurn,
+  movedTurn, orderTurn, quoteShownTurn, refusedId, planTurn, quoteSentTurn, sizeConfirmTurn, sizesSentTurn, teamTurn, waitingButtons,
 } from './journey';
 
 const QUOTE_STATES: Workflow[] = ['quote_requested', 'quote_ready', 'quote_closed'];
@@ -31,15 +31,27 @@ const keep = (turn: Turn) => { all.push(turn); return turn; };
 const primary = (turn: Turn) => turn.buttons.find((b) => b.primary)?.act;
 
 for (const locale of LOCALES as readonly Locale[]) {
-  // Menu: the newest waiting action leads (orders arrive newest first).
-  let turn = keep(menuTurn(locale, [order('quote_ready'), order('collecting_sizes')]));
-  assert.deepEqual(primary(turn), { k: 'order', id: 'SAL-QTN-2026-00031' });
-  turn = keep(menuTurn(locale, [order('collecting_sizes'), order('quote_ready')]));
+  // Greeting: up to two waiting items, then New and Contact, then Orders; More holds the rest.
+  let turn = keep(menuTurn(locale, [order('quote_ready'), order('collecting_sizes')], 15));
+  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['approve', 'sizes', 'new', 'contact', 'more']);
+  assert.deepEqual(primary(turn), { k: 'approve', quote: 'SAL-QTN-2026-00031', total: 27300 });
+  const three = [order('quote_ready'), order('collecting_sizes'), order('quote_ready', { quote: 'SAL-QTN-2026-00032' })];
+  turn = keep(menuTurn(locale, three, 15));
+  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['approve', 'sizes', 'new', 'contact', 'more']);
+  turn = keep(moreTurn(locale, three));
+  assert.deepEqual(turn.buttons.map((b) => b.act), [
+    { k: 'approve', quote: 'SAL-QTN-2026-00032', total: 27300 }, { k: 'orders' }, { k: 'invoices' }, { k: 'more', from: 3 },
+  ]);
+  turn = keep(moreTurn(locale, three, 3));
+  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['stock', 'price']);
+  turn = keep(menuTurn(locale, [], 9));
+  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['new', 'contact', 'orders', 'more']);
+  assert.equal(primary(turn), undefined);
+  assert.match(turn.say, locale === 'en' ? /^Good morning, Mr\. Ahmed\./ : /^صباح الخير أستاذ أحمد\./);
+  turn = keep(menuTurn(locale, [order('collecting_sizes')], 15, true));
   assert.deepEqual(primary(turn), { k: 'sizes', order: 'SAL-ORD-2026-00011' });
-  assert.ok(turn.buttons.some((b) => b.act.k === 'more'));
-  turn = keep(menuTurn(locale, [order('collecting_sizes')], true));
-  assert.deepEqual(primary(turn), { k: 'sizes', order: 'SAL-ORD-2026-00011' });
-  keep(moreTurn(locale));
+  assert.equal(waitingButtons(locale, [order('awaiting'), order('in_progress')]).length, 0);
+  keep(moreTurn(locale, []));
 
   // 1. Request -> quote -> approve.
   turn = keep(teamTurn(locale));
@@ -62,6 +74,7 @@ for (const locale of LOCALES as readonly Locale[]) {
   assert.notEqual(turn.say, orderTurn(locale, order('quote_ready')).say);
   assert.deepEqual(primary(turn), { k: 'approve', quote: 'SAL-QTN-2026-00031', total: 27300 });
   turn = keep(approveTurn(locale, 'SAL-QTN-2026-00031', 27300));
+  assert.ok(turn.buttons.some((b) => b.act.k === 'viewQuote'), 'the greeting skips the quote turn, so View is here');
   assert.deepEqual(primary(turn), { k: 'approveNow', quote: 'SAL-QTN-2026-00031' });
   // A double tap on Approve must not land on the confirmation.
   const first = orderTurn(locale, order('quote_ready')).buttons.findIndex((b) => b.primary);
@@ -126,7 +139,7 @@ assert.equal(invoicesTurn('en', [invoices[2]]).say, 'Your latest invoice, ACC-SI
 
 // The voice rules, over every turn above.
 for (const turn of all) {
-  assert.ok(turn.buttons.length <= 4, `too many buttons: ${turn.say}`);
+  assert.ok(turn.buttons.filter((b) => b.act.k !== 'more').length <= 4, `too many buttons: ${turn.say}`);
   assert.ok(turn.buttons.filter((b) => b.primary).length <= 1, `two primaries: ${turn.say}`);
   for (const text of [turn.say, ...turn.buttons.map((b) => b.label)]) {
     assert.ok(text.trim(), 'empty text');

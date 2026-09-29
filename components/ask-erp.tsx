@@ -12,9 +12,10 @@ import type { Invoice } from '@/lib/invoices';
 import type { SizeAllocation } from '@/lib/spec';
 import {
   type Act, type Button, type Turn as JourneyTurn, approveTurn, approvedTurn, caseTurn, contactTurn, failTurn,
-  invoicesTurn, menuTurn, moreTurn, movedTurn, noOrderTurn, orderTurn, planTurn, quoteSentTurn, quoteShownTurn, refusedId,
+  invoicesTurn, menuTurn, moreTurn, movedTurn, newsTurn, noOrderTurn, orderTurn, planTurn, quoteSentTurn, quoteShownTurn, refusedId,
   sizeConfirmTurn, sizesSentTurn, teamTurn,
 } from '@/lib/journey';
+import { type News, type Seen, UPDATE_MS, newsSince, withOrder } from '@/lib/updates';
 import { InvoiceList, PeopleForm, QuoteCard, SizeRunForm } from './chat-actions';
 
 type Health = 'probing' | 'live' | 'offline';
@@ -327,7 +328,13 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
 
   /** A journey turn: its sentence in the log, its buttons as the choices. */
   const say = (turn: JourneyTurn, home = false) => {
-    setTurns((all) => [...all, { role: 'prompt', content: turn.say }]);
+    // Pending news is told first, in the same breath as the reply.
+    const told = news.current.splice(0);
+    setTurns((all) => [
+      ...all,
+      ...(told.length ? [{ role: 'prompt' as const, content: newsTurn(locale, told).say }] : []),
+      { role: 'prompt', content: turn.say },
+    ]);
     setStage({ k: 'turn', buttons: turn.buttons, home });
   };
   const echo = (content?: string) => { if (content) setTurns((all) => [...all, { role: 'user', content }]); };
@@ -341,11 +348,40 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
   // Set when the chat read the orders, so Home reloads its own once the
   // sheet closes (one request, not one per read).
   const readOrders = useRef(false);
+  // What the chat last saw of the account, and the changes the customer has
+  // not been told yet. Kept for the page's life; a reload starts afresh.
+  const known = useRef<Seen | null>(null);
+  const news = useRef<News[]>([]);
+  const [unread, setUnread] = useState(false);
+  // Counts the dock's own locked acts (every write among them). A background
+  // read that started before one and resolves after it is stale: learning it
+  // would announce the customer's own change as news, or roll back what a
+  // newer read already learned.
+  const epoch = useRef(0);
+  const learn = (orders: Order[], invoices?: Invoice[]) => {
+    const next = newsSince(known.current, orders, invoices);
+    known.current = next.seen;
+    news.current.push(...next.news);
+  };
+  const readAccount = () => Promise.all([
+    api<Order[]>('/api/orders').then((all) => all.map(fromJson)),
+    // Invoices failing must not sink the orders: they are learned next time.
+    api<Invoice[]>('/api/invoices').catch(() => undefined),
+  ]);
   const myOrders = async () => {
     const orders = (await api<Order[]>('/api/orders')).map(fromJson);
     readOrders.current = true;
+    learn(orders);
     return orders;
   };
+  const myAccount = async () => {
+    const [orders, invoices] = await readAccount();
+    readOrders.current = true;
+    learn(orders, invoices);
+    return { orders, invoices };
+  };
+  /** The customer's own write is not news. */
+  const own = (o: Order) => { if (known.current) known.current = withOrder(known.current, o); };
   const findIn = (orders: Order[], id: string) => orders.find((o) => [o.id, o.quote, o.salesOrder].includes(id));
 
   /** What a button does. Pure turns answer at once; the rest read or write
@@ -355,7 +391,6 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
     if (a.k === 'orders') return void read('orders', {}, tapped);
     if (a.k === 'stock' || a.k === 'price') { purpose.current = a.k; return void read('options', {}, tapped); }
     echo(tapped);
-    if (a.k === 'more') return say(moreTurn(locale));
     if (a.k === 'new') return say(teamTurn(locale));
     if (a.k === 'plan') return say(planTurn(locale, a.kit, a.people));
     if (a.k === 'approve') return say(approveTurn(locale, a.quote, a.total));
@@ -365,10 +400,13 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
       return setStage({ k: 'people', kit: a.kit, ...(a.people ? { people: a.people } : {}) });
     }
     actionLock.current = true;
+    epoch.current += 1;
     setBusy(true);
     try {
-      if (a.k === 'menu') {
-        say(menuTurn(locale, await myOrders(), turns.length > 0), true);
+      if (a.k === 'more') {
+        say(moreTurn(locale, await myOrders(), a.from));
+      } else if (a.k === 'menu') {
+        say(menuTurn(locale, (await myAccount()).orders, new Date().getHours(), turns.length > 0), true);
       } else if (a.k === 'order' || a.k === 'show') {
         const o = findIn(await myOrders(), a.id);
         if (a.k === 'show' && o) onOpenOrder?.(o.id);
@@ -394,14 +432,17 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
         const o = fromJson(await api<Order>('/api/quotes', {
           concept, staff: a.people, sets: a.sets, grades: [], sizePlan: { mode: 'collect_later', allocation: {} },
         }));
+        own(o);
         onChanged?.();
         say(quoteSentTurn(locale, o));
       } else if (a.k === 'approveNow') {
         const o = fromJson(await api<Order>(`/api/quotes/${encodeURIComponent(a.quote)}/approve`, {}));
+        own(o);
         onChanged?.();
         say(approvedTurn(locale, o));
       } else if (a.k === 'sendSizes') {
         const o = fromJson(await api<Order>(`/api/orders/${encodeURIComponent(a.order)}/sizes`, { allocation: a.run }));
+        own(o);
         onChanged?.();
         say(sizesSentTurn(locale, o));
       } else if (a.k === 'sendContact') {
@@ -428,6 +469,54 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
   // Effects below always call the latest act.
   const actRef = useRef(act);
   actRef.current = act;
+
+  // The latest open, stage and busy, for a read that resolves after a re-render.
+  const now = useRef({ open, stage, busy });
+  now.current = { open, stage, busy };
+
+  /** Look again; tell the news now (open, on a button turn), later (mid-form),
+   *  or with the launcher's dot (closed). */
+  const refresh = async () => {
+    if (busy || actionLock.current || !known.current) return;
+    const started = epoch.current;
+    let read: Awaited<ReturnType<typeof readAccount>>;
+    try { read = await readAccount(); } catch { return; }
+    // An act ran while this read was in flight: drop it, never learn it.
+    if (epoch.current !== started || actionLock.current || now.current.busy) return;
+    readOrders.current = true;
+    learn(...read);
+    if (!news.current.length) return;
+    if (!now.current.open) return setUnread(true);
+    // Mid-form (people, sizes, a stock pick) the news waits for the next reply.
+    if (now.current.stage.k === 'turn') say(newsTurn(locale, news.current.splice(0)));
+  };
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+
+  // A baseline when the page loads, so news can light the launcher before
+  // the chat was ever opened. Dropped if the dock read first.
+  useEffect(() => {
+    const started = epoch.current;
+    void readAccount().then((read) => { if (epoch.current === started && !known.current) learn(...read); }, () => undefined);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Coming back to the window (the presenter ran a team step) looks again.
+  useEffect(() => {
+    const look = () => void refreshRef.current();
+    const visible = () => { if (document.visibilityState === 'visible') look(); };
+    addEventListener('focus', look);
+    document.addEventListener('visibilitychange', visible);
+    return () => { removeEventListener('focus', look); document.removeEventListener('visibilitychange', visible); };
+  }, []);
+
+  // Open: clear the dot, catch up, and keep looking while open.
+  useEffect(() => {
+    if (!open) return;
+    setUnread(false);
+    if (turns.length) void refreshRef.current();
+    const timer = setInterval(() => void refreshRef.current(), UPDATE_MS);
+    return () => clearInterval(timer);
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The order card's button: open the dock straight on that order's details.
   const handled = useRef<number | null>(null);
@@ -548,9 +637,10 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
   if (!open) {
     return (
       <button type="button" ref={launcher} className={`${s.evLauncher} ${raised ? s.evLauncherRaised : ''}`} onClick={() => setOpen(true)}
-        aria-haspopup="dialog" title={online}>
+        aria-haspopup="dialog" title={online} aria-label={unread ? `${t(locale, 'erpAsk.launcher')} · ${t(locale, 'erpAsk.news')}` : undefined}>
         <span className={`${s.evLive} ${s[`evLive_${health}`]}`} aria-hidden="true" />
         {t(locale, 'erpAsk.launcher')}
+        {unread && <span className={s.evUnread} aria-hidden="true" />}
       </button>
     );
   }
@@ -596,8 +686,8 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
         )}
         {!busy && (
           <ul ref={choiceList} className={`${s.evSuggest} ${s.evChoices}`} aria-label={t(locale, 'erpAsk.next')}>
-            {choices.map((c) => (
-              <li key={c.label}><button type="button" className={c.primary ? s.evPrimary : undefined} onClick={c.tap}>{c.label}</button></li>
+            {choices.map((c, i) => (
+              <li key={i}><button type="button" className={c.primary ? s.evPrimary : undefined} onClick={c.tap}>{c.label}</button></li>
             ))}
           </ul>
         )}

@@ -203,8 +203,7 @@ export const GROUPS = {
 } as const satisfies Record<string, readonly Workflow[]>;
 
 /** The greeting: what is open right now. Delivered and closed orders need nobody. */
-export function greeting(locale: Locale, orders: Order[]): string {
-  const hour = new Date().getHours();
+export function greeting(locale: Locale, orders: Order[], hour = new Date().getHours()): string {
   // The same professional voice as the assistant: "Good afternoon, Mr. Ahmed".
   const name = t(locale, 'manager.you');
   const part = t(locale, hour < 12 ? 'manager.morning' : hour < 18 ? 'manager.afternoon' : 'manager.evening');

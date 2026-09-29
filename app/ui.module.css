@@ -1470,6 +1470,18 @@
 .evLive_probing { animation: evBlink 1s ease-in-out infinite alternate; }
 .evLauncher .evLive { box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85); }
 
+/* News while the chat was closed: a dot on the launcher's corner. */
+.evUnread {
+  position: absolute;
+  inset-block-start: -3px;
+  inset-inline-end: -3px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--warn);
+  box-shadow: 0 0 0 2px #fff;
+}
+
 .evSheet {
   position: fixed;
   inset-block: var(--s4);

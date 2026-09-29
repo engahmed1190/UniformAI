@@ -130,6 +130,7 @@ assert.equal(refusedId({ k: 'menu' }), undefined);
 // News waits behind a turn that holds a write; it may replace a plain turn.
 for (const locale of LOCALES as readonly Locale[]) {
   assert.ok(holdsWrite(approveTurn(locale, 'Q', 27300).buttons));
+  assert.ok(holdsWrite(failTurn(locale, { k: 'sendSizes', order: 'O', run: {} }).buttons), 'a size run to retry');
   assert.ok(holdsWrite(planTurn(locale, 'technicians', 40).buttons));
   assert.ok(holdsWrite(contactTurn(locale, 'general').buttons));
   assert.ok(!holdsWrite(menuTurn(locale, [order('quote_ready')], 15).buttons));

@@ -118,6 +118,14 @@ export function orderTurn(locale: Locale, o: Order): Turn {
   return { say: say(key), buttons: [discuss(locale, id)] };
 }
 
+/** After the quote card: no second "ready for your review", no second View. */
+export function quoteShownTurn(locale: Locale, o: Order): Turn {
+  const now = orderTurn(locale, o);
+  return o.state === 'quote_ready'
+    ? { say: t(locale, 'journey.quoteShown'), buttons: now.buttons.filter((b) => b.act.k !== 'viewQuote') }
+    : now;
+}
+
 export const approveTurn = (locale: Locale, quote: string, total: number): Turn => ({
   say: t(locale, 'journey.confirmApprove', { id: quote, total: money(locale, total) }),
   // A different label, and not where the first Approve was, so a double
@@ -173,7 +181,9 @@ export function invoicesTurn(locale: Locale, invoices: Invoice[]): Turn {
     ? t(locale, 'journey.invOpen', { count: open.length, total: money(locale, open.reduce((n, i) => n + i.outstanding, 0)) })
     : t(locale, 'journey.invNone'));
   if (late.length) said.push(t(locale, 'journey.invLate', { count: late.length, date: day(locale, late[0]) }));
-  return { say: said.join(' '), buttons: [btn(locale, 'btnDiscuss', { k: 'contact', topic: 'billing' })] };
+  // The case names the invoice in question: the newest one still open.
+  const doc = open[0]?.name;
+  return { say: said.join(' '), buttons: [btn(locale, 'btnDiscuss', { k: 'contact', topic: 'billing', ...(doc ? { doc } : {}) })] };
 }
 
 const showOrder = (locale: Locale, o: Order) => btn(locale, 'btnShow', { k: 'show', id: docOf(o) }, undefined, true);

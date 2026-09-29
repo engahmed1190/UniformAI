@@ -80,6 +80,13 @@ async function main() {
   assert.match(caseDoc.subject, /^\[UniformAI assistant\]/);
   assert.match(caseDoc.subject, /SAL-ORD-1/);
   assert.deepEqual(await openCase({ topic: 'general' }), { name: 'CASE-2026-00001' });
+  // Billing may name one of the customer's invoices, and the case records it.
+  x = erp({ ...issue, '/api/resource/Sales Invoice': () => ({ data: [{ name: 'ACC-SINV-1', posting_date: '2026-09-22',
+    due_date: '2026-10-22', grand_total: 7150, outstanding_amount: 7150 }] }) });
+  await assert.rejects(openCase({ topic: 'order', document: 'ACC-SINV-1' }), { status: 404 });
+  await assert.rejects(openCase({ topic: 'billing', document: 'ACC-SINV-9' }), { status: 404 });
+  assert.deepEqual(await openCase({ topic: 'billing', document: 'ACC-SINV-1' }), { name: 'CASE-2026-00001' });
+  assert.match(JSON.parse(String(x.posts()[0].init!.body)).description, /Document: ACC-SINV-1\./);
 
   // 7. Same tick: the second call is refused while the first insert is open.
   let release!: () => void;

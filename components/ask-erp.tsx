@@ -12,7 +12,7 @@ import type { Invoice } from '@/lib/invoices';
 import type { SizeAllocation } from '@/lib/spec';
 import {
   type Act, type Button, type Turn as JourneyTurn, approveTurn, approvedTurn, caseTurn, contactTurn, failTurn,
-  invoicesTurn, menuTurn, moreTurn, movedTurn, noOrderTurn, orderTurn, planTurn, quoteSentTurn, refusedId,
+  invoicesTurn, menuTurn, moreTurn, movedTurn, noOrderTurn, orderTurn, planTurn, quoteSentTurn, quoteShownTurn, refusedId,
   sizeConfirmTurn, sizesSentTurn, teamTurn,
 } from '@/lib/journey';
 import { InvoiceList, PeopleForm, QuoteCard, SizeRunForm } from './chat-actions';
@@ -133,7 +133,7 @@ function RecordCard({ source, changes, locale, onOpenOrder }: {
       {changes && (
         <p className={s.evNote}>
           {t(locale, 'erpAsk.updated')}
-          {otherChange && <> <s dir="auto">{otherChange.field === 'detail' && isOrder
+          {otherChange && <> {t(locale, 'erpAsk.was')} <s dir="auto">{otherChange.field === 'detail' && isOrder
             ? status(locale, otherChange.from) : String(otherChange.from)}</s></>}
         </p>
       )}
@@ -377,7 +377,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
         const view = await api<QuoteView>(`/api/quotes/${encodeURIComponent(a.quote)}`);
         setTurns((all) => [...all, { role: 'quote', view }]);
         const o = findIn(await myOrders(), a.quote);
-        say(o ? orderTurn(locale, o) : noOrderTurn(locale));
+        say(o ? quoteShownTurn(locale, o) : noOrderTurn(locale));
       } else if (a.k === 'invoices') {
         const rows = await api<Invoice[]>('/api/invoices');
         setTurns((all) => [...all, { role: 'invoices', rows }]);

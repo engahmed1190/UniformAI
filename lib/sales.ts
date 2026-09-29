@@ -318,7 +318,9 @@ export async function openCase(input: unknown): Promise<{ name: string }> {
   const topic = input.topic as Topic;
   const doc = input.document;
   if (doc !== undefined) {
-    const mine = typeof doc === 'string' && (await listOrders()).some((o) => o.quote === doc || o.salesOrder === doc);
+    // An order or quote of the customer's, or for billing one of their invoices.
+    const mine = typeof doc === 'string' && ((await listOrders()).some((o) => o.quote === doc || o.salesOrder === doc)
+      || (topic === 'billing' && (await listInvoices()).some((i) => i.name === doc)));
     if (!mine) throw new SalesError('Order not found', 404);
   }
   const about = typeof doc === 'string' ? doc : ABOUT[topic];

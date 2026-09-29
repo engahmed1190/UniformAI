@@ -10,7 +10,7 @@ import type { Invoice } from './invoices';
 import { LOCALES, type Locale } from './i18n';
 import {
   type Turn, approveTurn, approvedTurn, caseTurn, contactTurn, failTurn, invoicesTurn, menuTurn, moreTurn,
-  movedTurn, orderTurn, refusedId, planTurn, quoteSentTurn, sizeConfirmTurn, sizesSentTurn, teamTurn,
+  movedTurn, orderTurn, quoteShownTurn, refusedId, planTurn, quoteSentTurn, sizeConfirmTurn, sizesSentTurn, teamTurn,
 } from './journey';
 
 const QUOTE_STATES: Workflow[] = ['quote_requested', 'quote_ready', 'quote_closed'];
@@ -54,6 +54,11 @@ for (const locale of LOCALES as readonly Locale[]) {
   turn = keep(orderTurn(locale, order('quote_ready')));
   assert.deepEqual(primary(turn), { k: 'approve', quote: 'SAL-QTN-2026-00031', total: 27300 });
   assert.ok(turn.buttons.some((b) => b.act.k === 'viewQuote'));
+  // After the card: the review sentence and View are not repeated.
+  turn = keep(quoteShownTurn(locale, order('quote_ready')));
+  assert.ok(!turn.buttons.some((b) => b.act.k === 'viewQuote'));
+  assert.notEqual(turn.say, orderTurn(locale, order('quote_ready')).say);
+  assert.deepEqual(primary(turn), { k: 'approve', quote: 'SAL-QTN-2026-00031', total: 27300 });
   turn = keep(approveTurn(locale, 'SAL-QTN-2026-00031', 27300));
   assert.deepEqual(primary(turn), { k: 'approveNow', quote: 'SAL-QTN-2026-00031' });
   // A double tap on Approve must not land on the confirmation.
@@ -85,6 +90,8 @@ for (const locale of LOCALES as readonly Locale[]) {
   assert.ok(turn.buttons.some((b) => b.act.k === 'invoices'));
   turn = keep(invoicesTurn(locale, invoices));
   assert.ok(turn.say.includes('ACC-SINV-2026-00007'));
+  assert.deepEqual(turn.buttons[0].act, { k: 'contact', topic: 'billing', doc: 'ACC-SINV-2026-00007' }, 'the case names the invoice');
+  assert.deepEqual(invoicesTurn(locale, [invoices[2]]).buttons[0].act, { k: 'contact', topic: 'billing' });
   keep(invoicesTurn(locale, [invoices[2]]));
 
   // 5. Contact our team.

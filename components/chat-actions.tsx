@@ -14,8 +14,10 @@ import { cutsOf, proposedSplit, runTotal } from '@/lib/size-run';
 
 const day = (locale: Locale, iso: string) => formatDate(locale, new Date(`${iso}T12:00:00`));
 
-export function PeopleForm({ locale, onSubmit }: { locale: Locale; onSubmit: (people: number) => void }) {
-  const [people, setPeople] = useState(20);
+export function PeopleForm({ locale, initial = 20, onSubmit }: {
+  locale: Locale; initial?: number; onSubmit: (people: number) => void;
+}) {
+  const [people, setPeople] = useState(initial);
   const ok = Number.isInteger(people) && people >= 1 && people <= 500;
   return (
     <form className={s.evPanel} onSubmit={(e) => { e.preventDefault(); if (ok) onSubmit(people); }}>

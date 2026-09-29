@@ -48,6 +48,8 @@ for (const locale of LOCALES as readonly Locale[]) {
   assert.deepEqual(primary(turn), { k: 'requestQuote', kit: 'technicians', people: 40, sets: 42 });
   turn = keep(planTurn(locale, 'technicians', 6));
   assert.deepEqual(primary(turn), { k: 'requestQuote', kit: 'technicians', people: 6, sets: 10 });
+  assert.deepEqual(turn.buttons.find((b) => b.act.k === 'people')?.act, { k: 'people', kit: 'technicians', people: 6 },
+    'Change the number starts from the last number');
   keep(quoteSentTurn(locale, order('quote_requested')));
   turn = keep(orderTurn(locale, order('quote_requested')));
   assert.ok(!turn.buttons.some((b) => b.act.k === 'approve'), 'a draft quote is never approvable');

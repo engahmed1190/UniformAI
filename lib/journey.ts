@@ -14,7 +14,7 @@ export type Topic = 'general' | 'order' | 'billing';
 export type Act =
   | { k: 'menu' } | { k: 'more' } | { k: 'orders' } | { k: 'order'; id: string } | { k: 'show'; id: string }
   | { k: 'stock' } | { k: 'price' } | { k: 'invoices' }
-  | { k: 'new' } | { k: 'people'; kit: string } | { k: 'plan'; kit: string; people: number }
+  | { k: 'new' } | { k: 'people'; kit: string; people?: number } | { k: 'plan'; kit: string; people: number }
   | { k: 'requestQuote'; kit: string; people: number; sets: number }
   | { k: 'viewQuote'; quote: string } | { k: 'approve'; quote: string; total: number } | { k: 'approveNow'; quote: string }
   | { k: 'sizes'; order: string; run?: SizeAllocation } | { k: 'sendSizes'; order: string; run: SizeAllocation }
@@ -79,7 +79,7 @@ export function planTurn(locale: Locale, kit: string, people: number): Turn {
     say: t(locale, p.moqApplied ? 'journey.planMoq' : 'journey.plan', values),
     buttons: [
       btn(locale, 'btnRequest', { k: 'requestQuote', kit, people, sets: p.sets }, { sets: p.sets }, true),
-      btn(locale, 'btnChangePeople', { k: 'people', kit }),
+      btn(locale, 'btnChangePeople', { k: 'people', kit, people }),
     ],
   };
 }

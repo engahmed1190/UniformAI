@@ -271,7 +271,7 @@ const en = {
     btnView: 'View quotation', btnShow: 'Show order', btnSizes: 'Enter the sizes', btnSendRun: 'Send the size run',
     btnAdjust: 'Adjust', btnRetry: 'Try again', btnRequest: 'Request a quotation for {sets} sets',
     btnChangePeople: 'Change the number', btnContinue: 'Continue', btnReviewRun: 'Review the size run',
-    btnSplit: 'Use a proposed split',
+    btnSplit: 'Use a proposed split', btnMoreGarments: 'More garments',
   },
   kits: {
     title: 'Saved kits', subtitle: 'Reorder these without starting again.',
@@ -789,7 +789,7 @@ const ar: Dict<typeof en> = {
     btnView: 'عرض تفاصيل عرض السعر', btnShow: 'عرض الطلب', btnSizes: 'إدخال المقاسات', btnSendRun: 'إرسال توزيع المقاسات',
     btnAdjust: 'تعديل', btnRetry: 'المحاولة مرة أخرى', btnRequest: 'طلب عرض سعر لعدد {sets} من الأطقم',
     btnChangePeople: 'تغيير العدد', btnContinue: 'متابعة', btnReviewRun: 'مراجعة توزيع المقاسات',
-    btnSplit: 'استخدام توزيع مقترح',
+    btnSplit: 'استخدام توزيع مقترح', btnMoreGarments: 'ملابس أخرى',
   },
 
   kits: {

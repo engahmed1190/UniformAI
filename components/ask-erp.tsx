@@ -39,9 +39,9 @@ type Turn = { role: 'user'; content: string } | { role: 'prompt'; content: strin
  *  `turn` carries its own buttons; `home` means it already is the menu. */
 type Stage =
   | { k: 'turn'; buttons: Button[]; home?: boolean }
-  | { k: 'people'; kit: string }
+  | { k: 'people'; kit: string; people?: number }
   | { k: 'sizes'; order: Order; run?: SizeAllocation }
-  | { k: 'garment'; intent: 'stock' | 'price' }
+  | { k: 'garment'; intent: 'stock' | 'price'; from?: number }
   | { k: 'colour'; item: string }
   | { k: 'size'; item: string; colour: string }
   | { k: 'orders'; ids: string[] }
@@ -362,7 +362,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
     if (a.k === 'contact') return say(contactTurn(locale, a.topic, a.doc));
     if (a.k === 'people') {
       setTurns((all) => [...all, { role: 'prompt', content: t(locale, 'journey.people') }]);
-      return setStage({ k: 'people', kit: a.kit });
+      return setStage({ k: 'people', kit: a.kit, ...(a.people ? { people: a.people } : {}) });
     }
     actionLock.current = true;
     setBusy(true);
@@ -494,14 +494,21 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
 
   const choices: Choice[] = stage.k === 'turn' ? [...fromButtons(stage.buttons), ...(stage.home ? [] : [toMenu])]
     : stage.k === 'people' || stage.k === 'sizes' ? [toMenu]
+    // Three garments at a time, then "More garments": at most four choices.
     : stage.k === 'garment' ? [
-      ...garments.map((g) => ({
+      ...garments.slice(stage.from ?? 0, (stage.from ?? 0) + 3).map((g) => ({
         label: g.item,
         tap: () => {
           if (stage.intent === 'price') void read('price', { item: g.item }, g.item);
           else go({ k: 'colour', item: g.item }, g.item);
         },
       })),
+      // Past the last three it goes round to the first again.
+      ...(garments.length > 3 ? [{
+        label: t(locale, 'journey.btnMoreGarments'),
+        tap: () => go({ ...stage, from: (stage.from ?? 0) + 3 < garments.length ? (stage.from ?? 0) + 3 : 0 },
+          t(locale, 'journey.btnMoreGarments')),
+      }] : []),
       toMenu,
     ]
       : stage.k === 'colour' ? [
@@ -580,7 +587,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
             onRetry={() => void read(turn.intent, turn.params, undefined, true)} onOpenOrder={onOpenOrder} />
         ))}
         {!busy && stage.k === 'people' && (
-          <PeopleForm locale={locale}
+          <PeopleForm locale={locale} initial={stage.people}
             onSubmit={(people) => void act({ k: 'plan', kit: stage.kit, people }, t(locale, 'journey.peopleEcho', { count: people }))} />
         )}
         {!busy && stage.k === 'sizes' && (

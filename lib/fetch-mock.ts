@@ -3,7 +3,7 @@
 
 export type Seen = { url: URL; init?: RequestInit };
 
-export function mockErp(routes: Record<string, (s: Seen) => unknown>) {
+export function mockErp(routes: Record<string, (s: Seen) => unknown | Promise<unknown>>) {
   process.env.ERP_URL = 'http://uniform.localhost:8000';
   process.env.ERP_READ_KEY = 'reader:secret';
   process.env.ERP_WRITE_KEY = 'portal:secret';
@@ -15,7 +15,7 @@ export function mockErp(routes: Record<string, (s: Seen) => unknown>) {
     seen.push(s);
     const key = keys.find((k) => decodeURIComponent(url.pathname).startsWith(k));
     if (!key) return new Response('{}', { status: 404 });
-    const out = routes[key](s);
+    const out = await routes[key](s);
     return out instanceof Response ? out : new Response(JSON.stringify(out), { status: 200 });
   }) as typeof fetch;
   return { seen, posts: () => seen.filter((x) => x.init?.method === 'POST') };

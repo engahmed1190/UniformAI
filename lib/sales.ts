@@ -14,6 +14,7 @@ import {
   GARMENT_CATALOG, SIZES, allocatedSizeCount,
 } from './spec';
 import { CONCEPTS } from './concepts';
+import { cutsOf, parseRun } from './size-run';
 
 export const CUSTOMER = 'BrainWise Technology';
 const MAKE_SALES_ORDER = 'erpnext.selling.doctype.quotation.quotation.make_sales_order';
@@ -43,28 +44,7 @@ type DeliveryListRow = Omit<DeliveryRow, 'against_sales_order'> & { against_sale
 
 export const SIZE_RUN = 'UniformAI Size Run';
 
-type StoredRun = { sales_order: string; allocation: string };
-
-/** Stored runs are only evidence that sizes are complete when every cut and
- *  size belongs to the order, counts are non-negative integers, and the total
- *  matches the order. */
-function storedRunTotal(value: string, allowedCuts: ReadonlySet<string>): number | null {
-  try {
-    const cuts = JSON.parse(value) as unknown;
-    if (!cuts || typeof cuts !== 'object' || Array.isArray(cuts)) return null;
-    let total = 0;
-    for (const [cut, sizes] of Object.entries(cuts)) {
-      if (!allowedCuts.has(cut)) return null;
-      if (!sizes || typeof sizes !== 'object' || Array.isArray(sizes)) return null;
-      for (const [size, count] of Object.entries(sizes)) {
-        if (!(SIZES as readonly string[]).includes(size)) return null;
-        if (!Number.isInteger(count) || (count as number) < 0) return null;
-        total += count as number;
-      }
-    }
-    return total;
-  } catch { return null; }
-}
+type StoredRun = { sales_order: string; allocation: unknown };
 
 /** Orders with stored size-run data. A site seeded before the doctype existed
  *  answers 403 or 404: that is "no runs yet", not an outage. */
@@ -123,8 +103,9 @@ export async function listOrders(): Promise<Order[]> {
   const sized = new Set(runs.flatMap((run) => {
     const order = bySalesOrder.get(run.sales_order);
     if (!order?.concept) return [];
-    const cuts = new Set(order.concept.cuts?.length ? order.concept.cuts : ['men', 'women']);
-    return storedRunTotal(run.allocation, cuts) === order.sets ? [run.sales_order] : [];
+    let stored: unknown;
+    try { stored = typeof run.allocation === 'string' ? JSON.parse(run.allocation) : run.allocation; } catch { return []; }
+    return parseRun(stored, cutsOf(order.concept), order.sets) ? [run.sales_order] : [];
   }));
   return toOrders(quotes, [...orders.values()], notes, sized);
 }
@@ -225,7 +206,7 @@ export function parseKit(input: unknown): Kit {
   const kit: Kit = { concept, staff, sets, grades: grades as number[], sizePlan: plan as SizePlan };
   try {
     kitLines(kit); kitEstimate(kit);
-    allocatedSizeCount(kit.sizePlan.allocation, concept.cuts.length ? concept.cuts : ['men', 'women']);
+    allocatedSizeCount(kit.sizePlan.allocation, cutsOf(concept));
   } catch { throw bad('kit'); }
   return kit;
 }
@@ -299,4 +280,53 @@ async function approve(name: string): Promise<Order> {
   };
   await insert('Sales Order', doc, 'write');
   return chainOf(name);
+}
+
+// ---- size run and contact --------------------------------------------------
+
+const findOrder = async (name: string) => (await listOrders()).find((o) => o.salesOrder === name);
+const recordingSizes = new Set<string>();
+
+/** Record the customer's size run for a confirmed order. Insert-only: the
+ *  Sales Order itself is never written. */
+export async function sendSizes(name: string, input: unknown): Promise<Order> {
+  if (recordingSizes.has(name)) throw new SalesError('Sizes are already being recorded', 409);
+  recordingSizes.add(name);
+  try {
+    const order = await findOrder(name);
+    if (!order) throw new SalesError('Order not found', 404);
+    if (order.state !== 'collecting_sizes') throw new SalesError('This order is not waiting for sizes', 409);
+    const run = parseRun(input, cutsOf(order.concept), order.sets);
+    if (!run) throw bad('size run');
+    await insert(SIZE_RUN, { sales_order: name, allocation: JSON.stringify(run) }, 'write');
+    return (await findOrder(name)) ?? order;
+  } finally {
+    recordingSizes.delete(name);
+  }
+}
+
+export const TOPICS = ['general', 'order', 'billing'] as const;
+export type Topic = typeof TOPICS[number];
+const ABOUT: Record<Topic, string> = { general: 'a general question', order: 'an order', billing: 'billing' };
+const CUSTOMER_EMAIL = 'ahmed.osama@brainwise.example'; // seeded primary contact
+
+/** Contact our team: one Issue for the team, about one of the customer's own
+ *  documents or a topic. The transcript is never sent. */
+export async function openCase(input: unknown): Promise<{ name: string }> {
+  if (!isObject(input) || !TOPICS.includes(input.topic as Topic)) throw bad('request');
+  const topic = input.topic as Topic;
+  const doc = input.document;
+  if (doc !== undefined) {
+    const mine = typeof doc === 'string' && (await listOrders()).some((o) => o.quote === doc || o.salesOrder === doc);
+    if (!mine) throw new SalesError('Order not found', 404);
+  }
+  const about = typeof doc === 'string' ? doc : ABOUT[topic];
+  const created = await insert<{ name: string }>('Issue', {
+    subject: `[UniformAI assistant] Please contact ${CUSTOMER} about ${about}`,
+    customer: CUSTOMER,
+    raised_by: CUSTOMER_EMAIL,
+    via_customer_portal: 0,
+    description: `Asked from the UniformAI assistant. Topic: ${topic}.${typeof doc === 'string' ? ` Document: ${doc}.` : ''}`,
+  }, 'write');
+  return { name: created.name };
 }

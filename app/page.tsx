@@ -7,6 +7,7 @@ import { type Locale, LOCALES, LOCALE_CODES, LOCALE_NAMES, dir, kitName, formatC
 import { ConceptCard } from '@/components/concept';
 import { Select } from '@/components/select';
 import { colourName } from '@/lib/refine';
+import { cutsOf } from '@/lib/size-run';
 import { POLICY } from '@/lib/policy';
 
 /** colourName() answers in English -- it is shared with the parser -- so the
@@ -1119,7 +1120,7 @@ function Quote({
   const garments = concept.garments.reduce((a, g) => a + g.unitPrice, 0);
   const branding = concept.logo.position === 'none' ? 0 : conceptPrice(concept) - garments;
   const spareSets = sets - staff;
-  const cuts = concept.cuts?.length ? concept.cuts : ['men', 'women'] as GarmentCut[];
+  const cuts = cutsOf(concept);
   const cutKey = cuts.includes('men') && cuts.includes('women') ? 'mixed' : cuts[0];
   const assigned = allocatedSizeCount(sizePlan.allocation, cuts);
   return (

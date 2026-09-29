@@ -6,6 +6,7 @@ import {
   type Concept, type GarmentCut, type GarmentType, type LogoMethod, type SizePlan,
   LOGO_PRICE, allocatedSizeCount, conceptPriceAt, gradeName, gradesFor,
 } from './spec';
+import { cutsOf } from './size-run';
 import { colourName } from './refine';
 import { type Order, type Workflow, LEAD_DAYS, orderLines } from './order';
 
@@ -78,8 +79,7 @@ function parseKit(json?: string | null): Kit | undefined {
 
 const sizesComplete = (kit?: Kit) => {
   if (!kit || kit.sizePlan?.mode !== 'allocate_now') return false;
-  const cuts = kit.concept.cuts?.length ? kit.concept.cuts : ['men', 'women'] as GarmentCut[];
-  return allocatedSizeCount(kit.sizePlan.allocation, cuts) === kit.sets;
+  return allocatedSizeCount(kit.sizePlan.allocation, cutsOf(kit.concept)) === kit.sets;
 };
 
 /** Each Sales Order, and each Quotation still waiting for one, becomes an

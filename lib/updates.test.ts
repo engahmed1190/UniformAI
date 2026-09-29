@@ -6,8 +6,8 @@ import { CONCEPTS } from './concepts';
 import { sampleOrder } from './order-fixture';
 import type { Order, Workflow } from './order';
 import type { Invoice } from './invoices';
-import { type Seen, newsSince, orderKey, withOrder } from './updates';
-import { newsTurn } from './journey';
+import { type Seen, newsSince, orderKey, stillTrue, withOrder } from './updates';
+import { mergeButtons, newsTurn, orderTurn } from './journey';
 
 const QUOTE_STATES: Workflow[] = ['quote_requested', 'quote_ready', 'quote_closed'];
 const order = (state: Workflow, over: Partial<Order> = {}): Order => {
@@ -78,5 +78,32 @@ assert.ok(turn.say.includes('SAL-QTN-2026-00031'));
 turn = newsTurn('en', newsSince(newsSince(null, [order('in_progress')], []).seen, [order('delivered')], [inv()]).news);
 assert.match(turn.say, /order SAL-ORD-2026-00011 has been delivered, and invoice ACC-SINV-2026-00010 for EGP.14,345 is ready\.$/);
 assert.deepEqual(turn.buttons.map((b) => b.act), [{ k: 'invoices' }]);
+
+// Held news is told only while still true: a quote approved on Home meanwhile
+// drops its "ready" line and its Approve button (which would meet a 409).
+{
+  const base = newsSince(null, [order('quote_requested')], [inv()]).seen;
+  const held = newsSince(base, [order('quote_ready')], [inv()]);
+  assert.deepEqual(held.news.map((n) => n.k), ['quote_ready']);
+  assert.deepEqual(stillTrue(held.news, held.seen), held.news, 'unchanged: still told');
+  const moved = newsSince(held.seen, [order('awaiting')], [inv()]).seen;
+  assert.deepEqual(stillTrue(held.news, moved), [], 'approved meanwhile: not told');
+  assert.deepEqual(stillTrue(held.news, null), held.news);
+  // An invoice issued, then paid before the telling: "issued" is stale, "paid" stays.
+  const noInv = newsSince(null, [order('in_progress')], []).seen;
+  const issued = newsSince(noInv, [order('in_progress')], [inv()]);
+  const paid = newsSince(issued.seen, [order('in_progress')], [inv({ status: 'paid', outstanding: 0 })]);
+  assert.deepEqual(stillTrue([...issued.news, ...paid.news], paid.seen).map((n) => n.k), ['paid']);
+
+  // Told inside another reply, the news keeps its buttons, within four and one primary.
+  const told = newsTurn('en', held.news);
+  const shown = orderTurn('en', order('in_progress'));
+  const merged = mergeButtons(shown.buttons, told.buttons, !!shown.card?.view.action);
+  assert.deepEqual(merged.map((b) => b.act.k), ['sendContact', 'approve']);
+  assert.deepEqual(merged.filter((b) => b.primary).map((b) => b.act.k), ['approve']);
+  // A card holding the primary: none on the turn.
+  const withCard = orderTurn('en', order('collecting_sizes'));
+  assert.equal(mergeButtons(withCard.buttons, told.buttons, !!withCard.card?.view.action).filter((b) => b.primary).length, 0);
+}
 
 console.log('updates: all assertions passed');

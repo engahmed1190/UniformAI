@@ -12,10 +12,10 @@ import type { Invoice } from '@/lib/invoices';
 import type { Card } from '@/lib/cards';
 import {
   type Act, type Button, type Turn as JourneyTurn, approveTurn, approvedTurn, caseTurn, failTurn,
-  holdsWrite, invoicesTurn, menuTurn, moreTurn, movedTurn, newsTurn, noOrderTurn, orderTurn, quoteSentTurn, quoteShownTurn, refusedId,
+  holdsWrite, invoicesTurn, menuTurn, mergeButtons, moreTurn, movedTurn, newsOverCard, newsTurn, noOrderTurn, orderTurn, quoteSentTurn, quoteShownTurn, refusedId,
   sizesSentTurn, teamTurn,
 } from '@/lib/journey';
-import { type News, type Seen, UPDATE_MS, newsSince, withOrder } from '@/lib/updates';
+import { type News, type Seen, UPDATE_MS, newsSince, stillTrue, withOrder } from '@/lib/updates';
 import { typingMs } from '@/lib/pace';
 import { InvoicesCard, OrderCard, PeopleForm, QuoteCard, Rich, SizeRunCard } from './chat-actions';
 
@@ -317,15 +317,18 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
 
   /** A journey turn: its sentence in the log, its buttons as the choices. */
   const say = (turn: JourneyTurn, home = false) => {
-    // Pending news is told first, in the same breath as the reply.
-    const told = news.current.splice(0);
+    // Pending news is told first, in the same breath as the reply, if it is
+    // still true; its buttons join the reply's, within the four.
+    const told = stillTrue(news.current.splice(0), known.current);
+    const heard = told.length ? newsTurn(locale, told) : null;
     setTurns((all) => [
       ...all,
-      ...(told.length ? [{ role: 'prompt' as const, content: newsTurn(locale, told).say }] : []),
+      ...(heard ? [{ role: 'prompt' as const, content: heard.say }] : []),
       { role: 'prompt', content: turn.say },
       ...(turn.card ? [{ role: 'card' as const, card: turn.card }] : []),
     ]);
-    setStage({ k: 'turn', buttons: turn.buttons, home });
+    const buttons = heard ? mergeButtons(turn.buttons, heard.buttons, !!turn.card?.view.action) : turn.buttons;
+    setStage({ k: 'turn', buttons, home });
   };
   const echo = (content?: string) => { if (content) setTurns((all) => [...all, { role: 'user', content }]); };
   async function api<T>(path: string, body?: unknown): Promise<T> {
@@ -479,8 +482,8 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
   actRef.current = act;
 
   // The latest open, stage and busy, for a read that resolves after a re-render.
-  const now = useRef({ open, stage, busy });
-  now.current = { open, stage, busy };
+  const now = useRef({ open, stage, busy, turns });
+  now.current = { open, stage, busy, turns };
 
   /** Look again; tell the news now (open, on a button turn), later (mid-form),
    *  or with the launcher's dot (closed). */
@@ -497,15 +500,18 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
     if (epoch.current !== started || actionLock.current || now.current.busy) return;
     readOrders.current = true;
     learn(...read);
+    news.current = stillTrue(news.current, known.current);
     if (!news.current.length) return;
     if (!now.current.open) return setUnread(true);
     // Mid-form (people, sizes, a stock pick) or on a confirmation that holds
     // a write (Yes, approve; Send the size run), the news waits for the next
     // reply rather than replacing what the customer is about to send.
-    const { stage: at } = now.current;
+    const { stage: at, turns: log } = now.current;
     if (at.k !== 'turn' || holdsWrite(at.buttons)) return;
     const told = news.current.splice(0);
-    const turn = newsTurn(locale, told);
+    // A card said last goes inert under the news: its action moves onto the news turn.
+    const last = log[log.length - 1];
+    const turn = newsOverCard(locale, told, last?.role === 'card' ? last.card : undefined);
     // The news is typed like any reply; `reading` keeps a second look out and
     // the lock keeps every tap out until it has landed.
     const lang = langEpoch.current;

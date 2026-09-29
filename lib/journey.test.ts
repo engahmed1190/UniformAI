@@ -10,7 +10,7 @@ import type { Invoice } from './invoices';
 import { LOCALES, type Locale } from './i18n';
 import {
   type Turn, approveTurn, approvedTurn, caseTurn, failTurn, invoicesTurn, menuTurn, moreTurn,
-  movedTurn, orderTurn, quoteShownTurn, refusedId, planTurn, quoteSentTurn, sizesSentTurn, teamTurn, waitingButtons, holdsWrite,
+  movedTurn, orderTurn, quoteShownTurn, refusedId, planTurn, quoteSentTurn, sizesSentTurn, teamTurn, waitingButtons, holdsWrite, mergeButtons, newsOverCard, newsTurn,
 } from './journey';
 
 const QUOTE_STATES: Workflow[] = ['quote_requested', 'quote_ready', 'quote_closed'];
@@ -174,6 +174,36 @@ assert.ok(planTurn('ar', 'technicians', 18).say.includes('لفريق من 18 م�
 assert.ok(planTurn('ar', 'technicians', 18).say.includes('19 طقمًا'));
 assert.ok(!planTurn('ar', 'technicians', 18).say.includes('من الأطقم'));
 assert.ok(caseTurn('ar', 'CASE-2026-00007').say.includes('أحلت طلب التواصل'));
+
+// News landing on a card turn: the card goes inert, so its action moves onto
+// the news turn, first and primary; no act twice, at most four, one primary.
+for (const locale of LOCALES as readonly Locale[]) {
+  const sizes = orderTurn(locale, order('collecting_sizes'));
+  const quote = order('quote_ready', { quote: 'SAL-QTN-2026-00032', salesOrder: undefined });
+  let turn = keep(newsOverCard(locale, [{ k: 'quote_ready', order: quote }], sizes.card));
+  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['sizes', 'approve']);
+  assert.deepEqual(primary(turn), { k: 'sizes', order: 'SAL-ORD-2026-00011' });
+  // The same act as the card's is offered once.
+  turn = keep(newsOverCard(locale, [{ k: 'confirmed', order: order('collecting_sizes') }], sizes.card));
+  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['sizes']);
+  // The invoices card's action too.
+  const inv = invoicesTurn(locale, invoices);
+  turn = keep(newsOverCard(locale, [{ k: 'paid', invoice: { ...invoices[2] } }], inv.card));
+  assert.deepEqual(turn.buttons.map((b) => b.act.k), ['sendContact']);
+  assert.equal(turn.buttons[0].primary, true);
+  // No card, or a card with no action: the news turn as it was.
+  const plain = newsTurn(locale, [{ k: 'quote_ready', order: quote }]);
+  assert.deepEqual(newsOverCard(locale, [{ k: 'quote_ready', order: quote }]), plain);
+  assert.deepEqual(newsOverCard(locale, [{ k: 'quote_ready', order: quote }], orderTurn(locale, order('in_progress')).card), plain);
+}
+// The cap: four, More kept outside it; the first primary wins.
+{
+  const b = (k: string, primary = false) => ({ label: k, act: { k: 'show', id: k } as const, ...(primary ? { primary } : {}) });
+  const more = { label: 'More', act: { k: 'more' as const } };
+  const m = mergeButtons([b('a'), b('b', true), b('c'), more], [b('b', true), b('d', true), b('e')]);
+  assert.deepEqual(m.map((x) => x.label), ['a', 'b', 'c', 'd', 'More']);
+  assert.deepEqual(m.filter((x) => x.primary).map((x) => x.label), ['b']);
+}
 
 // The voice rules, over every turn above.
 for (const turn of all) {

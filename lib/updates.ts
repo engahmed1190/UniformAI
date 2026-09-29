@@ -52,5 +52,15 @@ export function newsSince(before: Seen | null, orders: Order[], invoices?: Invoi
   return { news, seen };
 }
 
+/** Held news that is still true when it is told: an order still in the state
+ *  the news names, an invoice still in its status. Anything that moved on
+ *  meanwhile (a quote approved on Home) would offer a stale button. */
+export function stillTrue(news: News[], seen: Seen | null): News[] {
+  if (!seen) return news;
+  return news.filter((n) => 'order' in n
+    ? seen.orders[orderKey(n.order)] === n.order.state
+    : !seen.invoices || seen.invoices[n.invoice.name] === n.invoice.status);
+}
+
 /** The customer's own write: seen as it is now, so it is never news. */
 export const withOrder = (seen: Seen, o: Order): Seen => ({ ...seen, orders: { ...seen.orders, [orderKey(o)]: o.state } });

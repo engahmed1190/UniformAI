@@ -181,6 +181,29 @@ export function newsTurn(locale: Locale, news: News[]): Turn {
   return { say: `${t(locale, 'journey.news.since')} ${news.map(line).join(locale === 'ar' ? '؛ ' : '; ')}.`, buttons };
 }
 
+const MOVES = ['more', 'menu'];
+
+/** `extra` after `buttons`: no act twice, at most four (a trailing More or
+ *  Menu stays outside the four), and one primary, the first that had one,
+ *  or none when `cardHolds` (the card on screen already holds it). */
+export function mergeButtons(buttons: Button[], extra: Button[], cardHolds = false): Button[] {
+  const key = (b: Button) => JSON.stringify(b.act);
+  const all = [...buttons, ...extra];
+  const unique = all.filter((b, i) => all.findIndex((x) => key(x) === key(b)) === i);
+  const merged = [...unique.filter((b) => !MOVES.includes(b.act.k)).slice(0, 4), ...unique.filter((b) => MOVES.includes(b.act.k)).slice(0, 1)];
+  const lead = cardHolds ? -1 : merged.findIndex((b) => b.primary);
+  return merged.map(({ label, act }, i) => (i === lead ? { label, act, primary: true } : { label, act }));
+}
+
+/** News told under a card whose button would go inert once the card is no
+ *  longer the last thing said: the card's action comes first on the news
+ *  turn, keeping its primary, so it is never lost. */
+export function newsOverCard(locale: Locale, news: News[], card?: Card): Turn {
+  const turn = newsTurn(locale, news);
+  const action = card?.view.action;
+  return action ? { ...turn, buttons: mergeButtons([action], turn.buttons) } : turn;
+}
+
 /** One line: what is late, if anything. The card carries the figures and the one action. */
 export function invoicesTurn(locale: Locale, invoices: Invoice[]): Turn {
   const open = invoices.filter((i) => i.status !== 'paid').length;

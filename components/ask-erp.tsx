@@ -9,10 +9,11 @@ import { CONCEPTS } from '@/lib/concepts';
 import { type Order, fromJson } from '@/lib/order';
 import type { QuoteView } from '@/lib/quote-view';
 import type { Invoice } from '@/lib/invoices';
+import type { SizeAllocation } from '@/lib/spec';
 import {
   type Act, type Button, type Turn as JourneyTurn, approveTurn, approvedTurn, caseTurn, contactTurn, failTurn,
-  invoicesTurn, menuTurn, moreTurn, noOrderTurn, orderTurn, planTurn, quoteSentTurn, sizeConfirmTurn,
-  sizesSentTurn, teamTurn,
+  invoicesTurn, menuTurn, moreTurn, movedTurn, noOrderTurn, orderTurn, planTurn, quoteSentTurn, refusedId,
+  sizeConfirmTurn, sizesSentTurn, teamTurn,
 } from '@/lib/journey';
 import { InvoiceList, PeopleForm, QuoteCard, SizeRunForm } from './chat-actions';
 
@@ -39,7 +40,7 @@ type Turn = { role: 'user'; content: string } | { role: 'prompt'; content: strin
 type Stage =
   | { k: 'turn'; buttons: Button[]; home?: boolean }
   | { k: 'people'; kit: string }
-  | { k: 'sizes'; order: Order }
+  | { k: 'sizes'; order: Order; run?: SizeAllocation }
   | { k: 'garment'; intent: 'stock' | 'price' }
   | { k: 'colour'; item: string }
   | { k: 'size'; item: string; colour: string }
@@ -331,10 +332,17 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
     const res = await fetch(path, body === undefined ? { cache: 'no-store' } : {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     });
-    if (!res.ok) throw new Error(String(res.status));
+    if (!res.ok) throw Object.assign(new Error(String(res.status)), { status: res.status });
     return res.json() as Promise<T>;
   }
-  const myOrders = async () => (await api<Order[]>('/api/orders')).map(fromJson);
+  // Set when the chat read the orders, so Home reloads its own once the
+  // sheet closes (one request, not one per read).
+  const readOrders = useRef(false);
+  const myOrders = async () => {
+    const orders = (await api<Order[]>('/api/orders')).map(fromJson);
+    readOrders.current = true;
+    return orders;
+  };
   const findIn = (orders: Order[], id: string) => orders.find((o) => [o.id, o.quote, o.salesOrder].includes(id));
 
   /** What a button does. Pure turns answer at once; the rest read or write
@@ -376,7 +384,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
         if (!o || o.state !== 'collecting_sizes') say(o ? orderTurn(locale, o) : noOrderTurn(locale));
         else {
           setTurns((all) => [...all, { role: 'prompt', content: t(locale, 'journey.sizesAsk', { id: a.order, sets: o.sets }) }]);
-          setStage({ k: 'sizes', order: o });
+          setStage({ k: 'sizes', order: o, ...(a.run ? { run: a.run } : {}) });
         }
       } else if (a.k === 'requestQuote') {
         const concept = CONCEPTS.find((c) => c.id === a.kit) ?? CONCEPTS[0];
@@ -397,7 +405,16 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
         const c = await api<{ name: string }>('/api/contact', { topic: a.topic, ...(a.doc ? { document: a.doc } : {}) });
         say(caseTurn(locale, c.name));
       }
-    } catch {
+    } catch (error) {
+      // Refused (already approved, sizes already in, gone): not an outage.
+      // Say where things stand instead of offering the same write again.
+      const status = (error as { status?: number }).status;
+      const id = refusedId(a);
+      if (id && (status === 409 || status === 404)) {
+        try {
+          return say(movedTurn(locale, findIn(await myOrders(), id)));
+        } catch { /* the re-read failed too: that is an outage */ }
+      }
       // A failed menu is the menu: its Try again is the only way on.
       say(failTurn(locale, a), a.k === 'menu');
     } finally {
@@ -418,14 +435,51 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
     void actRef.current({ k: 'order', id: request.orderId }, t(locale, 'erpAsk.btnDetails', { id: request.orderId }));
   }, [request, busy, locale]);
 
-  // First open: the account manager greets and offers what is waiting.
+  // First open, or a fresh start: the account manager greets and offers
+  // what is waiting.
   useEffect(() => {
     if (open && !turns.length) void actRef.current({ k: 'menu' });
+  }, [open, turns.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A language switch restarts the conversation in the new language: the
+  // log holds sentences and labels already written in the old one.
+  useEffect(() => {
+    if (!turns.length) return;
+    setTurns([]);
+    seen.current.clear();
+    setGarments([]);
+    setStage({ k: 'turn', buttons: [], home: true });
+  }, [locale]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Focus lands in the sheet when it opens and back on the launcher when it
+  // closes; Home catches up on what the chat read.
+  const closeButton = useRef<HTMLButtonElement>(null);
+  const launcher = useRef<HTMLButtonElement>(null);
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (open) closeButton.current?.focus();
+    else if (wasOpen.current) {
+      launcher.current?.focus();
+      if (readOrders.current) { readOrders.current = false; onChanged?.(); }
+    }
+    wasOpen.current = open;
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Focus lands in the sheet when it opens.
-  const closeButton = useRef<HTMLButtonElement>(null);
-  useEffect(() => { if (open) closeButton.current?.focus(); }, [open]);
+  // Escape closes wherever focus is (a tapped button unmounts, and focus
+  // falls to the page).
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    addEventListener('keydown', onKey);
+    return () => removeEventListener('keydown', onKey);
+  }, [open]);
+
+  // After each answer, focus its first input (a form) or its first choice.
+  const choiceList = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    if (!open || busy) return;
+    (log.current?.querySelector('input') ?? choiceList.current?.querySelector('button'))?.focus({ preventScroll: true });
+  }, [stage, busy]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const online = health === 'live' ? t(locale, 'erpAsk.live')
     : health === 'offline' ? t(locale, 'erpAsk.offline') : t(locale, 'erpAsk.probing');
@@ -483,7 +537,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
 
   if (!open) {
     return (
-      <button type="button" className={`${s.evLauncher} ${raised ? s.evLauncherRaised : ''}`} onClick={() => setOpen(true)}
+      <button type="button" ref={launcher} className={`${s.evLauncher} ${raised ? s.evLauncherRaised : ''}`} onClick={() => setOpen(true)}
         aria-haspopup="dialog" title={online}>
         <span className={`${s.evLive} ${s[`evLive_${health}`]}`} aria-hidden="true" />
         {t(locale, 'erpAsk.launcher')}
@@ -492,8 +546,7 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
   }
 
   return (
-    <aside className={s.evSheet} role="dialog" aria-label={t(locale, 'erpAsk.title')}
-      onKeyDown={(e) => { if (e.key === 'Escape') setOpen(false); }}>
+    <aside className={s.evSheet} role="dialog" aria-label={t(locale, 'erpAsk.title')}>
       <header className={s.evHead}>
         <div>
           <h2>{t(locale, 'erpAsk.title')}</h2>
@@ -528,11 +581,11 @@ export function AskErp({ locale, request, onOpenOrder, onChanged, raised }: {
             onSubmit={(people) => void act({ k: 'plan', kit: stage.kit, people }, t(locale, 'journey.peopleEcho', { count: people }))} />
         )}
         {!busy && stage.k === 'sizes' && (
-          <SizeRunForm key={stage.order.id} order={stage.order} locale={locale}
+          <SizeRunForm key={stage.order.id} order={stage.order} initial={stage.run} locale={locale}
             onReview={(run) => { echo(t(locale, 'journey.btnReviewRun')); say(sizeConfirmTurn(locale, stage.order, run)); }} />
         )}
         {!busy && (
-          <ul className={`${s.evSuggest} ${s.evChoices}`} aria-label={t(locale, 'erpAsk.next')}>
+          <ul ref={choiceList} className={`${s.evSuggest} ${s.evChoices}`} aria-label={t(locale, 'erpAsk.next')}>
             {choices.map((c) => (
               <li key={c.label}><button type="button" className={c.primary ? s.evPrimary : undefined} onClick={c.tap}>{c.label}</button></li>
             ))}

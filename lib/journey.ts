@@ -17,7 +17,7 @@ export type Act =
   | { k: 'new' } | { k: 'people'; kit: string } | { k: 'plan'; kit: string; people: number }
   | { k: 'requestQuote'; kit: string; people: number; sets: number }
   | { k: 'viewQuote'; quote: string } | { k: 'approve'; quote: string; total: number } | { k: 'approveNow'; quote: string }
-  | { k: 'sizes'; order: string } | { k: 'sendSizes'; order: string; run: SizeAllocation }
+  | { k: 'sizes'; order: string; run?: SizeAllocation } | { k: 'sendSizes'; order: string; run: SizeAllocation }
   | { k: 'contact'; topic: Topic; doc?: string } | { k: 'sendContact'; topic: Topic; doc?: string };
 export type Button = { label: string; act: Act; primary?: boolean };
 export type Turn = { say: string; buttons: Button[] };
@@ -120,9 +120,11 @@ export function orderTurn(locale: Locale, o: Order): Turn {
 
 export const approveTurn = (locale: Locale, quote: string, total: number): Turn => ({
   say: t(locale, 'journey.confirmApprove', { id: quote, total: money(locale, total) }),
+  // A different label, and not where the first Approve was, so a double
+  // tap cannot approve without the customer reading this.
   buttons: [
-    btn(locale, 'btnApprove', { k: 'approveNow', quote }, { total: money(locale, total) }, true),
     btn(locale, 'btnNotNow', { k: 'menu' }),
+    btn(locale, 'btnConfirmApprove', { k: 'approveNow', quote }, { total: money(locale, total) }, true),
   ],
 });
 
@@ -140,7 +142,7 @@ export const sizeConfirmTurn = (locale: Locale, o: Order, run: SizeAllocation): 
   say: t(locale, 'journey.confirmSizes', { id: docOf(o), run: runText(locale, run) }),
   buttons: [
     btn(locale, 'btnSendRun', { k: 'sendSizes', order: docOf(o), run }, undefined, true),
-    btn(locale, 'btnAdjust', { k: 'sizes', order: docOf(o) }),
+    btn(locale, 'btnAdjust', { k: 'sizes', order: docOf(o), run }),
   ],
 });
 
@@ -188,3 +190,16 @@ export const failTurn = (locale: Locale, retry: Act): Turn =>
   ({ say: t(locale, 'journey.failed'), buttons: [btn(locale, 'btnRetry', retry, undefined, true)] });
 export const noOrderTurn = (locale: Locale): Turn =>
   ({ say: t(locale, 'journey.noOrder'), buttons: [btn(locale, 'btnOrders', { k: 'orders' })] });
+
+/** The id a write was about, when the server refused it (409/404). */
+export function refusedId(a: Act): string | undefined {
+  if (a.k === 'approveNow' || a.k === 'viewQuote') return a.quote;
+  if (a.k === 'sendSizes') return a.order;
+  return undefined;
+}
+
+/** A refused write: nothing was changed, and here is where things stand. */
+export function movedTurn(locale: Locale, o?: Order): Turn {
+  const now = o ? orderTurn(locale, o) : noOrderTurn(locale);
+  return { say: `${t(locale, 'journey.moved')} ${now.say}`, buttons: now.buttons };
+}

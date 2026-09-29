@@ -83,7 +83,8 @@ desk or with `npm run team -- issue|confirm|sizes|deliver <document>`.
 6. As the team, deliver. The order reads Delivered; Invoices shows the new
    one Unpaid, one Overdue and the history Paid.
 7. Discuss with our team: a CASE-… reference, visible in ERPNext as an Issue.
-8. Switch to Arabic and ask again: the same conversation, formal Arabic.
+8. Switch to Arabic: the chat starts over in formal Arabic, with a fresh
+   greeting, and every question works the same way.
 9. Stock and last price still work from More: Polo, Navy, XL is 260 in Stores.
 10. `npm run seed:erp -- --reset && npm run demo:check` to start over.
 

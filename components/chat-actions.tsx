@@ -69,11 +69,11 @@ export function InvoiceList({ rows, locale }: { rows: Invoice[]; locale: Locale 
   );
 }
 
-export function SizeRunForm({ order, locale, onReview }: {
-  order: Order; locale: Locale; onReview: (run: SizeAllocation) => void;
+export function SizeRunForm({ order, initial, locale, onReview }: {
+  order: Order; initial?: SizeAllocation; locale: Locale; onReview: (run: SizeAllocation) => void;
 }) {
   const cuts = cutsOf(order.concept);
-  const [run, setRun] = useState<SizeAllocation>({});
+  const [run, setRun] = useState<SizeAllocation>(initial ?? {});
   const done = runTotal(run);
   const set = (cut: GarmentCut, size: GarmentSize, n: number) =>
     setRun((r) => ({ ...r, [cut]: { ...r[cut], [size]: Math.max(0, Math.floor(n) || 0) } }));
@@ -92,7 +92,9 @@ export function SizeRunForm({ order, locale, onReview }: {
         </fieldset>
       ))}
       <p className={s.evRunLeft} aria-live="polite">
-        {t(locale, 'journey.sizesLeft', { done, left: Math.max(0, order.sets - done) })}
+        {done > order.sets
+          ? t(locale, 'journey.sizesOver', { done, over: done - order.sets })
+          : t(locale, 'journey.sizesLeft', { done, left: order.sets - done })}
       </p>
       <div className={s.evRow}>
         <button type="button" onClick={() => setRun(proposedSplit(cuts, order.sets))}>

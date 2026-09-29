@@ -10,7 +10,7 @@ import type { Invoice } from './invoices';
 import { LOCALES, type Locale } from './i18n';
 import {
   type Turn, approveTurn, approvedTurn, caseTurn, contactTurn, failTurn, invoicesTurn, menuTurn, moreTurn,
-  orderTurn, planTurn, quoteSentTurn, sizeConfirmTurn, sizesSentTurn, teamTurn,
+  movedTurn, orderTurn, refusedId, planTurn, quoteSentTurn, sizeConfirmTurn, sizesSentTurn, teamTurn,
 } from './journey';
 
 const QUOTE_STATES: Workflow[] = ['quote_requested', 'quote_ready', 'quote_closed'];
@@ -56,6 +56,11 @@ for (const locale of LOCALES as readonly Locale[]) {
   assert.ok(turn.buttons.some((b) => b.act.k === 'viewQuote'));
   turn = keep(approveTurn(locale, 'SAL-QTN-2026-00031', 27300));
   assert.deepEqual(primary(turn), { k: 'approveNow', quote: 'SAL-QTN-2026-00031' });
+  // A double tap on Approve must not land on the confirmation.
+  const first = orderTurn(locale, order('quote_ready')).buttons.findIndex((b) => b.primary);
+  const confirm = turn.buttons.findIndex((b) => b.primary);
+  assert.notEqual(confirm, first, 'the confirmation sits where Approve was');
+  assert.notEqual(turn.buttons[confirm].label, orderTurn(locale, order('quote_ready')).buttons[first].label);
   turn = keep(approvedTurn(locale, order('awaiting')));
   assert.ok(turn.say.includes('SAL-ORD-2026-00011'));
 
@@ -69,6 +74,8 @@ for (const locale of LOCALES as readonly Locale[]) {
   const run = { men: { M: 21 }, women: { S: 21 } };
   turn = keep(sizeConfirmTurn(locale, order('collecting_sizes'), run));
   assert.deepEqual(primary(turn), { k: 'sendSizes', order: 'SAL-ORD-2026-00011', run });
+  // Adjust keeps what was entered.
+  assert.deepEqual(turn.buttons.find((b) => b.act.k === 'sizes')?.act, { k: 'sizes', order: 'SAL-ORD-2026-00011', run });
   keep(sizesSentTurn(locale, order('in_progress')));
 
   // 4. Delivery and invoices.
@@ -87,9 +94,23 @@ for (const locale of LOCALES as readonly Locale[]) {
   turn = keep(caseTurn(locale, 'CASE-2026-00007'));
   assert.ok(turn.say.includes('CASE-2026-00007'));
   keep(failTurn(locale, { k: 'menu' }));
+
+  // A refused write says nothing changed and where things stand, with no Try again.
+  turn = keep(movedTurn(locale, order('in_progress')));
+  assert.ok(turn.say.includes('SAL-ORD-2026-00011'));
+  assert.ok(!turn.buttons.some((b) => b.act.k === 'sendSizes' || b.act.k === 'approveNow'));
+  turn = keep(movedTurn(locale));
+  assert.deepEqual(turn.buttons.map((b) => b.act), [{ k: 'orders' }]);
 }
 
+assert.equal(refusedId({ k: 'approveNow', quote: 'Q1' }), 'Q1');
+assert.equal(refusedId({ k: 'sendSizes', order: 'O1', run: {} }), 'O1');
+assert.equal(refusedId({ k: 'viewQuote', quote: 'Q2' }), 'Q2');
+assert.equal(refusedId({ k: 'menu' }), undefined);
+
 // English specifics a customer would read.
+assert.match(approveTurn('en', 'Q', 27300).buttons[1].label, /^Yes, approve EGP.27,300$/);
+assert.match(movedTurn('en', order('awaiting')).say, /^This has already moved on, so I have made no change\. I have received/);
 assert.match(planTurn('en', 'technicians', 6).say, /minimum .* 10 sets/);
 assert.match(invoicesTurn('en', invoices).say, /not yet paid.*Open invoices: 2.*Past due: 1/);
 assert.equal(invoicesTurn('en', [invoices[2]]).say, 'Your latest invoice, ACC-SINV-2026-00005, is paid. You have no unpaid invoices.');

@@ -21,7 +21,7 @@ import {
   type LogoMethod, type LogoPosition, type SizePlan,
   allocatedSizeCount, GARMENT_CATALOG, LABELS, PARTS, SIZES,
   setCuts, setGarmentFit, setGarmentIncluded, setLogo, setPart, setSizeCount,
-  gradesFor, gradeName,
+  gradesFor, gradeName, cutsOf,
 } from '@/lib/spec';
 
 // No patch line. The drawing and the price change in front of you, which is
@@ -314,7 +314,7 @@ export function Configurator({
                   <div className={s.partCurrent}>{t(locale, 'configure.genderCutNote')}</div>
                   <div className={s.compactOptions}>
                     {CUT_PROFILES.map((profile) => {
-                      const cuts = concept.cuts?.length ? concept.cuts : ['men', 'women'];
+                      const cuts = cutsOf(concept);
                       const selected = profile.cuts.length === cuts.length
                         && profile.cuts.every((cut) => cuts.includes(cut));
                       return (
@@ -725,7 +725,7 @@ function SizeAllocationEditor({ concept, locale, plan, sets, onChange }: {
   sets: number;
   onChange: (plan: SizePlan) => void;
 }) {
-  const cuts = concept.cuts?.length ? concept.cuts : ['men', 'women'] as GarmentCut[];
+  const cuts = cutsOf(concept);
   const allocated = allocatedSizeCount(plan.allocation, cuts);
   const remaining = sets - allocated;
   const progress = Math.min(100, sets > 0 ? (allocated / sets) * 100 : 0);

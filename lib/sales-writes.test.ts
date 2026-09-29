@@ -6,7 +6,6 @@ import { mockErp } from './fetch-mock';
 import { openCase, sendSizes } from './sales';
 import { parseRun, proposedSplit, runTotal } from './size-run';
 
-
 const kit = { concept: CONCEPTS[0], staff: 10, sets: 11, grades: [], sizePlan: { mode: 'collect_later', allocation: {} } };
 const QTN = { name: 'SAL-QTN-1', party_name: 'BrainWise Technology', status: 'Ordered', docstatus: 1,
   transaction_date: '2026-09-20', grand_total: 7150, uniformai_kit: JSON.stringify(kit) };
@@ -94,10 +93,13 @@ async function main() {
   const run11 = proposedSplit(['men', 'women'], 11);
   const first = sendSizes('SAL-ORD-1', run11);
   const second = sendSizes('SAL-ORD-1', run11);
-  await assert.rejects(second, { status: 409 });
-  await new Promise((r) => setTimeout(r, 20));
-  assert.equal(x.posts().length, 1);
-  release();
+  try {
+    await assert.rejects(second, { status: 409 });
+    await new Promise((r) => setTimeout(r, 20));
+    assert.equal(x.posts().length, 1);
+  } finally {
+    release();
+  }
   await first;
   assert.equal(x.posts().length, 1);
 

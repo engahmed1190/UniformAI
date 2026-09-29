@@ -2,10 +2,9 @@
 // The size breakdown a customer sends for a confirmed order. Pure, so the
 // dock's form and the server share one rule.
 
-import { type Concept, type GarmentCut, type GarmentSize, type SizeAllocation, SIZES } from './spec';
+import { type Concept, type GarmentCut, type GarmentSize, type SizeAllocation, SIZES, cutsOf } from './spec';
 
-export const cutsOf = (concept?: Concept): GarmentCut[] =>
-  concept?.cuts?.length ? concept.cuts : ['men', 'women'];
+export { cutsOf };
 
 export const runTotal = (run: SizeAllocation): number =>
   Object.values(run).reduce((n, sizes) => n + Object.values(sizes ?? {}).reduce((m, v) => m + (v ?? 0), 0), 0);

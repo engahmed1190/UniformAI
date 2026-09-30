@@ -119,11 +119,12 @@ export default function Page() {
   const [saved, setSaved] = useState<Concept[]>([]);
   // Loaded after mount, not in the initializer: the server renders an empty
   // list and a lazy read would hydrate against something else. With nothing
-  // stored, two sample kits stand in so the library is not bare.
+  // stored yet, two sample kits stand in so the library is not bare; once the
+  // customer has emptied it themselves, it stays empty.
   useEffect(() => {
-    let stored: Concept[] = [];
-    try { stored = JSON.parse(localStorage.getItem('kits') ?? '[]'); } catch { /* stay empty */ }
-    setSaved(stored.length ? stored : [
+    let stored: Concept[] | null = null;
+    try { stored = JSON.parse(localStorage.getItem('kits') ?? 'null'); } catch { /* stay empty */ }
+    setSaved(stored ?? [
       selectConcepts({ industry: 'site technicians, navy, logo on the chest' })[0],
       selectConcepts({ industry: 'smart shirts for the front desk' })[0],
     ]);
@@ -238,6 +239,20 @@ export default function Page() {
     setSaved(next);
     try { localStorage.setItem('kits', JSON.stringify(next)); } catch { /* private mode */ }
     flash(t(locale, 'kits.saved', { name: kitName(locale, kit.id) }));
+  }
+
+  async function removeKit(c: Concept) {
+    const name = kitName(locale, c.id);
+    if (!(await confirm({
+      title: t(locale, 'kits.removeTitle', { name }),
+      message: t(locale, 'kits.removeNote'),
+      confirmLabel: t(locale, 'kits.remove'),
+      cancelLabel: t(locale, 'common.cancel'),
+    }))) return;
+    const next = saved.filter((x) => x.id !== c.id);
+    setSaved(next);
+    try { localStorage.setItem('kits', JSON.stringify(next)); } catch { /* private mode */ }
+    flash(t(locale, 'kits.removed', { name }));
   }
 
   return (
@@ -411,6 +426,7 @@ export default function Page() {
               locale={locale}
               money={money}
               onNew={() => setPage('design')}
+              onRemove={(c) => void removeKit(c)}
               onOpen={(c) => {
                 // Add to the working set rather than replacing it, so going
                 // back to the generated kits still shows all of them.
@@ -709,7 +725,7 @@ function Empty({ title, note, action, onAct }: { title: string; note: string; ac
 }
 
 function Kits({
-  saved, logoText, staff, onNew, onOpen, locale, money,
+  saved, logoText, staff, onNew, onOpen, onRemove, locale, money,
 }: {
   saved: Concept[];
   locale: Locale;
@@ -718,6 +734,7 @@ function Kits({
   staff: number;
   onNew: () => void;
   onOpen: (c: Concept) => void;
+  onRemove: (c: Concept) => void;
 }) {
   return (
     <>
@@ -741,9 +758,20 @@ function Kits({
               of nothing, and the place to say "another one" is at the end of
               the ones you have. */}
           {saved.map((c) => (
-            <ConceptCard key={c.id} concept={c} logoText={logoText} employees={staff}
-              locale={locale} money={money}
-              selected={false} onSelect={() => onOpen(c)} />
+            // A sibling of the card, not inside it: the card is itself a button.
+            <div key={c.id} className={s.kitSlot}>
+              <ConceptCard concept={c} logoText={logoText} employees={staff}
+                locale={locale} money={money}
+                selected={false} onSelect={() => onOpen(c)} />
+              <button type="button" className={s.kitRemove} onClick={() => onRemove(c)}
+                aria-label={t(locale, 'kits.removeLabel', { name: kitName(locale, c.id) })}
+                title={t(locale, 'kits.remove')}>
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor"
+                  strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" />
+                </svg>
+              </button>
+            </div>
           ))}
           <button type="button" className={s.kitNew} onClick={onNew}>
             <svg width="22" height="22" viewBox="0 0 16 16" fill="none" stroke="currentColor"

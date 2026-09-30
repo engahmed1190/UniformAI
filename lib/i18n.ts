@@ -297,6 +297,9 @@ const en = {
     forPeople: '{price} for {count}',
     specLine: '{cuts} · {fit}',
     saved: 'Saved “{name}” to your kits', already: '“{name}” is already in your kits',
+    remove: 'Delete kit', removeLabel: 'Delete “{name}”',
+    removeTitle: 'Delete “{name}”?', removeNote: 'It leaves your saved kits. Orders already placed with it are not affected.',
+    removed: 'Deleted “{name}” from your kits',
   },
   settings: {
     title: 'Settings', subtitle: 'Used to keep every kit on brand.',
@@ -835,6 +838,9 @@ const ar: Dict<typeof en> = {
     specLine: '{cuts} · {fit}',
     saved: 'حفظنا «{name}» في أطقمكم',
     already: '«{name}» موجود بالفعل في أطقمكم',
+    remove: 'حذف الطقم', removeLabel: 'حذف «{name}»',
+    removeTitle: 'هل تريدون حذف «{name}»؟', removeNote: 'سيُحذف من أطقمكم المحفوظة، ولن تتأثر الطلبات التي قدمتموها به.',
+    removed: 'حذفنا «{name}» من أطقمكم',
   },
 
   settings: {

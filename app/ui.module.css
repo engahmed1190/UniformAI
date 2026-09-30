@@ -489,6 +489,29 @@
   color: var(--accent);
 }
 
+.kitSlot { position: relative; display: flex; }
+
+.kitRemove {
+  position: absolute;
+  top: var(--s2);
+  inset-inline-end: var(--s2);
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-2);
+  cursor: pointer;
+}
+
+.kitRemove:hover,
+.kitRemove:focus-visible {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
 .kit {
   background: var(--surface);
   border: 1px solid var(--line);

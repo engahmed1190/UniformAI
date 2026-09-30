@@ -146,3 +146,12 @@ assert.equal(countOf('ar', 'set', 19), '19 طقمًا');
 assert.equal(countOf('ar', 'set', 100), '100 طقم');
 assert.equal(countOf('ar', 'person', 5), '5 موظفين');
 assert.equal(countOf('ar', 'person', 18), '18 موظفًا');
+
+// 7. Counts in Arabic templates. The template carries no noun; counted()
+// supplies the whole phrase, so the noun agrees with every number.
+import { counted } from './i18n';
+assert.equal(t('ar', 'kits.forPeople', { price: '100', count: counted('ar', 'person', 1) }), '100 لـ موظف واحد');
+assert.equal(t('ar', 'kits.forPeople', { price: '100', count: counted('ar', 'person', 40) }), '100 لـ 40 موظفًا');
+assert.equal(t('ar', 'home.orderLine', { id: '12', sets: counted('ar', 'set', 5) }), '12 · 5 أطقم');
+assert.equal(t('ar', 'erpAsk.pieces', { count: counted('ar', 'piece', 1500) }), '1,500 قطعة');
+assert.equal(t('en', 'kits.forPeople', { price: 'X', count: counted('en', 'person', 40) }), 'X for 40');

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import s from '@/app/ui.module.css';
-import { type Locale, countOf, formatCurrency, formatDay, formatNumber, t } from '@/lib/i18n';
+import { type Locale, countOf, counted, formatCurrency, formatDay, formatNumber, t } from '@/lib/i18n';
 import { type Intent, answer } from '@/lib/answers';
 import { MAX_CARDS, type Change, type Source, type Step, changesSince, remember, sourceKey } from '@/lib/evidence';
 import { CONCEPTS } from '@/lib/concepts';
@@ -92,7 +92,7 @@ function RecordCard({ source, changes, locale, onOpenOrder }: {
               <span className={s.evArrow} aria-hidden="true">{locale === 'ar' ? '←' : '→'}</span>
             </>
           )}
-          <b>{t(locale, 'erpAsk.pieces', { count: formatNumber(locale, source.qty) })}</b>
+          <b>{t(locale, 'erpAsk.pieces', { count: counted(locale, 'piece', source.qty) })}</b>
           <span className={s.evWhere} dir="auto">{source.detail}</span>
         </div>
       ) : (

@@ -171,7 +171,7 @@ console.log('manager: all assertions passed');
 // 10. Every sentence the manager writes exists in both languages. These are
 // generated at runtime, so a missing Arabic branch shows up as English text
 // inside an RTL page -- the most visible way a translation ships broken.
-import { type Locale } from './i18n';
+import { type Locale, countOf } from './i18n';
 const ARABIC_TEXT = /[؀-ۿ]/;
 const hotAr = 'قمصان بولو صيفية لـ40 فني موقع، كحلي';
 for (const [locale, brief] of [['en', hot], ['ar', hotAr]] as [Locale, string][]) {
@@ -208,3 +208,12 @@ assert.match(whyTheseKits('ar', 'قمصان بولو صيفية لفريق ال�
 assert.doesNotMatch(whyTheseKits('ar', 'قمصان بولو صيفية لفريق الموقع', CONCEPTS.slice(0, 3)), /heat|summer/,
   'no English word may be quoted back at an Arabic customer');
 assert.match(whyTheseKits('en', 'Summer polos', CONCEPTS.slice(0, 3)), /“summer”/);
+
+// The Arabic greeting counts the noun and reads as a sentence: "طلب واحد"
+// not "طلبات: 1", and UniformAI says "our team", not its own name.
+const quoted = { ...placed, state: 'quote_ready' as const };
+const pricing = { ...placed, state: 'quote_requested' as const };
+const arMany = greeting('ar', [quoted, pricing, { ...pricing }, placed, sewing], 15);
+assert.equal(arMany, 'مساء الخير أستاذ أحمد. لديكم الآن طلب واحد بانتظار موافقتكم، وطلبان لدى فريقنا، وطلب واحد بانتظار المقاسات، وطلب واحد قيد الإنتاج.');
+assert.equal(countOf('ar', 'order', 3), '3 طلبات');
+assert.equal(countOf('ar', 'order', 11), '11 طلبًا');

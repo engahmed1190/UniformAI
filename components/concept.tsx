@@ -4,7 +4,7 @@ import { Check } from './check';
 import s from '@/app/ui.module.css';
 import { GarmentSvg, logoGarmentIndex } from './garments';
 import { type Concept, conceptPrice, cutsOf } from '@/lib/spec';
-import { type Locale, kitName, t } from '@/lib/i18n';
+import { type Locale, counted, kitName, t } from '@/lib/i18n';
 
 export function ConceptCard({
   concept, logoText, employees, selected, onSelect, locale, money,
@@ -38,7 +38,7 @@ export function ConceptCard({
           cuts: t(locale, `cuts.${cutKey}`), fit: fits,
         })}</span>
         <span className={s.kitFoot}>
-          <span className={s.kitPer}>{t(locale, 'kits.forPeople', { price: money(per * employees), count: employees })}</span>
+          <span className={s.kitPer}>{t(locale, 'kits.forPeople', { price: money(per * employees), count: counted(locale, 'person', employees) })}</span>
           <span className={s.kitPrice}>{money(per)}</span>
         </span>
       </span>

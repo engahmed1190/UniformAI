@@ -7,7 +7,7 @@ import { GarmentSvg, isTop, logoGarmentIndex } from './garments';
 import { SWATCHES, colourName, refine } from '@/lib/refine';
 import { stepAdvice } from '@/lib/manager';
 import { type Suggestion, quickAsks } from '@/lib/suggest';
-import { type Locale, formatCurrency, kitName, t } from '@/lib/i18n';
+import { type Locale, counted, formatCurrency, kitName, t } from '@/lib/i18n';
 
 /** colourName() answers in English -- it is shared with the parser. Turn its
  *  answer into the buyer's language, including the "Close to X" fallback. */
@@ -548,10 +548,10 @@ export function Configurator({
                           <span className={s.optNote}>
                             {pct === 0
                               ? t(locale, 'spare.noneNote')
-                              : t(locale, 'spare.note', { count: Math.ceil(staff * (1 + pct)) - staff })}
+                              : t(locale, 'spare.note', { count: counted(locale, 'set', Math.ceil(staff * (1 + pct)) - staff) })}
                           </span>
                         </span>
-                        <span className={s.optPrice}>{t(locale, 'spare.setsCount', { count: Math.ceil(staff * (1 + pct)) })}</span>
+                        <span className={s.optPrice}>{t(locale, 'spare.setsCount', { count: counted(locale, 'set', Math.ceil(staff * (1 + pct))) })}</span>
                       </button>
                     ))}
                   </div>
@@ -754,7 +754,7 @@ function SizeAllocationEditor({ concept, locale, plan, sets, onChange }: {
           <div className={s.cutSizes} key={cut}>
             <div className={s.cutSizesHead}>
               <strong>{t(locale, `cuts.${cut}Block`)}</strong>
-              <span>{t(locale, cutTotal === 1 ? 'sizing.cutCountOne' : 'sizing.cutCount', { count: cutTotal })}</span>
+              <span>{t(locale, cutTotal === 1 ? 'sizing.cutCountOne' : 'sizing.cutCount', { count: counted(locale, 'set', cutTotal) })}</span>
             </div>
             <div className={s.sizeGrid}>
               {SIZES.map((size) => {

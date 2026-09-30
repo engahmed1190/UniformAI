@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import s from '@/app/ui.module.css';
 import { Select } from './select';
-import { type Locale, LOCALES, LOCALE_CODES, LOCALE_NAMES, dir, t } from '@/lib/i18n';
+import { type Locale, LOCALES, LOCALE_CODES, LOCALE_NAMES, counted, dir, t } from '@/lib/i18n';
 
 export type PageId = 'home' | 'design' | 'configure' | 'kits' | 'orders' | 'settings';
 
@@ -98,7 +98,7 @@ export function Sidebar({
 
       <div className={s.account}>
         <span className={s.accountName}>{company}</span>
-        <div className={s.accountMeta}>{t(locale, 'nav.staff', { count: staff })}</div>
+        <div className={s.accountMeta}>{t(locale, 'nav.staff', { count: counted(locale, 'person', staff) })}</div>
       </div>
 
       {/* The full rail: every destination, shown from tablet width up. */}

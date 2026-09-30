@@ -15,7 +15,7 @@
 import { type Concept, conceptPriceAt, kitKey } from './spec';
 import { type Applied, colourName, refine } from './refine';
 import { contrast, isLight, readBrief } from './manager';
-import { type Locale, formatCurrency, t } from './i18n';
+import { type Locale, counted, formatCurrency, t } from './i18n';
 
 /** The bare colour word for a sentence. swatchWord() answers "Close to Sand",
  *  which is honest beside a swatch and clumsy inside a sentence. */
@@ -150,7 +150,7 @@ export function suggestions(
     return t(locale, key, {
       delta: formatCurrency(locale, delta),
       total: formatCurrency(locale, delta * sets),
-      sets,
+      sets: counted(locale, 'set', sets),
     });
   };
 

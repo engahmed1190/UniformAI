@@ -494,7 +494,7 @@ const ar: Dict<typeof en> = {
     savedKits: 'الأطقم المحفوظة', orders: 'الطلبات', settings: 'الإعدادات',
     workspace: 'مساحة العمل', more: 'المزيد', sections: 'الأقسام',
     moreSections: 'أقسام أخرى', closeMenu: 'إغلاق القائمة',
-    staff: '{count} موظف · صيف 2026',
+    staff: '{count} · صيف 2026',
   },
 
   home: {
@@ -515,7 +515,7 @@ const ar: Dict<typeof en> = {
     delivered: 'تم التسليم',
     nothingYet: 'لا شيء حتى الآن',
     nextDue: 'التسليم القادم {date}',
-    orderLine: '{id} · {sets} طقم',
+    orderLine: '{id} · {sets}',
     recentActivity: 'آخر التحديثات',
     viewOrders: 'عرض الطلبات',
     browseSavedKits: 'تصفح الأطقم المحفوظة',
@@ -536,7 +536,7 @@ const ar: Dict<typeof en> = {
     logoHint: 'سترونه على معاينة الزي.',
     generate: 'عرض الأطقم المقترحة',
     generating: 'نجهّز لكم ثلاثة أطقم…',
-    threeKits: 'ثلاثة أطقم اخترناها لـ {count} موظف',
+    threeKits: 'ثلاثة أطقم اخترناها لـ {count}',
     pickClosest: 'اختاروا الأقرب، ثم غيّروا ما تريدون.',
     chooseDifferent: 'اختيار طقم آخر',
     configureThis: 'تخصيص هذا الطقم',
@@ -607,9 +607,9 @@ const ar: Dict<typeof en> = {
     saveAsKit: 'حفظ ضمن الأطقم',
     nextStep: 'التالي: {name}',
     perPersonPrice: '{price} للفرد',
-    beforeOptions: '{price} للفرد · {total} لـ {count} موظف قبل الخيارات الإضافية',
-    setsLine: '{price} للفرد · {sets} طقم، منها {spare} احتياطي',
-    setsLineNoSpare: '{price} للفرد · {sets} طقم',
+    beforeOptions: '{price} للفرد · {total} لـ {count} قبل الخيارات الإضافية',
+    setsLine: '{price} للفرد · {sets}، منها {spare} للاحتياط',
+    setsLineNoSpare: '{price} للفرد · {sets}',
   },
 
   suggest: {
@@ -652,8 +652,8 @@ const ar: Dict<typeof en> = {
     perSet: 'إجمالي الطقم الواحد',
     specHead: 'المواصفات',
     sets: 'الأطقم',
-    coversPeople: '{people} موظف + {spare} طقم احتياطي',
-    coversNoSpare: '{people} موظف · بلا أطقم احتياطية',
+    coversPeople: '{people} + {spare} للاحتياط',
+    coversNoSpare: '{people} · بلا أطقم احتياطية',
     cutRange: 'قوالب التفصيل',
     fitProfile: 'القَصّة',
     sizing: 'خطة المقاسات',
@@ -684,7 +684,7 @@ const ar: Dict<typeof en> = {
     whatIsBeingMade: 'ما نعمل عليه الآن',
     whatWasMade: 'ما تم تجهيزه',
     waitingOnSizes: 'بانتظار المقاسات',
-    setsAndValue: '{sets} طقم · {value}',
+    setsAndValue: '{sets} · {value}',
     now: 'المرحلة الحالية',
     partDelivered: 'تم تسليم {pct}٪',
     approve: 'الموافقة على عرض السعر',
@@ -727,7 +727,7 @@ const ar: Dict<typeof en> = {
     evidence: 'من حسابكم', evidenceSome: 'أحدث {shown} من طلباتكم، وعددها {count}',
     noRecord: 'لا يوجد لدينا سجل بهذا', noRecordNote: 'لا شيء في حسابكم أو في مخزوننا يطابق ذلك، لذا لم أخمّن.',
     kindSalesOrder: 'طلب', kindQuotation: 'عرض سعر', kindSalesInvoice: 'فاتورة', kindBin: 'متوفر بالمخزون', kindItem: 'صنف',
-    pieces: '{count} قطعة', delivery: 'التسليم {date}', invoiced: 'الفاتورة {date}', perPiece: '{price} للقطعة',
+    pieces: '{count}', delivery: 'التسليم {date}', invoiced: 'الفاتورة {date}', perPiece: '{price} للقطعة',
     showOrder: 'عرض الطلب', updated: 'تغيّر منذ سؤالكم الأخير', was: '· كان:',
     askAboutOrder: 'الاستفسار عن هذا الطلب',
     errorUnreachable: 'تعذّر عليّ الوصول إلى حسابكم الآن. أرجو أن تسألوا مرة أخرى بعد قليل.',
@@ -746,7 +746,7 @@ const ar: Dict<typeof en> = {
       partDelivered: 'تم تسليم {pct}% حتى الآن.',
       due: 'موعد التسليم المتوقع {date}.', total: 'الإجمالي {price}.', lines: 'يشمل {lines}.',
       line: '{qty} {what}',
-      stockYes: 'نعم، لدينا {count} قطعة من {item} في المخزون: {where}.',
+      stockYes: 'نعم، لدينا {count} من {item} في المخزون: {where}.',
       stockWhere: '{count} في {warehouse}',
       stockOut: '{item} نفد من المخزون حاليًا.',
       price: 'آخر سعر دفعتموه {price} للقطعة في {item}، في الفاتورة {id} ({date}).',
@@ -834,7 +834,7 @@ const ar: Dict<typeof en> = {
     noneTitle: 'لم تحفظوا أي طقم بعد',
     noneNote: 'عندما تصلون إلى طقم يعجبكم، احفظوه هنا لتطلبوه مرة أخرى في أي وقت.',
     createFirst: 'صمّموا أول طقم',
-    forPeople: '{price} لـ {count} موظف',
+    forPeople: '{price} لـ {count}',
     specLine: '{cuts} · {fit}',
     saved: 'حفظنا «{name}» في أطقمكم',
     already: '«{name}» موجود بالفعل في أطقمكم',
@@ -895,11 +895,11 @@ const ar: Dict<typeof en> = {
     brandNone: 'من دون شعار ستوفّرون من 17 إلى 35 للفرد، لكن هوية شركتكم لن تكون واضحة على الطقم.',
     brandPrint: 'الطباعة توفّر 17 للفرد وتناسب الأقمشة الملساء، لكنها تبهت مع الغسيل الساخن.',
     brandEmbroidery: 'التطريز يزيد السعر 17 للفرد، لكنه يدوم مع القطعة ويحافظ على شكله.',
-    spareNone: 'يتضمن الطلب {sets} طقم بالضبط. أي موظف جديد سينتظر الدفعة التالية؛ واحتياطي 5٪ يكفي لتجنّب ذلك.',
-    quoteCovers: 'العرض يغطي {people} موظفًا ومعهم {spare} طقم احتياطي. لن تدفعوا شيئًا قبل تأكيد الطلب، وسأجمع المقاسات بعد ذلك.',
-    quoteCoversNoSpare: 'العرض يغطي {people} موظفًا بلا احتياطي. لن تدفعوا شيئًا قبل تأكيد الطلب، وسأجمع المقاسات بعد ذلك.',
-    quoteSized: 'العرض يغطي {people} موظفًا ومعهم {spare} طقم احتياطي، وكل المقاسات موزعة. لن تدفعوا شيئًا قبل تأكيد الطلب.',
-    quoteSizedNoSpare: 'العرض يغطي {people} موظفًا، وكل المقاسات موزعة. لن تدفعوا شيئًا قبل تأكيد الطلب.',
+    spareNone: 'يتضمن الطلب {sets} بالضبط. أي موظف جديد سينتظر الدفعة التالية؛ واحتياطي 5٪ يكفي لتجنّب ذلك.',
+    quoteCovers: 'العرض يغطي {people} ومعهم {spare} للاحتياط. لن تدفعوا شيئًا قبل تأكيد الطلب، وسأجمع المقاسات بعد ذلك.',
+    quoteCoversNoSpare: 'العرض يغطي {people} بلا احتياطي. لن تدفعوا شيئًا قبل تأكيد الطلب، وسأجمع المقاسات بعد ذلك.',
+    quoteSized: 'العرض يغطي {people} ومعهم {spare} للاحتياط، وكل المقاسات موزعة. لن تدفعوا شيئًا قبل تأكيد الطلب.',
+    quoteSizedNoSpare: 'العرض يغطي {people}، وكل المقاسات موزعة. لن تدفعوا شيئًا قبل تأكيد الطلب.',
     orderDelivered: 'تم التسليم في {date}. إذا احتجتم إلى بديل، فسننفّذه بالمواصفات نفسها.',
     orderMaking: 'الطلب الآن قيد الإنتاج، وجميع الخامات جاهزة. نتوقع التسليم في {date} — وسأخبركم هنا إذا تغيّر الموعد.',
     orderPartial: 'تم تسليم {pct}٪ من الطلب، وباقي الكمية في الطريق. نتوقع اكتمال التسليم في {date}.',
@@ -913,10 +913,10 @@ const ar: Dict<typeof en> = {
     greetQuoteRequested: '{part} {name}. نقوم بتسعير طلبكم لطقم {kit}، رقم {id}، وسنبلغكم عند جاهزية عرض السعر.',
     greetQuoteReady: '{part} {name}. عرض السعر لطقم {kit}، رقم {id}، جاهز وبانتظار موافقتكم.',
     greetAwaiting: '{part} {name}. شكرًا لموافقتكم على طقم {kit}. يؤكد فريق UniformAI الطلب {id} الآن.',
-    waitingYou: 'طلبات بانتظار موافقتكم: {n}', withUs: 'طلبات لدى UniformAI: {n}',
-    waitingSizes: 'طلبات بانتظار المقاسات: {n}', makingNow: 'طلبات قيد الإنتاج: {n}',
+    waitingYou: '{n} بانتظار موافقتكم', withUs: '{n} لدى فريقنا',
+    waitingSizes: '{n} بانتظار المقاسات', makingNow: '{n} قيد الإنتاج',
     greetMaking: '{part} {name}. بدأنا إنتاج طقم {kit}، والتسليم متوقع تقريبًا في {date}.',
-    greetMany: '{part} {name}. {list}.',
+    greetMany: '{part} {name}. لديكم الآن {list}.',
     morning: 'صباح الخير', afternoon: 'مساء الخير', evening: 'مساء الخير', you: 'أستاذ أحمد',
     placeChest: 'الصدر', placeRightChest: 'الجهة اليمنى من الصدر', placeSleeve: 'الكم', placeBack: 'الظهر',
   },
@@ -972,10 +972,10 @@ const ar: Dict<typeof en> = {
     complete: 'جاهز للإنتاج',
     remaining: 'بقي {count} من الأطقم',
     over: 'تجاوزت الكمية إجمالي الطلب بمقدار {count}',
-    cutCount: '{count} طقم', cutCountOne: '{count} طقم',
+    cutCount: '{count}', cutCountOne: '{count}',
     drawingNote: 'المقاسات تغيّر جدول الكميات، لا الرسم. سنؤكد القياسات النهائية قبل القص.',
     collectQuote: 'تُجمع من الموظفين بعد اعتماد العرض',
-    allocatedQuote: 'تم توزيع مقاسات {count} طقم',
+    allocatedQuote: 'تم توزيع مقاسات {count}',
   },
 
   parts: {
@@ -1041,8 +1041,8 @@ const ar: Dict<typeof en> = {
     noneNote: 'الموظف الجديد سينتظر الدفعة التالية.',
     five: '5٪ احتياطي',
     ten: '10٪ احتياطي',
-    note: '{count} طقم للموظفين الجدد وحالات الاستبدال',
-    setsCount: '{count} طقم',
+    note: '{count} للموظفين الجدد وحالات الاستبدال',
+    setsCount: '{count}',
     sets: '{count} طقم',
   },
 
@@ -1151,19 +1151,29 @@ export function spareMessage(locale: Locale, count: number): string {
 /** "19 sets" / "19 طقمًا". Arabic picks its noun form by the count's last
  *  two digits: 1 and 2 are words, 3-10 take the plural, 11-99 the singular
  *  accusative, and hundreds the bare singular. */
-export function countOf(locale: Locale, noun: 'set' | 'person', n: number): string {
+export function countOf(locale: Locale, noun: 'set' | 'person' | 'order' | 'piece', n: number): string {
   if (locale === 'en') {
-    return noun === 'set' ? `${n} ${n === 1 ? 'set' : 'sets'}` : `${n} ${n === 1 ? 'person' : 'people'}`;
+    const [one, many] = { set: ['set', 'sets'], person: ['person', 'people'], order: ['order', 'orders'], piece: ['pc', 'pcs'] }[noun];
+    return `${n} ${n === 1 ? one : many}`;
   }
-  const f = noun === 'set'
-    ? { one: 'طقم واحد', two: 'طقمان', few: 'أطقم', many: 'طقمًا', other: 'طقم' }
-    : { one: 'موظف واحد', two: 'موظفان', few: 'موظفين', many: 'موظفًا', other: 'موظف' };
+  const f = {
+    set: { one: 'طقم واحد', two: 'طقمان', few: 'أطقم', many: 'طقمًا', other: 'طقم' },
+    person: { one: 'موظف واحد', two: 'موظفان', few: 'موظفين', many: 'موظفًا', other: 'موظف' },
+    order: { one: 'طلب واحد', two: 'طلبان', few: 'طلبات', many: 'طلبًا', other: 'طلب' },
+    piece: { one: 'قطعة واحدة', two: 'قطعتان', few: 'قطع', many: 'قطعة', other: 'قطعة' },
+  }[noun];
   const m = n % 100;
   if (n === 1) return f.one;
   if (n === 2) return f.two;
   // 101 and 102 read "101 طقم" / "102 طقم", not the spelled-out forms; fine below the demo's 500-person cap.
-  return `${n} ${m >= 3 && m <= 10 ? f.few : m >= 11 ? f.many : f.other}`;
+  return `${formatNumber(locale, n)} ${m >= 3 && m <= 10 ? f.few : m >= 11 ? f.many : f.other}`;
 }
+
+/** A count for a template slot. Arabic templates leave the noun out and take
+ *  the whole counted phrase, since the noun's form depends on the number;
+ *  English templates keep their noun and take the bare number. */
+export const counted = (locale: Locale, noun: Parameters<typeof countOf>[1], n: number): string =>
+  (locale === 'ar' ? countOf(locale, noun, n) : formatNumber(locale, n));
 
 /** A kit's display name. The stored id is stable data -- an order placed in
  *  Arabic must still read correctly in English -- so only the label here

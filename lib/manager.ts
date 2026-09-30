@@ -9,7 +9,7 @@
 import { type Concept, type LogoPosition, type SizingMode, conceptPrice } from './spec';
 import { briefWishes, swatchWord } from './refine';
 import { type Order, type Workflow } from './order';
-import { type Locale, formatCurrency, formatDate, kitName, spareMessage, t } from './i18n';
+import { type Locale, formatCurrency, formatDate, counted, kitName, spareMessage, t } from './i18n';
 
 /** Colour words that describe a family, not a specific cloth. */
 const FAMILY = new Set(['dark', 'light', 'neutral']);
@@ -146,7 +146,7 @@ export function stepAdvice(
     case 4: {
       if (sizeMode === 'allocate_now') return t(locale, 'manager.sizesAllocateNow');
       const sets = Math.ceil(staff * (1 + spare));
-      if (spare === 0) return t(locale, 'manager.spareNone', { sets });
+      if (spare === 0) return t(locale, 'manager.spareNone', { sets: counted(locale, 'set', sets) });
       // Arabic counts in five categories, so this sentence is written per
       // category rather than templated. See spareMessage in i18n.ts.
       return spareMessage(locale, sets - staff);
@@ -168,12 +168,12 @@ export function quoteNote(
   const spare = sets - staff;
   if (sizesReady) {
     return spare > 0
-      ? t(locale, 'manager.quoteSized', { people: staff, spare })
-      : t(locale, 'manager.quoteSizedNoSpare', { people: staff });
+      ? t(locale, 'manager.quoteSized', { people: counted(locale, 'person', staff), spare: counted(locale, 'set', spare) })
+      : t(locale, 'manager.quoteSizedNoSpare', { people: counted(locale, 'person', staff) });
   }
   return spare > 0
-    ? t(locale, 'manager.quoteCovers', { people: staff, spare })
-    : t(locale, 'manager.quoteCoversNoSpare', { people: staff });
+    ? t(locale, 'manager.quoteCovers', { people: counted(locale, 'person', staff), spare: counted(locale, 'set', spare) })
+    : t(locale, 'manager.quoteCoversNoSpare', { people: counted(locale, 'person', staff) });
 }
 
 /** Where the order actually is, and what happens next. */
@@ -222,7 +222,10 @@ export function greeting(locale: Locale, orders: Order[], hour = new Date().getH
   const n = (states: readonly Workflow[]) => open.filter((o) => states.includes(o.state)).length;
   const list = (Object.entries(GROUPS) as [keyof typeof GROUPS, readonly Workflow[]][])
     .map(([k, states]) => [k, n(states)] as const).filter(([, c]) => c > 0)
-    .map(([k, c]) => t(locale, `manager.${k}`, { n: c })).join(locale === 'ar' ? '، ' : ', ');
+    // Arabic counts the noun itself ("طلبان", not "طلبات: 2") and links the
+    // clauses with و, so the list reads as a sentence rather than a dashboard.
+    .map(([k, c]) => t(locale, `manager.${k}`, { n: counted(locale, 'order', c) }))
+    .join(locale === 'ar' ? '، و' : ', ');
   return t(locale, 'manager.greetMany', { part, name, list });
 }
 

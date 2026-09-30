@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import s from './ui.module.css';
 import { Sidebar, Topbar, type PageId } from '@/components/shell';
-import { type Locale, LOCALES, LOCALE_CODES, LOCALE_NAMES, dir, kitName, formatCurrency, formatDate, t } from '@/lib/i18n';
+import { type Locale, LOCALES, LOCALE_CODES, LOCALE_NAMES, counted, dir, kitName, formatCurrency, formatDate, t } from '@/lib/i18n';
 import { ConceptCard } from '@/components/concept';
 import { Select } from '@/components/select';
 import { colourName } from '@/lib/refine';
@@ -350,7 +350,7 @@ export default function Page() {
                   <div className={s.group}>
                   <div className={s.sectionHead}>
                     <div>
-                      <h2>{t(locale, 'design.threeKits', { count: staff })}</h2>
+                      <h2>{t(locale, 'design.threeKits', { count: counted(locale, 'person', staff) })}</h2>
                       <p>{t(locale, 'design.pickClosest')}</p>
                     </div>
                   </div>
@@ -468,7 +468,7 @@ export default function Page() {
                 {t(locale, 'configure.beforeOptions', {
                   price: money(conceptPrice(concepts[sel])),
                   total: money(conceptPrice(concepts[sel]) * staff),
-                  count: staff,
+                  count: counted(locale, 'person', staff),
                 })}
               </span>
             </div>
@@ -484,8 +484,8 @@ export default function Page() {
               <span className={s.priceTotal}>{money(perPerson * sets)}</span>
               <span className={s.priceBreak}>
                 {spare > 0
-                  ? t(locale, 'configure.setsLine', { price: money(perPerson), sets, spare: sets - staff })
-                  : t(locale, 'configure.setsLineNoSpare', { price: money(perPerson), sets })}
+                  ? t(locale, 'configure.setsLine', { price: money(perPerson), sets: counted(locale, 'set', sets), spare: counted(locale, 'set', sets - staff) })
+                  : t(locale, 'configure.setsLineNoSpare', { price: money(perPerson), sets: counted(locale, 'set', sets) })}
               </span>
             </div>
             <div className={s.priceActions}>
@@ -646,11 +646,11 @@ function Home({
         {/* Every number here is counted from the orders, or an honest zero. */}
         <Stat label={t(locale, 'home.waitingOnYou')} value={String(waiting.length)}
           note={waiting[0]
-            ? t(locale, 'home.orderLine', { id: waiting[0].id, sets: waiting[0].sets })
+            ? t(locale, 'home.orderLine', { id: waiting[0].id, sets: counted(locale, 'set', waiting[0].sets) })
             : t(locale, 'home.noneOnYou')} />
         <Stat label={t(locale, 'home.withUs')} value={String(withUs.length)}
           note={withUs[0]
-            ? t(locale, 'home.orderLine', { id: withUs[0].id, sets: withUs[0].sets })
+            ? t(locale, 'home.orderLine', { id: withUs[0].id, sets: counted(locale, 'set', withUs[0].sets) })
             : t(locale, 'home.noneWithUs')} />
         <Stat label={t(locale, 'home.inProduction')} value={String(making.length)}
           note={making[0]
@@ -676,7 +676,7 @@ function Home({
             <tbody>
               {orders.length ? orders.map((o) => (
                 <tr key={o.id}>
-                  <td><strong>{orderKit(locale, o)}</strong><div className={s.sub}>{t(locale, 'home.orderLine', { id: o.id, sets: o.sets })}</div></td>
+                  <td><strong>{orderKit(locale, o)}</strong><div className={s.sub}>{t(locale, 'home.orderLine', { id: o.id, sets: counted(locale, 'set', o.sets) })}</div></td>
                   <td data-label={t(locale, 'home.colStatus')}><StatusPill order={o} locale={locale} /></td>
                   <td data-label={t(locale, 'home.colValue')} className={`${s.right} ${s.mono}`}>{money(o.total)}</td>
                   <td data-label={t(locale, 'home.colUpdated')} className={`${s.right} ${s.muted}`}>{shortDay(lastStep(o))}</td>
@@ -884,7 +884,7 @@ function Orders({ orders, loadState, onReload, onApproved, onHome, locale, money
                     }}>
                     <td>
                       <strong>{orderKit(locale, x)}</strong>
-                      <div className={s.sub}>{t(locale, 'home.orderLine', { id: x.id, sets: x.sets })}</div>
+                      <div className={s.sub}>{t(locale, 'home.orderLine', { id: x.id, sets: counted(locale, 'set', x.sets) })}</div>
                     </td>
                     <td data-label={t(locale, 'orders.colStatus')}><StatusPill order={x} locale={locale} /></td>
                     <td data-label={t(locale, 'orders.colValue')} className={`${s.right} ${s.mono}`}>{money(x.total)}</td>
@@ -902,7 +902,7 @@ function Orders({ orders, loadState, onReload, onApproved, onHome, locale, money
           <div>
             <div className={s.sub}>{o.id}</div>
             <h2 className={s.orderTitle}>{orderKit(locale, o)}</h2>
-            <div className={s.sub}>{t(locale, 'orders.setsAndValue', { sets: o.sets, value: money(o.total) })}</div>
+            <div className={s.sub}>{t(locale, 'orders.setsAndValue', { sets: counted(locale, 'set', o.sets), value: money(o.total) })}</div>
           </div>
           <div className={s.alignEnd}>
             <StatusPill order={o} locale={locale} />
@@ -1220,7 +1220,7 @@ function Quote({
             <span className={s.sub}>
               {sizePlan.mode === 'collect_later'
                 ? t(locale, 'sizing.collectQuote')
-                : t(locale, 'sizing.allocatedQuote', { count: assigned })}
+                : t(locale, 'sizing.allocatedQuote', { count: counted(locale, 'set', assigned) })}
               {sizePlan.mode === 'allocate_now' && ` · ${assigned}/${sets}`}
             </span>
           </div>
@@ -1228,8 +1228,8 @@ function Quote({
           <div className={`${s.quoteLine} ${s.quoteSets}`}>
             <span>{t(locale, 'quote.sets')}<span className={s.sub}>
               {spareSets > 0
-                ? t(locale, 'quote.coversPeople', { people: staff, spare: spareSets })
-                : t(locale, 'quote.coversNoSpare', { people: staff })}
+                ? t(locale, 'quote.coversPeople', { people: counted(locale, 'person', staff), spare: counted(locale, 'set', spareSets) })
+                : t(locale, 'quote.coversNoSpare', { people: counted(locale, 'person', staff) })}
             </span></span>
             <b>{`\u00d7 ${sets}`}</b>
           </div>

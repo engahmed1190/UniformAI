@@ -5,7 +5,7 @@
 
 import type { Workflow } from './order';
 import type { GarmentType, LogoMethod } from './spec';
-import { type Locale, formatCurrency, formatDate, formatNumber, t } from './i18n';
+import { type Locale, counted, formatCurrency, formatDate, formatNumber, t } from './i18n';
 
 export const INTENTS = ['orders', 'order', 'stock', 'price', 'options'] as const;
 export type Intent = typeof INTENTS[number];
@@ -68,7 +68,7 @@ function stockAnswer(locale: Locale, rows: Row[]): string {
     if (qty > 0) where.set(warehouseName(r.warehouse), (where.get(warehouseName(r.warehouse)) ?? 0) + qty);
   }
   return t(locale, 'erpAsk.a.stockYes', {
-    count: formatNumber(locale, total), item,
+    count: counted(locale, 'piece', total), item,
     where: [...where].map(([warehouse, qty]) =>
       t(locale, 'erpAsk.a.stockWhere', { count: formatNumber(locale, qty), warehouse }))
       .join(locale === 'ar' ? '، ' : ', '),
